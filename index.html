@@ -91,7 +91,13 @@ body {
 }
 		</style>
 		
-	</head>
+	<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Ashgrave">
+<meta name="theme-color" content="#000000">
+<link rel="apple-touch-icon" href="index.png">
+</head>
 	<body>
 <div id="rotate">Turn your phone sideways to play</div>
 		<canvas id="canvas">
@@ -112,7 +118,7 @@ body {
 // The engine binary is shipped in pieces; stitch them back together on load.
 (function(){
   var realFetch = window.fetch.bind(window);
-  var PARTS = ["part0.wasm","part1.wasm","part2.wasm"];
+  var PARTS = ["part0.wasm", "part1.wasm", "part2.wasm"];
   window.fetch = function(input, init){
     var url = (typeof input === "string") ? input : (input && input.url) || "";
     var name = url.split("?")[0].split("/").pop();
@@ -125,16 +131,20 @@ body {
     if (name === "index.pck") return realFetch("game_pck.wasm", init);
     return realFetch(input, init);
   };
+  // Stop the page itself from scrolling, zooming or selecting during play.
+  ["gesturestart","gesturechange","contextmenu"].forEach(function(e){
+    document.addEventListener(e, function(ev){ ev.preventDefault(); }, {passive:false}); });
+  document.addEventListener("touchmove", function(ev){ ev.preventDefault(); }, {passive:false});
 })();
 </script>
 <style>
 #rotate{display:none;position:fixed;inset:0;z-index:10;background:#000;color:#eec;font:600 20px sans-serif;align-items:center;justify-content:center;text-align:center;padding:24px}
 @media (orientation:portrait){#rotate{display:flex}}
-html,body{overscroll-behavior:none;touch-action:none;-webkit-user-select:none;user-select:none}
+html,body{overscroll-behavior:none;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;background:#000}
 </style>
 <script src="index.js"></script>
 		<script>
-const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":134912,"index.wasm":43699190},"focusCanvas":true,"gdextensionLibs":[]};
+const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":291968,"index.wasm":43699190},"focusCanvas":true,"gdextensionLibs":[]};
 const GODOT_THREADS_ENABLED = false;
 const engine = new Engine(GODOT_CONFIG);
 
