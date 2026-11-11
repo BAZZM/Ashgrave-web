@@ -1,0 +1,33 @@
+; Engine configuration file.
+; Packed into the game data by tools/build.py and read by the engine at start.
+
+config_version=5
+
+[application]
+
+config/name="Ashgrave (working title)"
+run/main_scene="res://scenes/overworld.tscn"
+config/features=PackedStringArray("4.4", "Mobile")
+run/flush_stdout_on_print=true
+
+[autoload]
+
+Online="*res://scripts/online.gd"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+window/handheld/orientation=4
+
+[input_devices]
+
+pointing/emulate_touch_from_mouse=true
+
+[rendering]
+
+renderer/rendering_method="mobile"
+textures/vram_compression/import_etc2_astc=true
+anti_aliasing/quality/msaa_3d=1

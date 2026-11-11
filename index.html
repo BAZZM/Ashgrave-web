@@ -129,7 +129,7 @@ body {
         .then(function(bufs){ return new Response(new Blob(bufs,{type:"application/wasm"}),
           {status:200, headers:{"Content-Type":"application/wasm"}}); });
     }
-    if (name === "index.pck") return realFetch("game_38cd602155.wasm", {cache: "no-cache"});
+    if (name === "index.pck") return realFetch("game_e722516f69.wasm", {cache: "no-cache"});
     return realFetch(input, init);
   };
   // Stop the page itself from scrolling, zooming or selecting during play.
@@ -147,7 +147,7 @@ html,body{position:fixed;inset:0;width:100%;height:100%;overflow:hidden;overscro
 </style>
 <script src="index.js"></script>
 		<script>
-const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":510720,"index.wasm":43699190},"focusCanvas":true,"gdextensionLibs":[]};
+const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":524164,"index.wasm":43699190},"focusCanvas":true,"gdextensionLibs":[]};
 const GODOT_THREADS_ENABLED = false;
 const engine = new Engine(GODOT_CONFIG);
 
