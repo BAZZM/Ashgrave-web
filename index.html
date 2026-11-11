@@ -129,23 +129,25 @@ body {
         .then(function(bufs){ return new Response(new Blob(bufs,{type:"application/wasm"}),
           {status:200, headers:{"Content-Type":"application/wasm"}}); });
     }
-    if (name === "index.pck") return realFetch("game_f58308e015.wasm", {cache: "no-cache"});
+    if (name === "index.pck") return realFetch("game_b702aa781c.wasm", {cache: "no-cache"});
     return realFetch(input, init);
   };
   // Stop the page itself from scrolling, zooming or selecting during play.
   ["gesturestart","gesturechange","contextmenu"].forEach(function(e){
     document.addEventListener(e, function(ev){ ev.preventDefault(); }, {passive:false}); });
-  document.addEventListener("touchmove", function(ev){ ev.preventDefault(); }, {passive:false});
+  ["touchstart","touchmove","touchend"].forEach(function(e){
+    document.addEventListener(e, function(ev){ if (ev.cancelable) ev.preventDefault(); }, {passive:false}); });
+  window.addEventListener("scroll", function(){ window.scrollTo(0,0); });
 })();
 </script>
 <style>
 #rotate{display:none;position:fixed;inset:0;z-index:10;background:#000;color:#eec;font:600 20px sans-serif;align-items:center;justify-content:center;text-align:center;padding:24px}
 @media (orientation:portrait){#rotate{display:flex}}
-html,body{overscroll-behavior:none;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;background:#000}
+html,body{position:fixed;inset:0;width:100%;height:100%;overflow:hidden;overscroll-behavior:none;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;background:#000}
 </style>
 <script src="index.js"></script>
 		<script>
-const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":363280,"index.wasm":43699190},"focusCanvas":true,"gdextensionLibs":[]};
+const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":377040,"index.wasm":43699190},"focusCanvas":true,"gdextensionLibs":[]};
 const GODOT_THREADS_ENABLED = false;
 const engine = new Engine(GODOT_CONFIG);
 
