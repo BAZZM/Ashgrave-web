@@ -91,7 +91,8 @@ body {
 }
 		</style>
 		
-	<meta name="apple-mobile-web-app-capable" content="yes">
+	<meta http-equiv="Cache-Control" content="no-cache">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Ashgrave">
@@ -128,7 +129,7 @@ body {
         .then(function(bufs){ return new Response(new Blob(bufs,{type:"application/wasm"}),
           {status:200, headers:{"Content-Type":"application/wasm"}}); });
     }
-    if (name === "index.pck") return realFetch("game_pck.wasm", init);
+    if (name === "index.pck") return realFetch("game_f58308e015.wasm", {cache: "no-cache"});
     return realFetch(input, init);
   };
   // Stop the page itself from scrolling, zooming or selecting during play.
@@ -144,7 +145,7 @@ html,body{overscroll-behavior:none;touch-action:none;-webkit-user-select:none;us
 </style>
 <script src="index.js"></script>
 		<script>
-const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":363136,"index.wasm":43699190},"focusCanvas":true,"gdextensionLibs":[]};
+const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":363280,"index.wasm":43699190},"focusCanvas":true,"gdextensionLibs":[]};
 const GODOT_THREADS_ENABLED = false;
 const engine = new Engine(GODOT_CONFIG);
 
