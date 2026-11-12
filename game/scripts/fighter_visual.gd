@@ -18,6 +18,10 @@ func set_walk(_amount: float) -> void:
 	pass
 
 
+func set_pace(_mult: float) -> void:
+	pass
+
+
 func flash(_color: Color) -> void:
 	pass
 

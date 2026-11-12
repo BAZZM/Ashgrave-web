@@ -53,6 +53,7 @@ var _feet_follow := false
 var _over := {}
 var _walk := 0.0
 var _walk_phase := 0.0
+var _pace := 1.0
 
 
 func _ready() -> void:
@@ -387,7 +388,7 @@ func _process(delta: float) -> void:
 	if _body == null:
 		return
 	_breath += delta
-	_walk_phase += delta * 9.5 * _walk
+	_walk_phase += delta * 9.5 * _walk * _pace
 	_torso.position.y = HIP_Y + 0.04 + sin(_breath * 2.2) * 0.012 + absf(sin(_walk_phase)) * 0.03 * _walk
 	_solve()
 	_update_trail(delta)
@@ -439,7 +440,7 @@ func _solve() -> void:
 		var foot_local: Vector3 = (FOOT_L if side < 0.0 else FOOT_R) * Vector3(_bulk, 1, 1)
 		if _walk > 0.01:
 			var ph := _walk_phase + (0.0 if side < 0.0 else PI)
-			foot_local = Vector3(foot_local.x, maxf(sin(ph), 0.0) * 0.16 * _walk, lerpf(foot_local.z, -cos(ph) * 0.36, _walk))
+			foot_local = Vector3(foot_local.x, maxf(sin(ph), 0.0) * 0.16 * _walk, lerpf(foot_local.z, -cos(ph) * 0.36 * (1.0 + (_pace - 1.0) * 0.4), _walk))
 		var src: Transform3D = _body.global_transform if _feet_follow else global_transform
 		var foot := src * foot_local
 		var ankle := foot + src.basis.y.normalized() * 0.1 * s
@@ -605,6 +606,11 @@ func _rise() -> void:
 
 func set_walk(amount: float) -> void:
 	_walk = clampf(amount, 0.0, 1.0)
+
+
+## Speed relative to a plain walk (1 = walk): quickens the leg cycle and lengthens the stride.
+func set_pace(mult: float) -> void:
+	_pace = clampf(mult, 1.0, 2.5)
 
 
 func set_tell(color: Color, t: float) -> void:
