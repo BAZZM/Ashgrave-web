@@ -59,7 +59,7 @@ attempt rather than retrying at the same tier.
 | # | Task | Owns | Model | Status |
 |---|------|------|-------|--------|
 | 0.1 | On-screen performance readout, off unless `?perf=1` | `game/scripts/perf.gd` (new), autoload line in `project.godot` | Sonnet, medium | done |
-| 0.2 | Automated checks: bot runs as pass/fail | `tools/` | Sonnet, high | started |
+| 0.2 | Automated checks: bot runs as pass/fail (`node tools/check.js`) | `tools/` | Sonnet, high | done |
 | 0.3 | Split `overworld.gd` and `duel.gd` along their seams, no behaviour change | those two files and the new files they become | Opus | after 0.2 |
 
 0.3 waits for 0.2 because the checks are what make a 3,000-line restructure of
@@ -155,4 +155,4 @@ Merge the tracks, balance, and fix what playtests turn up.
 |-----|--------|
 | Two players online never saw each other (split across relays) | fixed, live |
 | A fighter who died stayed tipped over until reload; later falls looked wrong | fixed, live |
-| Finisher camera aimed away from the foe in open-world duels (world point used as a local one) | fixed on `dev` |
+| Finisher camera aimed away from the foe in open-world duels (world point used as a local one) | fixed, live |
