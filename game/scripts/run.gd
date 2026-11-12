@@ -4,7 +4,7 @@ extends RefCounted
 const SAVE_PATH := "user://save.json"
 const FLOORS := 5
 
-const BUILD := 10
+const BUILD := 11
 
 const BOONS := {
 	"edge": {"name": "Keen Edge", "desc": "+15% sword damage", "max": 6},
