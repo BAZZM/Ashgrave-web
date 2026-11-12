@@ -24,6 +24,18 @@ const COMBOS := [
 	{"name": "FLURRY", "seq": ["R", "L", "R"], "mult": 1.35},
 ]
 
+const DuelFx := preload("res://scripts/duel_fx.gd")
+const DuelEnemy := preload("res://scripts/duel_enemy.gd")
+const DuelStage := preload("res://scripts/duel_stage.gd")
+const DuelPvp := preload("res://scripts/duel_pvp.gd")
+const DuelBot := preload("res://scripts/duel_bot.gd")
+
+var fx: DuelFx
+var ai: DuelEnemy
+var stage: DuelStage
+var pvp_net: DuelPvp
+var bots: DuelBot
+
 var host: Node3D
 var player: FighterVisual
 var enemy: FighterVisual
@@ -34,13 +46,6 @@ var slain: Array = []
 var pvp := {}
 var pvp_turn := ""
 var pvp_left := 0
-var _pvp_cool := 0.0
-var _pvp_idle := 0.0
-var _pvp_quiet := 0.0
-var _pvp_ping := 0.0
-var _bot_decided := false
-var _pvp_turn_due := false
-var _pvp_wait := 0.0
 var _enc := {}
 
 var def: EnemyDef
@@ -92,7 +97,6 @@ var combo: Array = []
 var combo_i := 0
 var cur_attack: AttackDef
 var windup_total := 1.0
-var _feinted := false
 var _feint_hold := 0.0
 
 var p_state := PState.READY
@@ -128,7 +132,6 @@ var _time_token := 0
 var _base_time := 1.0
 var _bot := ""
 var _move_tw: Tween
-var _cam_tw: Tween
 var _shot_path := ""
 var _shot_when := "windup"
 var _buf := {"kind": "", "v": Vector2.ZERO, "dir": 0, "ms": 0}
@@ -137,6 +140,13 @@ var _met_before := false
 
 
 func _ready() -> void:
+	fx = DuelFx.new(self)
+	ai = DuelEnemy.new(self)
+	stage = DuelStage.new(self)
+	pvp_net = DuelPvp.new(self)
+	bots = DuelBot.new(self)
+	for part in [fx, ai, stage, pvp_net, bots]:
+		add_child(part)
 	randomize()
 	Run.ensure_loaded()
 	for a in OS.get_cmdline_user_args():
@@ -205,11 +215,11 @@ func _ready() -> void:
 			def.kind = "player"
 			def.max_hp = float(pvp.max_hp)
 			foes[0].def = def
-			Online.message.connect(_pvp_message)
+			Online.message.connect(pvp_net._pvp_message)
 			if _bot != "":
 				_base_time = 1.0
 				Engine.time_scale = 1.0
-		_place_in_world()
+		stage._place_in_world()
 	_enc = foes[0].enc
 	Run.encounter = _enc
 	for i in range(1, foes.size()):
@@ -217,7 +227,7 @@ func _ready() -> void:
 		o.merge({"hp": o.def.max_hp, "brk": 0.0, "enr": false, "spd": o.def.speed, "side": -1.0 if i % 2 == 1 else 1.0,
 			"timer": 4.0 + i * 2.5, "tell": 0.0})
 		others.append(o)
-		_seat(o)
+		stage._seat(o)
 	e_hp = def.max_hp
 	e_speed = def.speed
 	var ps := Run.stats()
@@ -277,7 +287,7 @@ func _ready() -> void:
 	sfx = Sfx.new()
 	sfx.ambience = host == null
 	add_child(sfx)
-	sparks = _make_sparks()
+	sparks = fx._make_sparks()
 	add_child(sparks)
 
 	var layer := CanvasLayer.new()
@@ -290,288 +300,6 @@ func _ready() -> void:
 	enemy.play(&"idle")
 	player.play(&"idle")
 	begin()
-
-
-func _ground(world_pos: Vector3) -> float:
-	if host != null and host.has_method("ground_y"):
-		return host.ground_y(world_pos)
-	return global_position.y
-
-
-func _place_in_world() -> void:
-	var hp := player.global_position
-	var ep := enemy.global_position
-	var dir := ep - hp
-	dir.y = 0
-	dir = dir.normalized() if dir.length() > 0.1 else Vector3.FORWARD
-	var mid := hp.lerp(ep, 0.5)
-	mid.y = _ground(mid)
-	global_transform = Transform3D(Basis.looking_at(dir, Vector3.UP), mid)
-	for f in [player, enemy]:
-		_adopt(f)
-	_stand(player, Vector3(-1.2, 0, 2.0), 0.0)
-	_stand(enemy, Vector3(0, 0, -0.75), PI)
-
-
-func _adopt(f: Node3D) -> void:
-	if f.get_parent() != self:
-		f.set_meta("duel_parent", f.get_parent())
-		f.reparent(self)
-
-
-func _stand(f: Node3D, local: Vector3, yaw: float, glide := 0.0) -> void:
-	var world := to_global(local)
-	local.y = _ground(world) - global_position.y
-	if glide > 0.0:
-		var tw := create_tween().set_parallel(true).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		tw.tween_property(f, "position", local, glide)
-		tw.tween_property(f, "rotation:y", yaw, glide)
-	else:
-		f.position = local
-		f.rotation = Vector3(0, yaw, 0)
-
-
-func _seat(o: Dictionary, glide := 0.0) -> void:
-	_adopt(o.node)
-	_stand(o.node, Vector3(3.3 * float(o.side), 0, -0.1), PI - 0.75 * float(o.side), glide)
-	(o.node as FighterVisual).play(&"idle")
-
-
-func _release() -> void:
-	var all: Array = [player, enemy]
-	for o in others:
-		all.append(o.node)
-	for r in slain:
-		all.append(r.node)
-	for f in all:
-		if is_instance_valid(f) and f.has_meta("duel_parent") and f.get_parent() == self:
-			var parent: Node = f.get_meta("duel_parent")
-			if is_instance_valid(parent):
-				f.reparent(parent)
-			f.remove_meta("duel_parent")
-
-
-func _pvp_my_turn() -> void:
-	pvp_turn = "attack"
-	pvp_left = 3
-	_pvp_cool = 0.7
-	_pvp_idle = 0.0
-	hud.banner("YOUR ATTACK", Color(1.0, 0.8, 0.4), 0.9)
-
-
-func _pvp_their_turn(tell_them := true) -> void:
-	pvp_turn = "defend"
-	pvp_left = 0
-	_pvp_wait = 0.0
-	if tell_them:
-		Online.send_to(pvp.id, {"k": "turn"})
-	hud.banner("DEFEND", Color(0.6, 0.8, 1.0), 0.9)
-
-
-func _pvp_tick(delta: float) -> void:
-	var real := delta / maxf(Engine.time_scale, 0.05)
-	if e_state == EState.INTRO:
-		e_timer -= delta
-		if e_timer <= 0.0:
-			e_state = EState.IDLE
-			enemy.play(&"idle")
-			if pvp.first:
-				_pvp_my_turn()
-			else:
-				_pvp_their_turn(false)
-		return
-	_pvp_cool -= delta
-	_pvp_quiet += real
-	_pvp_ping += real
-	if _pvp_ping > 3.0:
-		_pvp_ping = 0.0
-		Online.send_to(pvp.id, {"k": "ping", "hp": p_hp})
-	if _pvp_quiet > 14.0 and result == "":
-		hud.banner("%s has left" % pvp.name, Color(1, 1, 1), 1.2)
-		reward.left = true
-		_end("win")
-		return
-	if pvp_turn == "defend":
-		_pvp_wait += real
-
-		if e_state == EState.IDLE and p_state != PState.DEAD and (_pvp_turn_due or _pvp_wait > 9.0):
-			_pvp_turn_due = false
-			_pvp_my_turn()
-	if pvp_turn == "attack":
-		_pvp_idle += real
-		if (pvp_left <= 0 and _pvp_cool <= -0.9) or _pvp_idle > 6.0:
-			_pvp_their_turn()
-	if _bot == "pvp":
-		_pvp_bot()
-
-
-func _pvp_attack(letter: String) -> void:
-	if pvp_turn != "attack" or pvp_left <= 0 or _pvp_cool > 0.0 or p_state != PState.READY:
-		return
-	pvp_left -= 1
-	_pvp_cool = 1.25
-	_pvp_idle = 0.0
-
-	var dir: int = {"L": AttackDef.Dir.LEFT, "R": AttackDef.Dir.RIGHT, "D": AttackDef.Dir.OVER, "U": AttackDef.Dir.THRUST} [letter]
-	Online.send_to(pvp.id, {"k": "atk", "dir": dir, "dmg": slash_damage * (2.6 if dir == AttackDef.Dir.OVER else 2.0)})
-	p_state = PState.SWING
-	p_timer = 0.5
-	player.play(&"slash", {"L": -1, "R": 1, "U": 2, "D": 3} [letter] as int, 0.35)
-	sfx.play("whoosh", -6.0)
-
-
-func _pvp_report(outcome: String, riposte := 0.0) -> void:
-	if pvp.is_empty():
-		return
-	Online.send_to(pvp.id, {"k": "res", "o": outcome, "hp": maxf(p_hp, 0.0), "rip": riposte})
-
-
-func _pvp_message(from: String, m: Dictionary) -> void:
-	if from != String(pvp.id) or result != "":
-		return
-	_pvp_quiet = 0.0
-	if m.has("hp"):
-		e_hp = clampf(float(m.hp), 0.0, def.max_hp)
-	match String(m.get("k", "")):
-		"atk":
-			if e_state == EState.INTRO:
-				e_state = EState.IDLE
-			pvp_turn = "defend"
-			_pvp_wait = 0.0
-			_pvp_turn_due = false
-			cur_attack = AttackDef.make(int(m.dir), 0.9, float(m.dmg))
-			combo = [cur_attack]
-			combo_i = 0
-			_begin_attack()
-		"res":
-			var at := enemy.get_clash_point() + Vector3(randf_range(-0.3, 0.3), 0.4, 0)
-			match String(m.o):
-				"hit":
-					enemy.play(&"hit", [-1, 1].pick_random(), 0.12)
-					enemy.flash(Color(1.0, 0.9, 0.7))
-					sfx.play("hit")
-					_burst(enemy.get_clash_point(), 10)
-					hud.float_text("HIT", at, Color(1.0, 0.9, 0.5), true)
-					_hitstop(0.05)
-					stats.sword_dmg += 12.0
-				"dodged": hud.float_text("DODGED", at, Color(0.7, 0.85, 1.0))
-				"blocked":
-					sfx.play("block")
-					hud.float_text("BLOCKED", at, Color(0.7, 0.8, 1.0))
-				"parried":
-					sfx.play("clang")
-					_burst(player.get_clash_point().lerp(enemy.get_clash_point(), 0.5), 24)
-					hud.banner("PARRIED!", Color(1.0, 0.5, 0.4), 0.7)
-					pvp_turn = "defend"
-					pvp_left = 0
-					_hurt(float(m.get("rip", 10.0)), AttackDef.Dir.LEFT)
-		"turn":
-			_pvp_turn_due = true
-		"dead":
-			var won := int(m.get("gold", 0))
-			Run.data.gold += won
-			Run.data.pvp_w += 1
-			reward.gold = won
-			e_hp = 0.0
-			e_state = EState.DEAD
-			enemy.play(&"death")
-			player.play(&"victory")
-			sfx.play("finish", 2.0, 0.0)
-			_shake = 1.2
-			_end("win")
-
-
-func _pvp_bot() -> void:
-	if pvp_turn == "attack" and _pvp_cool <= 0.0 and pvp_left > 0 and p_state == PState.READY and e_state != EState.WINDUP:
-		_pvp_attack(["L", "R", "D", "U"].pick_random())
-	elif e_state == EState.WINDUP and e_timer <= parry_window * 0.6 and p_state == PState.READY and not _bot_decided:
-		_bot_decided = true
-		if randf() < 0.45 and cur_attack.dir != AttackDef.Dir.THRUST:
-			input_swipe([Vector2(-1, 0), Vector2(1, 0), Vector2(0, -1)][cur_attack.dir])
-	if e_state != EState.WINDUP:
-		_bot_decided = false
-
-
-func _tick_others(delta: float) -> void:
-	for o in others:
-		var node: FighterVisual = o.node
-		if float(o.tell) > 0.0:
-			o.tell = float(o.tell) - delta
-			if float(o.tell) <= 0.0:
-				_side_strike(o)
-			continue
-		o.timer = float(o.timer) - delta
-		if float(o.timer) > 0.0:
-			continue
-		if e_state == EState.WINDUP or e_state in [EState.INTRO, EState.FINISHER, EState.DEAD]:
-			o.timer = 0.6
-			continue
-		o.tell = 1.25
-		node.play(&"windup", AttackDef.Dir.THRUST, 1.25)
-		node.set_tell(Color(1.0, 0.15, 0.1), 0.6)
-		sfx.play("tell", -8.0, 0.02)
-
-
-func _side_strike(o: Dictionary) -> void:
-	var node: FighterVisual = o.node
-	node.play(&"strike", AttackDef.Dir.THRUST, 0.1)
-	node.set_tell(Color.BLACK, 0.2)
-	o.timer = randf_range(3.5, 5.0) if (o.def as EnemyDef).ranged else randf_range(6.0, 9.0)
-	get_tree().create_timer(0.45).timeout.connect(func():
-		if is_instance_valid(node) and others.has(o):
-			node.play(&"idle"))
-	sfx.play("whoosh", -6.0)
-	var dmg: float = (o.def as EnemyDef).side_damage
-	if p_state == PState.DODGE and dodge_elapsed <= DODGE_IFRAME:
-		stats.dodges += 1
-		return
-	if blocking and p_state == PState.READY:
-		stats.blocks += 1
-		sfx.play("block")
-		shield -= dmg
-		if shield <= 0.0:
-			shield = 0.0
-			blocking = false
-			_hurt(dmg * 0.6, AttackDef.Dir.THRUST)
-		return
-	_hurt(dmg, AttackDef.Dir.RIGHT if float(o.side) > 0.0 else AttackDef.Dir.LEFT)
-
-
-func switch_target(i: int) -> void:
-	if i < 0 or i >= others.size() or result != "" or p_state == PState.DEAD:
-		return
-	if e_state in [EState.FINISHER, EState.DEAD, EState.INTRO]:
-		return
-	var next: Dictionary = others[i]
-	if float(next.tell) > 0.0:
-		(next.node as FighterVisual).set_tell(Color.BLACK, 0.1)
-	var prev := {"node": enemy, "def": def, "enc": _enc, "hp": e_hp, "brk": e_break, "enr": enraged, "spd": e_speed,
-		"side": next.side, "timer": 5.0, "tell": 0.0}
-	others[i] = prev
-	enemy.set_tell(Color.BLACK, 0.1)
-	_seat(prev, 0.45)
-	_face(next, 0.45)
-	hud.banner(def.display_name, Color(1.0, 0.8, 0.5), 0.9)
-
-
-func _face(rec: Dictionary, glide: float) -> void:
-	enemy = rec.node
-	def = rec.def
-	_enc = rec.enc
-	Run.encounter = _enc
-	e_hp = rec.get("hp", def.max_hp)
-	e_break = rec.get("brk", 0.0)
-	enraged = rec.get("enr", false)
-	e_speed = rec.get("spd", def.speed)
-	burn = 0.0
-	chill = 0.0
-	hit_combo = 0
-	_stand(enemy, Vector3(0, 0, -0.75), PI, glide)
-	enemy.play(&"idle")
-	e_state = EState.IDLE
-	e_timer = 1.0
-	open_reason = ""
-	can_spare = false
 
 
 func begin() -> void:
@@ -589,93 +317,24 @@ func begin() -> void:
 	enemy.play(&"taunt")
 	sfx.play("break", -8.0, 0.0)
 	hud.banner(def.display_name if pvp.is_empty() else "DUEL: " + def.display_name, Color(1.0, 0.8, 0.5), 2.0)
-	_cam_to(CAM_POS, CAM_LOOK, 1.6)
+	fx._cam_to(CAM_POS, CAM_LOOK, 1.6)
 	var tw := create_tween()
 	tw.tween_interval(1.5)
 	tw.tween_property(self, "cinematic", 0.0, 0.5)
 
 
-func _cam_to(pos: Vector3, look: Vector3, t: float) -> void:
-	if _cam_tw:
-		_cam_tw.kill()
-	_cam_tw = create_tween().set_parallel(true).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
-	_cam_tw.tween_property(cam, "position", pos, t)
-	_cam_tw.tween_property(self, "_look", look, t)
-
-
-func _make_sparks() -> CPUParticles3D:
-	var p := CPUParticles3D.new()
-	p.emitting = false
-	p.one_shot = true
-	p.amount = 28
-	p.lifetime = 0.45
-	p.explosiveness = 1.0
-	p.direction = Vector3.UP
-	p.spread = 180.0
-	p.initial_velocity_min = 2.5
-	p.initial_velocity_max = 6.5
-	p.gravity = Vector3(0, -9, 0)
-	var q := QuadMesh.new()
-	q.size = Vector2(0.05, 0.05)
-	var m := StandardMaterial3D.new()
-	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
-	m.albedo_color = Color(1.0, 0.85, 0.5)
-	q.material = m
-	p.mesh = q
-	return p
-
-
 func _process(delta: float) -> void:
 	_t += delta
-	_update_camera(delta)
-	_take_shot_if_due()
+	fx._update_camera(delta)
+	bots._take_shot_if_due()
 	if not started or result != "":
 		return
 	stats.time += delta
 	_tick_player(delta)
-	_tick_enemy(delta)
-	_tick_others(delta)
+	ai._tick_enemy(delta)
+	ai._tick_others(delta)
 	if _bot != "":
-		_tick_bot()
-
-
-func _update_camera(delta: float) -> void:
-	var real := delta / maxf(Engine.time_scale, 0.05)
-	_shake = move_toward(_shake, 0.0, real * 2.2)
-	var sway := Vector3.ZERO
-	if not started:
-		sway = Vector3(sin(_t * 0.25) * 0.5, sin(_t * 0.4) * 0.08, 0)
-	cam.look_at(to_global(_look + sway))
-	cam.h_offset = _cam_offset_x + randf_range(-1, 1) * _shake * 0.12
-	cam.v_offset = randf_range(-1, 1) * _shake * 0.12
-	cam.fov = move_toward(cam.fov, 55.0, real * 30.0)
-
-
-func _take_shot_if_due() -> void:
-	if _shot_path == "":
-		return
-	var due := false
-	match _shot_when:
-		"title": due = _t > 1.0
-		"open": due = e_state == EState.OPEN and hit_combo >= 2
-		"result": due = (result == "win" or result == "lose") and hud._result_age > 1.6
-		_: due = e_state == EState.WINDUP and e_timer <= 0.6
-	if _shot_when == "open" and e_state == EState.WINDUP and e_timer < 0.15:
-		input_swipe([Vector2(-1, 0), Vector2(1, 0), Vector2(0, -1), Vector2.ZERO][cur_attack.dir])
-	if _shot_when == "open" and e_state == EState.OPEN:
-		input_swipe(Vector2([-1, 1][hit_combo % 2], 0))
-	if _shot_when == "result" and result == "":
-		_damage_enemy(9999.0)
-		if e_state == EState.FINISHER:
-			_finish()
-	if due:
-		var path := _shot_path
-		_shot_path = ""
-		await RenderingServer.frame_post_draw
-		await RenderingServer.frame_post_draw
-		get_viewport().get_texture().get_image().save_png(path)
-		get_tree().quit()
+		bots._tick_bot()
 
 
 func _tick_player(delta: float) -> void:
@@ -711,108 +370,8 @@ func _player_ready() -> void:
 	_buf.kind = ""
 
 
-func _tick_enemy(delta: float) -> void:
-	if not pvp.is_empty():
-		var was_intro := e_state == EState.INTRO
-		_pvp_tick(delta)
-		if was_intro or e_state == EState.IDLE:
-			return
-	chill = maxf(chill - delta, 0.0)
-	if burn > 0.0 and e_state not in [EState.FINISHER, EState.DEAD, EState.INTRO]:
-		burn -= delta
-		_burn_tick -= delta
-		if _burn_tick <= 0.0:
-			_burn_tick = 0.5
-			var bd := slash_damage * 0.3 * _element_mult()
-			hud.float_text(str(int(ceil(bd))), enemy.get_clash_point() + Vector3(randf_range(-0.3, 0.3), 0.6, 0), Items.ELEMENT_COLORS.ember)
-			_damage_enemy(bd)
-			if e_state == EState.FINISHER:
-				return
-	match e_state:
-		EState.INTRO:
-			e_timer -= delta
-			if e_timer <= 0.0:
-				_to_idle(0.6)
-		EState.IDLE:
-			e_timer -= delta
-			if e_timer <= 0.0:
-				_pick_combo()
-				_begin_attack()
-		EState.WINDUP:
-			if _feint_hold > 0.0:
-				_feint_hold -= delta
-				return
-			e_timer -= delta
-			if cur_attack.feint and not _feinted and e_timer <= windup_total * 0.45:
-				_feinted = true
-				_feint_hold = 0.42 / e_speed
-				enemy.play(&"feint", 0, _feint_hold)
-				return
-			if tutorial and combo.size() == 1 and not _tutorial_slowed and e_timer <= parry_window * 0.85:
-				_tutorial_slowed = true
-				_slow(0.07, 4.0)
-			if e_timer <= 0.0:
-				_resolve_strike()
-		EState.RECOVER:
-			e_timer -= delta
-			if e_timer <= 0.0 and not pvp.is_empty():
-				e_state = EState.IDLE
-				enemy.play(&"idle")
-			elif e_timer <= 0.0:
-				combo_i += 1
-				if combo_i < combo.size():
-					_begin_attack()
-				else:
-					_open(def.winded_time / e_speed, "winded")
-		EState.OPEN:
-			e_timer -= delta
-			if e_timer <= 0.0:
-				hit_combo = 0
-				_to_idle(def.idle_gap / e_speed)
-		EState.FINISHER:
-			e_timer -= delta / maxf(Engine.time_scale, 0.05)
-			if e_timer <= 0.0:
-				_finish()
-
-
-func _pick_combo() -> void:
-	combo_i = 0
-	if not _tutorial_queue.is_empty():
-		var d: int = _tutorial_queue.pop_front()
-		combo = [AttackDef.make(d, 1.5, 10.0)]
-		tutorial_hint = "dodge" if d == AttackDef.Dir.THRUST else "parry"
-		return
-	if tutorial:
-		tutorial = false
-		tutorial_hint = ""
-		Run.data.tutorial_done = true
-		Run.save()
-	var pool: Array = def.combos.duplicate()
-	if enraged:
-		pool.append_array(def.enraged_combos)
-	combo = pool.pick_random()
-
-
-func _to_idle(gap: float) -> void:
-	e_state = EState.IDLE
-	e_timer = gap
-	open_reason = ""
-	if tutorial_hint == "strike":
-		tutorial_hint = ""
-	enemy.play(&"idle")
-
-
-func _begin_attack() -> void:
-	cur_attack = combo[combo_i]
-	e_state = EState.WINDUP
-	e_timer = cur_attack.windup / (e_speed * (0.8 if chill > 0.0 else 1.0))
-	windup_total = e_timer
-	_feinted = false
-	_feint_hold = 0.0
-	_tutorial_slowed = false
-	enemy.play(&"windup", cur_attack.dir, e_timer)
-	enemy.set_tell(tell_color(), e_timer * 0.6)
-	sfx.play("tell", -14.0, 0.02)
+func switch_target(i: int) -> void:
+	stage.switch_target(i)
 
 
 func tell_color() -> Color:
@@ -823,82 +382,12 @@ func tell_color() -> Color:
 	return Color(1.0, 0.6, 0.15)
 
 
-func _open(duration: float, reason: String) -> void:
-	e_state = EState.OPEN
-	e_timer = duration
-	open_reason = reason
-	slash_seq.clear()
-	enemy.set_tell(Color.BLACK, 0.1)
-	enemy.play(&"broken" if reason == "broken" else &"stagger")
-	if tutorial:
-		tutorial_hint = "strike"
-		e_timer = maxf(duration, 2.6)
-
-
-func _dodge_avoids(dir: int) -> bool:
-	if p_state != PState.DODGE or dodge_elapsed > DODGE_IFRAME:
-		return false
-	match dir:
-		AttackDef.Dir.LEFT: return dodge_dir > 0
-		AttackDef.Dir.RIGHT: return dodge_dir < 0
-	return true
-
-
-func _resolve_strike() -> void:
-	var a := cur_attack
-	enemy.play(&"strike", a.dir, 0.1)
-	e_state = EState.RECOVER
-	e_timer = 0.35 / e_speed
-	if _tutorial_slowed:
-		_restore_time()
-	sfx.play("whoosh", -6.0)
-	if _dodge_avoids(a.dir):
-		_pvp_report("dodged")
-		stats.dodges += 1
-		if dodge_elapsed <= PERFECT_DODGE:
-			_add_surge(10.0)
-			dodge_charges = minf(dodge_charges + 1.0, dodge_max)
-			hud.banner("PERFECT DODGE", Color(0.6, 0.9, 1.0), 0.6)
-			_slow(0.35, 0.18)
-			if Run.set_bonus("duelist"):
-				var rd := slash_damage * 2.0
-				hud.float_text("RIPOSTE %d" % int(rd), enemy.get_clash_point(), Color(0.4, 0.9, 0.8), true)
-				e_hp = maxf(e_hp - rd, 1.0)
-		return
-	if blocking and p_state == PState.READY:
-		stats.blocks += 1
-		_pvp_report.call_deferred("blocked")
-		_shake = maxf(_shake, 0.5)
-		sfx.play("block")
-		_burst(player.get_clash_point() + Vector3(0, 0, -0.5), 10)
-		_buzz(25)
-		if a.heavy:
-			shield = maxf(shield - a.damage, 0.0)
-			hud.banner("GUARD CRUSHED", Color(0.8, 0.45, 1.0), 0.8)
-			_hurt(a.damage, a.dir)
-		elif stats.time - _block_time <= perfect_block:
-			_add_surge(8.0)
-			hud.banner("PERFECT BLOCK", Color(0.6, 0.8, 1.0), 0.6)
-		else:
-			shield -= a.damage
-			if shield <= 0.0:
-				shield = 0.0
-				blocking = false
-				hud.banner("GUARD BROKEN", Color(1.0, 0.5, 0.3), 0.8)
-				if Run.set_bonus("warden"):
-					shield = shield_max * 0.5
-				_hurt(a.damage * 0.6, a.dir)
-		return
-	_hurt(a.damage, a.dir)
-	_pvp_report("hit")
-
-
 func _hurt(dmg: float, dir: int) -> void:
 	if warded:
 		warded = false
 		hud.banner("WARDED", Color(0.6, 0.75, 1.0), 0.6)
 		sfx.play("clang", -4.0)
-		_burst(player.get_clash_point() + Vector3(0, 0, -0.5), 20)
+		fx._burst(player.get_clash_point() + Vector3(0, 0, -0.5), 20)
 		return
 	p_hp -= dmg
 	hit_combo = 0
@@ -911,8 +400,8 @@ func _hurt(dmg: float, dir: int) -> void:
 	hud.enemy_streak(dir)
 	player.flash(Color(1, 0.2, 0.15))
 	player.play(&"hit", [-1, 1].pick_random(), 0.15)
-	_hitstop(0.07)
-	_buzz(60)
+	fx._hitstop(0.07)
+	fx._buzz(60)
 	if p_hp <= 0.0 and tutorial:
 		p_hp = 1.0
 	if p_hp <= 0.0:
@@ -921,7 +410,7 @@ func _hurt(dmg: float, dir: int) -> void:
 		blocking = false
 		player.play(&"death")
 		enemy.play(&"victory")
-		_slow(0.3, 1.0)
+		fx._slow(0.3, 1.0)
 		if not pvp.is_empty():
 			var stake := mini(int(int(Run.data.gold) * 0.1), 200) if pvp.zone else 0
 			Run.data.gold -= stake
@@ -962,7 +451,7 @@ func input_swipe(v: Vector2) -> void:
 	if result != "" or not started or paused or blocking or p_state == PState.DEAD:
 		return
 	if not pvp.is_empty() and e_state != EState.WINDUP:
-		_pvp_attack(swipe_letter(v))
+		pvp_net._pvp_attack(swipe_letter(v))
 		return
 	if p_state != PState.READY:
 		_buffer("swipe", v)
@@ -985,7 +474,7 @@ func input_swipe(v: Vector2) -> void:
 			player.play(&"slash", anim_dir, 0.12)
 			enemy.play(&"guard")
 			sfx.play("block", -6.0)
-			_burst(enemy.get_clash_point(), 6)
+			fx._burst(enemy.get_clash_point(), 6)
 			hud.float_text("GUARDED", enemy.get_clash_point(), Color(0.75, 0.75, 0.8))
 			get_tree().create_timer(0.25).timeout.connect(func():
 				if e_state == EState.IDLE:
@@ -1006,7 +495,7 @@ func _whiff(anim_dir: int) -> void:
 	player.play(&"slash", anim_dir, 0.14)
 	sfx.play("whoosh", -8.0)
 	if _tutorial_slowed:
-		_restore_time()
+		fx._restore_time()
 
 
 func _parry(side: int) -> void:
@@ -1019,17 +508,17 @@ func _parry(side: int) -> void:
 	_shake = maxf(_shake, 0.7)
 	cam.fov = 49.0
 	var mid := player.get_clash_point().lerp(enemy.get_clash_point(), 0.6)
-	_burst(mid, 28)
-	_slow(0.25, 0.22)
-	_buzz(40)
+	fx._burst(mid, 28)
+	fx._slow(0.25, 0.22)
+	fx._buzz(40)
 	if not pvp.is_empty():
 		hud.banner("PARRY", Color(1.0, 0.95, 0.75), 0.5)
 		e_state = EState.IDLE
 		enemy.set_tell(Color.BLACK, 0.1)
 		enemy.play(&"stagger")
 		player.play(&"slash", -side, 0.12)
-		_pvp_report("parried", slash_damage * 2.0)
-		_pvp_my_turn()
+		pvp_net._pvp_report("parried", slash_damage * 2.0)
+		pvp_net._pvp_my_turn()
 		return
 	_add_surge(15.0)
 	mana = minf(mana + 10.0, 100.0)
@@ -1050,10 +539,10 @@ func _parry(side: int) -> void:
 		e_break = 0.0
 		sfx.play("break", 0.0, 0.0)
 		hud.banner("BREAK!", Color(1.0, 0.85, 0.3), 0.9)
-		_open(def.break_time, "broken")
+		ai._open(def.break_time, "broken")
 	else:
 		hud.banner("PERFECT PARRY" if perfect else "PARRY", Color(1.0, 0.95, 0.75), 0.5)
-		_open(def.stagger_time + (0.5 if perfect else 0.0) + (0.35 if Run.perk("b2") else 0.0), "parry")
+		ai._open(def.stagger_time + (0.5 if perfect else 0.0) + (0.35 if Run.perk("b2") else 0.0), "parry")
 	if perfect and Run.perk("g3"):
 		hud.float_text("RIPOSTE %d" % int(slash_damage * 1.5), enemy.get_clash_point() + Vector3(0.4, 0.2, 0), Color(0.6, 0.9, 1.0), true)
 		e_hp = maxf(e_hp - slash_damage * 1.5, 1.0)
@@ -1097,7 +586,7 @@ func _slash_hit(v: Vector2, letter: String, anim_dir: int) -> void:
 	enemy.play(&"hit", side, 0.12)
 	enemy.flash(Color(1.0, 0.9, 0.7))
 	sfx.play("hit", 0.0, 0.15)
-	_burst(enemy.get_clash_point(), 8)
+	fx._burst(enemy.get_clash_point(), 8)
 	hud.slash_streak(v, bonus != "")
 	var pos := enemy.get_clash_point() + Vector3(randf_range(-0.4, 0.4), 0.3, 0)
 	if bonus != "":
@@ -1106,13 +595,13 @@ func _slash_hit(v: Vector2, letter: String, anim_dir: int) -> void:
 		sfx.play("clang", -4.0, 0.2)
 		hud.banner(bonus, Color(1.0, 0.75, 0.3), 0.6)
 		hud.float_text(str(int(round(dmg))), pos, Color(1.0, 0.7, 0.2), true)
-		_hitstop(0.09)
-		_buzz(45)
+		fx._hitstop(0.09)
+		fx._buzz(45)
 	else:
 		_shake = maxf(_shake, 0.35)
 		hud.float_text(str(int(round(dmg))), pos, Color(1, 0.95, 0.8))
-		_hitstop(0.045)
-		_buzz(15)
+		fx._hitstop(0.045)
+		fx._buzz(15)
 	stats.sword_dmg += minf(dmg, e_hp)
 	_damage_enemy(dmg)
 
@@ -1125,10 +614,10 @@ func _damage_enemy(dmg: float) -> void:
 		e_timer = 3.0
 		tutorial_hint = ""
 		enemy.play(&"broken")
-		_slow(0.25, 3.2)
+		fx._slow(0.25, 3.2)
 		cinematic = 1.0
 		# _look is in this node's space; the clash point is in world space.
-		_cam_to(Vector3(1.9, 1.5, 1.6), to_local(enemy.get_clash_point()), 0.5)
+		fx._cam_to(Vector3(1.9, 1.5, 1.6), to_local(enemy.get_clash_point()), 0.5)
 	elif not enraged and e_hp <= def.max_hp * 0.5:
 		enraged = true
 		e_speed *= 1.15
@@ -1152,7 +641,7 @@ func input_dodge(dir: int) -> void:
 	player.play(&"dodge", dir)
 	sfx.play("whoosh", -12.0)
 	if _tutorial_slowed:
-		_restore_time()
+		fx._restore_time()
 	if _move_tw:
 		_move_tw.kill()
 	_move_tw = create_tween().set_parallel(true).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
@@ -1194,11 +683,11 @@ func input_super() -> void:
 	hud.banner("EMBER SURGE", Color(1.0, 0.6, 0.2), 1.0)
 	_shake = 1.2
 	cam.fov = 47.0
-	_burst(enemy.get_clash_point(), 28)
+	fx._burst(enemy.get_clash_point(), 28)
 	enemy.flash(Color(1.0, 0.6, 0.2))
-	_slow(0.3, 0.35)
-	_buzz(80)
-	_open(def.break_time, "broken")
+	fx._slow(0.3, 0.35)
+	fx._buzz(80)
+	ai._open(def.break_time, "broken")
 	_damage_enemy(22.0 + slash_damage * 2.0)
 
 
@@ -1216,14 +705,14 @@ func input_ranged() -> void:
 	player.play(&"slash", 3, 0.12)
 	sfx.play("whoosh", -3.0, 0.2)
 	hud.shot_streak()
-	_burst(enemy.get_clash_point(), 12)
+	fx._burst(enemy.get_clash_point(), 12)
 	enemy.flash(Color(1, 1, 0.8))
 	if e_state == EState.WINDUP:
 		if _tutorial_slowed:
-			_restore_time()
+			fx._restore_time()
 		hud.banner("INTERRUPTED", Color(0.9, 0.95, 1.0), 0.6)
 		sfx.play("hit")
-		_open(0.9, "parry")
+		ai._open(0.9, "parry")
 	else:
 		var dmg := 7.0 * float(Items.info(ranged_id).power) * ranged_mult
 		hud.float_text(str(int(round(dmg))), enemy.get_clash_point() + Vector3(0, 0.4, 0), Color(0.9, 0.95, 1.0), true)
@@ -1245,7 +734,7 @@ func input_spell() -> void:
 		"ember_bolt":
 			hud.banner("EMBER BOLT", Items.ELEMENT_COLORS.ember, 0.8)
 			enemy.flash(Items.ELEMENT_COLORS.ember)
-			_burst(enemy.get_clash_point(), 28)
+			fx._burst(enemy.get_clash_point(), 28)
 			burn = 6.0
 			var dmg := 42.0 * spell_mult * (1.3 if def.weak == "ember" else (0.75 if def.resist == "ember" else 1.0))
 			hud.float_text(str(int(round(dmg))), enemy.get_clash_point() + Vector3(0, 0.5, 0), Items.ELEMENT_COLORS.ember, true)
@@ -1255,8 +744,8 @@ func input_spell() -> void:
 			enemy.flash(Items.ELEMENT_COLORS.frost)
 			chill = 9.0
 			if _tutorial_slowed:
-				_restore_time()
-			_open(1.8, "parry")
+				fx._restore_time()
+			ai._open(1.8, "parry")
 		"ward":
 			hud.banner("WARD", Color(0.6, 0.75, 1.0), 0.8)
 			player.flash(Color(0.5, 0.65, 1.0))
@@ -1267,7 +756,7 @@ func spare() -> void:
 	if e_state != EState.FINISHER or not can_spare:
 		return
 	e_state = EState.DEAD
-	_restore_time()
+	fx._restore_time()
 	spared = true
 	player.play(&"idle")
 	enemy.play(&"broken")
@@ -1312,7 +801,7 @@ func _finish() -> void:
 	if e_state == EState.DEAD:
 		return
 	e_state = EState.DEAD
-	_restore_time()
+	fx._restore_time()
 	player.play(&"slash", 1, 0.12)
 	enemy.play(&"death")
 	enemy.flash(Color.WHITE)
@@ -1320,8 +809,8 @@ func _finish() -> void:
 	sfx.play("finish", 2.0, 0.0)
 	sfx.play("hit")
 	_shake = 1.6
-	_buzz(120)
-	_burst(enemy.get_clash_point(), 28)
+	fx._buzz(120)
+	fx._burst(enemy.get_clash_point(), 28)
 	hud.slash_streak(Vector2(1, -0.3), true)
 	hud.caption(Story.bark(def.display_name, "death"))
 	_bank_kill()
@@ -1330,8 +819,8 @@ func _finish() -> void:
 		get_tree().create_timer(0.9).timeout.connect(func():
 			if result == "":
 				cinematic = 0.0
-				_cam_to(CAM_POS, CAM_LOOK, 0.5)
-				_face(next, 0.5)
+				fx._cam_to(CAM_POS, CAM_LOOK, 0.5)
+				stage._face(next, 0.5)
 				hud.banner(def.display_name, Color(1.0, 0.8, 0.5), 0.9))
 		return
 	get_tree().create_timer(0.5).timeout.connect(func(): player.play(&"victory"))
@@ -1398,72 +887,9 @@ func proceed(_unused: String) -> void:
 	if host == null:
 		get_tree().change_scene_to_file(Run.home_scene())
 		return
-	if not pvp.is_empty() and Online.message.is_connected(_pvp_message):
-		Online.message.disconnect(_pvp_message)
-	_release()
+	if not pvp.is_empty() and Online.message.is_connected(pvp_net._pvp_message):
+		Online.message.disconnect(pvp_net._pvp_message)
+	stage._release()
 	host.duel_done(result == "win", self)
 	queue_free()
 
-
-func _burst(pos: Vector3, amount: int) -> void:
-	sparks.global_position = pos
-	sparks.initial_velocity_max = 3.0 + amount * 0.14
-	sparks.restart()
-	sparks.emitting = true
-
-
-func _buzz(ms: int) -> void:
-	Input.vibrate_handheld(ms)
-
-
-func _restore_time() -> void:
-	_time_token += 1
-	_tutorial_slowed = false
-	Engine.time_scale = _base_time
-
-
-func _slow(scale_f: float, real_seconds: float) -> void:
-	_time_token += 1
-	var token := _time_token
-	Engine.time_scale = _base_time * scale_f
-	get_tree().create_timer(real_seconds, true, false, true).timeout.connect(func():
-		if token == _time_token:
-			Engine.time_scale = _base_time)
-
-
-func _hitstop(real_seconds: float) -> void:
-	if Engine.time_scale < _base_time * 0.9:
-		return
-	_slow(0.05, real_seconds)
-
-
-func _tick_bot() -> void:
-	if _bot == "idle" or not pvp.is_empty():
-		return
-	if p_hp < player_max_hp * 0.4:
-		input_potion()
-	if mana >= 100.0:
-		input_spell()
-	if shots > 0 and e_state == EState.WINDUP and cur_attack.dir == AttackDef.Dir.THRUST and e_timer < 0.4:
-		input_ranged()
-	if _bot == "block":
-		if not blocking:
-			input_block(true)
-		return
-	if super_meter >= 100.0:
-		input_super()
-	for o in others:
-		if float(o.tell) > 0.0 and float(o.tell) < 0.12 and p_state == PState.READY:
-			input_dodge(1)
-			return
-	match e_state:
-		EState.WINDUP:
-			var d := cur_attack.dir
-			if _bot == "dodge" or d == AttackDef.Dir.THRUST:
-				if e_timer <= 0.12 and _feint_hold <= 0.0:
-					input_dodge(1 if d == AttackDef.Dir.LEFT else -1)
-			elif e_timer <= parry_window * 0.6 and _feint_hold <= 0.0 and p_state == PState.READY:
-				input_swipe([Vector2(-1, 0), Vector2(1, 0), Vector2(0, -1)][d])
-		EState.OPEN, EState.FINISHER:
-			if p_state == PState.READY:
-				input_swipe(Vector2([-1, 1][hit_combo % 2], 0.2))
