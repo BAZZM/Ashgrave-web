@@ -1,8 +1,10 @@
 extends Node
 ## On-screen performance readout, for measuring stutter on a real device.
 ##
-## Off by default and then costs nothing: no processing, no nodes.
+## The readout is off by default and then costs nothing: no nodes, no drawing.
 ## Turn on with ?perf=1 on the page URL, or --perf as a user arg.
+## Always on (web only): the crash breadcrumb below, which runs _process every frame
+## for a clock check and writes about 1 KB to localStorage every 4 s.
 ## Other code can report a costly event with Perf.mark("chunk build", usec).
 
 ## Frame-time window for fps / avg / p95 / worst.
@@ -21,32 +23,17 @@ const FONT_SIZE := 16
 
 ## Breadcrumbs: one small JSON string in localStorage every few seconds, so the next
 ## launch can say that the last run died in the foreground (iOS killing the tab for
-## memory leaves no trace otherwise). Always on, web only. See _crumb_write.
+## memory leaves no trace otherwise). Always on, web only. The page itself (the inline
+## script at the top of index.html, window.__ag) keeps the clean-exit flags and is the
+## only place that reads and classifies the previous run's crumb, so a death during the
+## engine download is covered too; this file writes the in-game fields and reports.
 const CRUMB_KEY := "ashgrave_crumb"
 const CRUMB_LOG_KEY := "ashgrave_crumb_log"
 const CRUMB_EVERY := 4.0
 const CRUMB_LOG_KEEP := 5
 const BANNER_SECS := 20.0
-## Runs once in the page: clean-exit flags are kept by the page itself (pagehide,
-## visibilitychange), so they work even if the engine is frozen. Returns the previous
-## run's crumb. The WebAssembly memory is found by watching the prototype, as the
-## engine's own module object is not exposed.
-const CRUMB_JS := """(function(){
-var g=window.__ag; if(g){return g.prev;}
-var K='ashgrave_crumb'; var prev=''; try{prev=localStorage.getItem(K)||'';}catch(e){}
-var pack=''; try{var r=performance.getEntriesByType('resource');for(var i=0;i<r.length;i++){var m=/game_[0-9a-f]+/.exec(r[i].name);if(m){pack=m[0];break;}}}catch(e){}
-var mem=null;
-try{var P=WebAssembly.Memory.prototype,og=P.grow;P.grow=function(){mem=this;return og.apply(this,arguments);};
-var d=Object.getOwnPropertyDescriptor(P,'buffer');if(d&&d.get){Object.defineProperty(P,'buffer',{configurable:true,get:function(){mem=this;return d.get.call(this);}});}}catch(e){}
-function heap(){try{if(mem){return mem.buffer.byteLength;}if(window.Module&&window.Module.HEAPU8){return window.Module.HEAPU8.length;}}catch(e){}return 0;}
-var live=true;
-function w(s){try{var o=JSON.parse(s);o.live=live;o.heap=heap();o.ts=Date.now();localStorage.setItem(K,JSON.stringify(o));}catch(e){}}
-function flip(v){live=v;try{var s=localStorage.getItem(K);if(!s){return;}var o=JSON.parse(s);o.live=v;localStorage.setItem(K,JSON.stringify(o));}catch(e){}}
-addEventListener('pagehide',function(){flip(false);});
-addEventListener('pageshow',function(){flip(document.visibilityState!=='hidden');});
-document.addEventListener('visibilitychange',function(){flip(document.visibilityState!=='hidden');});
-window.__ag={prev:prev,pack:pack,w:w,heap:heap};
-return prev;})()"""
+## A death older than this is logged but not shown: the player has long since moved on.
+const BANNER_MAX_AGE_S := 600
 
 var enabled := false
 ## --perflog: print every mark and a stats line every few seconds to the console
@@ -79,6 +66,8 @@ var _banner_title: Label
 var _banner_until := 0
 var _banner_font: Font
 var _banner_box: StyleBoxFlat
+var _crumb_on := false
+var _crumb_next_ms := 0
 
 
 func _ready() -> void:
@@ -151,6 +140,12 @@ func mark(label: String, usec: int) -> void:
 
 
 func _process(_delta: float) -> void:
+	# Real time, not Timer: a Timer follows Engine.time_scale and would slow in hit-stop.
+	if _crumb_on:
+		var ms := Time.get_ticks_msec()
+		if ms >= _crumb_next_ms:
+			_crumb_next_ms = ms + int(CRUMB_EVERY * 1000.0)
+			_crumb_write()
 	if _banner != null:
 		# The clock starts once the first scene is up: loading can take a long while on a phone.
 		if _banner_until == 0:
@@ -239,8 +234,8 @@ func _mb(monitor: int) -> int:
 func _heap_mb() -> int:
 	if not OS.has_feature("web"):
 		return 0
-	var h: Variant = JavaScriptBridge.eval("window.__ag ? window.__ag.heap() : 0", true)
-	return int((h if h is float or h is int else 0) / 1048576.0)
+	var h: Variant = JavaScriptBridge.eval("window.__ag ? window.__ag.heap() : -1", true)
+	return int(h / 1048576.0) if (h is float or h is int) and h > 0 else -1
 
 
 ## ---- breadcrumbs ----
@@ -248,34 +243,27 @@ func _heap_mb() -> int:
 func _crumb_start() -> void:
 	if not OS.has_feature("web"):
 		return
-	var prev: Variant = JavaScriptBridge.eval(CRUMB_JS, true)
-	var pk: Variant = JavaScriptBridge.eval("window.__ag ? window.__ag.pack : ''", true)
+	var pk: Variant = JavaScriptBridge.eval("window.__ag ? window.__ag.pack() : ''", true)
 	_pack = pk if pk is String else ""
+	var rep_text: Variant = JavaScriptBridge.eval("window.__ag ? window.__ag.rep() : ''", true)
 	var log_text: Variant = JavaScriptBridge.eval("localStorage.getItem('%s') || ''" % CRUMB_LOG_KEY, true)
 	if log_text is String and log_text != "":
 		var parsed: Variant = JSON.parse_string(log_text)
 		if parsed is Array:
 			_log = parsed
-	var died := {}
-	if prev is String and prev != "":
-		var o: Variant = JSON.parse_string(prev)
-		# live is true only if neither pagehide nor a hidden tab was seen: the run was cut off in the foreground.
-		if o is Dictionary and o.get("live", false) == true:
-			died = o
-	# Replace the old crumb at once, so a second crash before the first timer does not report the same death twice.
+	# Replace the old crumb at once, so a second crash before the first write does not report the same death twice.
 	_crumb_write()
-	var timer := Timer.new()
-	timer.wait_time = CRUMB_EVERY
-	timer.process_mode = Node.PROCESS_MODE_ALWAYS
-	timer.timeout.connect(_crumb_write)
-	add_child(timer)
-	timer.start()
-	if not died.is_empty():
-		_on_death(died)
+	_crumb_on = true
+	_crumb_next_ms = Time.get_ticks_msec() + int(CRUMB_EVERY * 1000.0)
+	set_process(true)
+	if rep_text is String and rep_text != "":
+		var rep: Variant = JSON.parse_string(rep_text)
+		if rep is Dictionary and rep.get("c") is Dictionary:
+			_on_death(rep.c, str(rep.get("kind", "died")), int(rep.get("age", -1)), int(rep.get("hid", 0)))
 
 
 func _crumb_data() -> Dictionary:
-	var d := {"b": "%d-%s" % [Run.BUILD, _pack.trim_prefix("game_")], "t": int(Time.get_ticks_msec() / 1000), "mode": "boot", "place": "",
+	var d := {"phase": "run", "b": "%d-%s" % [Run.BUILD, _pack.trim_prefix("game_")], "t": int(Time.get_ticks_msec() / 1000), "mode": "boot", "place": "",
 		"x": 0, "z": 0, "tier": 0, "foe": "", "pvp": false, "pl": Online.count(),
 		"ms": int(Performance.get_monitor(Performance.MEMORY_STATIC)), "oc": int(Performance.get_monitor(Performance.OBJECT_COUNT)),
 		"nc": int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)), "tex": int(Performance.get_monitor(Performance.RENDER_TEXTURE_MEM_USED)),
@@ -302,9 +290,10 @@ func _crumb_data() -> Dictionary:
 	if duel is Duel and is_instance_valid(duel):
 		d.mode = "duel"
 		var def: Variant = duel.get("def")
-		d.foe = def.display_name if def != null else ""
 		var pv: Variant = duel.get("pvp")
 		d.pvp = pv is Dictionary and not pv.is_empty()
+		# Never the other player's name: only that it was a player.
+		d.foe = "" if d.pvp else (def.display_name if def != null else "")
 	return d
 
 
@@ -328,29 +317,46 @@ func _death_lines(o: Dictionary) -> Array:
 			doing = "climbing the tower"
 		"duel":
 			where = "Tier %d of the tower" % int(o.get("tier", 0)) if int(o.get("tier", 0)) > 0 else ("%s, near %d, %d" % [o.get("place", ""), int(o.get("x", 0)), int(o.get("z", 0))] if o.get("place", "") != "" else "A duel")
-			doing = "fighting %s%s" % [o.get("foe", "") if o.get("foe", "") != "" else "a foe", " (a player)" if o.get("pvp", false) else ""]
-	var heap_mb := int(float(o.get("heap", 0)) / 1048576.0)
-	var mem := "Memory: heap %d MB, textures %d MB, video %d MB" % [heap_mb, int(float(o.get("tex", 0)) / 1048576.0), int(float(o.get("vid", 0)) / 1048576.0)]
+			doing = "fighting another player" if o.get("pvp", false) else "fighting %s" % (o.get("foe", "") if o.get("foe", "") != "" else "a foe")
+	var heap_mb := _crumb_heap_mb(o)
+	var mem := "Memory: heap %s MB, textures %d MB, video %d MB" % ["?" if heap_mb < 0 else str(heap_mb), int(float(o.get("tex", 0)) / 1048576.0), int(float(o.get("vid", 0)) / 1048576.0)]
 	return ["Where: " + where, "Doing: " + doing,
 		"Played: %d min this run (build %s)" % [int(float(o.get("t", 0)) / 60.0), o.get("b", "?")], mem]
 
 
 func _death_short(o: Dictionary) -> String:
-	return "%dm %s %s %dMB" % [int(float(o.get("t", 0)) / 60.0), o.get("mode", "?"), o.get("place", ""), int(float(o.get("heap", 0)) / 1048576.0)]
+	return "%s %dm %s %s %dMB" % [o.get("kind", "died"), int(float(o.get("t", 0)) / 60.0), o.get("mode", "?"), o.get("place", ""), _crumb_heap_mb(o)]
 
 
-func _on_death(o: Dictionary) -> void:
-	var age := int((Time.get_unix_time_from_system() * 1000.0 - float(o.get("ts", 0))) / 1000.0) if o.has("ts") else -1
-	print("[crumb] died: mode=%s place=%s x=%d z=%d tier=%d foe=%s pvp=%s min=%.1f static_mb=%d tex_mb=%d vid_mb=%d heap_mb=%d objects=%d nodes=%d draw=%d fps=%d players=%d build=%s age_s=%d" % [
-		o.get("mode", ""), o.get("place", ""), int(o.get("x", 0)), int(o.get("z", 0)), int(o.get("tier", 0)), o.get("foe", ""), o.get("pvp", false),
-		float(o.get("t", 0)) / 60.0, int(float(o.get("ms", 0)) / 1048576.0), int(float(o.get("tex", 0)) / 1048576.0), int(float(o.get("vid", 0)) / 1048576.0),
-		int(float(o.get("heap", 0)) / 1048576.0), int(o.get("oc", 0)), int(o.get("nc", 0)), int(o.get("dc", 0)), int(o.get("fps", 0)), int(o.get("pl", 0)),
-		o.get("b", ""), age])
-	_log.append(o)
+## Wasm heap in MB, or -1 when it was not known (never 0 for "unknown").
+func _crumb_heap_mb(o: Dictionary) -> int:
+	var h := float(o.get("heap", 0))
+	return int(h / 1048576.0) if h > 0.0 else -1
+
+
+## kind: "died" (cut off in the foreground), "stalled" (the engine stopped writing, then the player
+## reloaded), "shared" (another tab was alive, so the crumb cannot be trusted) or "hidden" (the page was
+## hidden and then gone without pagehide: usually the OS reclaiming a background tab; a quiet note).
+func _on_death(o: Dictionary, kind: String, age: int, hid: int) -> void:
+	var entry := o.duplicate()
+	entry["kind"] = kind
+	entry["age"] = age
+	if kind == "hidden":
+		print("[crumb] note: reloaded after being hidden for %ds" % hid)
+	else:
+		var show := (kind == "died" or kind == "stalled") and age >= 0 and age < BANNER_MAX_AGE_S
+		print("[crumb] died: kind=%s phase=%s stalled=%d shared=%d banner=%d mode=%s place=%s x=%d z=%d tier=%d foe=%s pvp=%d min=%.1f static_mb=%d tex_mb=%d vid_mb=%d heap_mb=%d objects=%d nodes=%d draw=%d fps=%d players=%d build=%s age_s=%d" % [
+			kind, o.get("phase", "run"), int(kind == "stalled"), int(kind == "shared"), int(show), o.get("mode", ""), o.get("place", ""), int(o.get("x", 0)), int(o.get("z", 0)),
+			int(o.get("tier", 0)), o.get("foe", ""), int(o.get("pvp", false)),
+			float(o.get("t", 0)) / 60.0, int(float(o.get("ms", 0)) / 1048576.0), int(float(o.get("tex", 0)) / 1048576.0), int(float(o.get("vid", 0)) / 1048576.0),
+			_crumb_heap_mb(o), int(o.get("oc", 0)), int(o.get("nc", 0)), int(o.get("dc", 0)), int(o.get("fps", 0)), int(o.get("pl", 0)),
+			o.get("b", ""), age])
+		if show:
+			_show_banner(o, kind)
+	_log.append(entry)
 	while _log.size() > CRUMB_LOG_KEEP:
 		_log.pop_front()
 	JavaScriptBridge.eval("try{localStorage.setItem('%s',%s)}catch(e){}" % [CRUMB_LOG_KEY, JSON.stringify(JSON.stringify(_log))], true)
-	_show_banner(o)
 
 
 ## Canvas pixels per CSS pixel, so text is a readable size whatever the window shape
@@ -364,7 +370,7 @@ func _css_scale() -> float:
 	return get_viewport().get_visible_rect().size.x / maxf(win.x / dpr, 1.0)
 
 
-func _show_banner(o: Dictionary) -> void:
+func _show_banner(o: Dictionary, kind: String) -> void:
 	var layer := CanvasLayer.new()
 	layer.layer = 127
 	layer.process_mode = Node.PROCESS_MODE_ALWAYS
@@ -385,7 +391,7 @@ func _show_banner(o: Dictionary) -> void:
 	_banner_font = ThemeDB.fallback_font
 	if ResourceLoader.exists("res://fonts/cinzel-700.woff2"):
 		_banner_font = load("res://fonts/cinzel-700.woff2")
-	_banner_title = _banner_text("Restarted after a suspected memory kill", Color(1.0, 0.84, 0.55))
+	_banner_title = _banner_text("The game froze or ran out of memory" if kind == "stalled" else "Restarted after a suspected memory kill", Color(1.0, 0.84, 0.55))
 	vb.add_child(_banner_title)
 	_banner_label = _banner_text("\n".join(_death_lines(o)) + "\nTap to close", Color(1, 1, 1, 0.92))
 	vb.add_child(_banner_label)
@@ -424,6 +430,8 @@ func _banner_fit() -> void:
 	_banner_label.add_theme_font_size_override("font_size", int(14.0 * k))
 	_banner.size = Vector2(_banner.custom_minimum_size.x, 0)
 	_banner.modulate.a = 0.0
+	# Until it is laid out and centred the (invisible) panel must not sit over a corner of the screen.
+	_banner.position = Vector2(-100000.0, -100000.0)
 	_banner_center.call_deferred()
 
 
@@ -444,7 +452,9 @@ func _banner_center() -> void:
 
 
 func _banner_input(event: InputEvent) -> void:
+	# Only taps inside the panel's own rectangle arrive here (the layer has no full-screen control).
 	if (event is InputEventMouseButton or event is InputEventScreenTouch) and event.pressed:
+		get_viewport().set_input_as_handled()
 		_hide_banner()
 
 
@@ -452,7 +462,7 @@ func _hide_banner() -> void:
 	if _banner != null:
 		_banner.get_parent().queue_free()
 		_banner = null
-		if not enabled and not logging:
+		if not enabled and not logging and not _crumb_on:
 			set_process(false)
 
 
