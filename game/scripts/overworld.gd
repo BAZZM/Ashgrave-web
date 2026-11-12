@@ -46,6 +46,8 @@ var _bot := ""
 var _stuck := 0.0
 var _shot_path := ""
 var _shot_when := ""
+var _assettest: Variant = null  # debug: "--assettest" or "--assettest=SECONDS" (freeze the pose there)
+var _assettest_anim: AnimationPlayer
 
 var terrain: OverworldTerrain
 var places: OverworldPlaces
@@ -93,6 +95,10 @@ func _ready() -> void:
 			Run.no_save = true
 		elif a.begins_with("--shot-when="):
 			_shot_when = a.trim_prefix("--shot-when=")
+		elif a.begins_with("--assettest"):
+			_assettest = a.trim_prefix("--assettest").trim_prefix("=")
+			Run.no_save = true
+			Run.title_seen = true
 		elif a.begins_with("--at="):
 			at = a.trim_prefix("--at=")
 		elif a.begins_with("--skills=") and not Run.title_seen:
@@ -167,8 +173,40 @@ func _ready() -> void:
 
 	terrain._update_chunks(true)
 	mover._update_camera(1.0)
+	if _assettest != null:
+		_assettest_setup()
 	if _bot != "":
 		print("LAND at=%d,%d combat=%d gold=%d" % [hero_pos.x, hero_pos.z, Run.combat_level(), Run.data.gold])
+
+
+func _assettest_setup() -> void:
+	var path := "res://assets/test/assettest.glb"
+	print("ASSETTEST exists=%s" % ResourceLoader.exists(path))
+	var model: Node3D = (load(path) as PackedScene).instantiate()
+	var fwd := Vector3(sin(cam_yaw), 0, cos(cam_yaw))
+	model.position = hero_pos - fwd * 2.2 + fwd.cross(Vector3.UP) * 1.6
+	model.position.y = Land.walk_height(model.position.x, model.position.z)
+	model.scale = Vector3.ONE * 1.5
+	add_child(model)
+	_assettest_anim = model.find_children("*", "AnimationPlayer")[0]
+	var anims := _assettest_anim.get_animation_list()
+	_assettest_anim.play(anims[0])
+	if str(_assettest) != "":
+		_assettest_anim.seek(float(_assettest), true)
+		_assettest_anim.pause()
+	var sk: Skeleton3D = model.find_children("*", "Skeleton3D")[0]
+	var mat: StandardMaterial3D = (model.find_children("*", "MeshInstance3D")[0] as MeshInstance3D).get_active_material(0)
+	var img: Image = mat.albedo_texture.get_image()
+	print("ASSETTEST anims=%s loop=%s bones=%d tex=%s %dx%d fmt=%d mips=%s" % [anims, _assettest_anim.get_animation(anims[0]).loop_mode, sk.get_bone_count(), mat.albedo_texture.get_class(), img.get_width(), img.get_height(), img.get_format(), img.has_mipmaps()])
+	get_tree().create_timer(4.0).timeout.connect(_assettest_report)
+
+
+func _assettest_report() -> void:
+	var vp := get_viewport()
+	print("ASSETTEST renderer method=%s driver=%s setting=%s" % [RenderingServer.get_current_rendering_method(), RenderingServer.get_current_rendering_driver_name(), ProjectSettings.get_setting("rendering/renderer/rendering_method")])
+	print("ASSETTEST adapter=%s vendor=%s driver_info=%s" % [RenderingServer.get_video_adapter_name(), RenderingServer.get_video_adapter_vendor(), OS.get_video_adapter_driver_info()])
+	print("ASSETTEST window=%s visible_rect=%s scale3d=%s msaa=%s shadow_atlas=%s" % [DisplayServer.window_get_size(), vp.get_visible_rect().size, vp.scaling_3d_scale, vp.msaa_3d, vp.positional_shadow_atlas_size])
+	print("ASSETTEST anim_pos=%.3f playing=%s" % [_assettest_anim.current_animation_position, _assettest_anim.is_playing()])
 
 
 func begin() -> void:
