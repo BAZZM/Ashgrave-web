@@ -37,3 +37,4 @@ The orchestrator owns this file.
 | 12 Nov 2026 | Release Build 11 | Release now / push dev only / not yet | Release now. dev pushed and main fast-forwarded to 51b9f59. |
 | 12 Nov 2026 | Start Phase 1 and combat step S1 | Both / Art Bible only / wait | Both. |
 | 12 Nov 2026 | The owner's two texture packs (Knight RPG, Wildlands; AI-generated) | Both, look test first / ground and water only / hold off | Both, applied only after the owner approves look-test screenshots. Files to be copied by the owner into assets_src/. |
+| 12 Nov 2026 | Which tool generated the two texture packs? | (open question from the paperwork lane) | ChatGPT. Recorded in docs/ASSETS.md with the OpenAI terms link. Packs delivered to assets_src/_packs/. |
