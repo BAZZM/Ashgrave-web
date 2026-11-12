@@ -14,7 +14,9 @@ edit it.
 
 ## How work is organised
 
-- `main` is the live game. Nothing reaches it without the owner's say-so.
+- `main` is the live game. The owner's standing rule: a tested bug fix goes
+  live without asking. Anything larger (new features, combat changes,
+  restructuring) waits for the owner's say-so.
 - `dev` is the integration branch. Subagents branch from it in their own
   worktree and commit source only.
 - Only the orchestrator runs `tools/build.py` for a commit. Every build renames
@@ -49,8 +51,10 @@ attempt rather than retrying at the same tier.
   world until their tab is reloaded.
 - No Godot editor exists here. New scenes, sounds, fonts and models cannot be
   imported; build new content in code.
-- A change is not done until `node tools/smoke.js` passes and the feature
-  touched has been exercised.
+- A change is not done until `node tools/check.js` passes (about 8 minutes;
+  name scenarios to run fewer) and the feature touched has been exercised.
+- A worktree may start from an older commit. Merge `dev` into it before
+  starting and again before reporting.
 - Report what was verified and what was not. Do not fix bugs found outside your
   files; report them.
 

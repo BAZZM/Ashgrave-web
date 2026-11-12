@@ -23,6 +23,7 @@ where work is integrated, and that file says who owns which files.
   parts back together and maps `index.pck` to the current `game_<hash>.wasm`.
 - `tools/build.py` — packs `game/` and updates `index.html`.
 - `tools/smoke.js` — loads the build in headless Chromium, fails on script errors.
+- `tools/check.js` — runs the game's built-in bots as pass/fail scenarios.
 
 ## Working on the game
 
@@ -35,6 +36,23 @@ python3 tools/build.py
 ```bash
 node tools/smoke.js
 ```
+
+For anything beyond a small edit, also run the bot checks. They play solo
+duels, a tower run, gathering and two-player duels as pass/fail scenarios
+(about 8 minutes, exit 1 on any failure) against a local relay, never the
+public ones. Install their dependencies once:
+
+```bash
+cd tools && npm ci
+```
+
+```bash
+node tools/check.js
+```
+
+`node tools/check.js load pvp` runs only the scenarios whose names start with
+those words, and `--list` shows them all. `--probe "--autoplay=x --wild=thrall"`
+runs one client and prints its console, for trying bot modes.
 
 Commit the source change together with the new `game_<hash>.wasm` and the
 `index.html` change that `build.py` makes. `python3 tools/build.py --check`
