@@ -2,6 +2,16 @@ extends Node
 
 const Kit := preload("res://scripts/overworld_kit.gd")
 const LOAD_R := 2
+## Script time one frame may spend building terrain while the hero walks. A chunk is
+## built in small steps (ground, each row of scatter, each house or place, the batches);
+## when this is used up the rest waits for the next frame.
+const BUDGET_USEC := 3000
+const STEP_GROUND := 0
+const STEP_ROW := 1
+const STEP_HOUSE := 2
+const STEP_PLACE := 3
+const STEP_BRIDGE := 4
+const STEP_BATCH := 5
 const TABLES := {
 	"meadow": [["tree", 0.07], ["tnode", 0.035], ["rock", 0.02], ["rnode", 0.014], ["herb", 0.05], ["foe", 0.03], ["beast", 0.022]],
 	"forest": [["tree", 0.58], ["tnode", 0.1], ["herb", 0.03], ["foe", 0.04], ["rock", 0.02], ["beast", 0.02]],
@@ -13,6 +23,10 @@ const TABLES := {
 
 var ow: Overworld
 var _queue: Array = []
+## The chunk being built, if any: {k, origin, root, chunk, multi, rng, steps, next, usec}.
+## It joins ow._chunks only when whole, so nothing else ever sees half a chunk.
+var _job: Dictionary = {}
+var _warmed := false
 
 
 func _init(owner_world: Overworld) -> void:
@@ -23,24 +37,47 @@ func _chunk_of(p: Vector3) -> Vector2i:
 	return Vector2i(floori(p.x / Land.CHUNK), floori(p.z / Land.CHUNK))
 
 
+func _in_range(k: Vector2i, c: Vector2i) -> bool:
+	return absi(k.x - c.x) <= LOAD_R + 1 and absi(k.y - c.y) <= LOAD_R + 1
+
+
+## Load the chunks around the hero and drop the far ones. Each frame builds only what
+## fits in BUDGET_USEC; with build_all (game start, arriving by fast travel) everything
+## in range is built and collected before it returns.
 func _update_chunks(build_all := false) -> void:
+	var t_all := Time.get_ticks_usec()
+	if not _warmed:
+		_warm()
 	var c := _chunk_of(ow.hero_pos)
+	if not _job.is_empty() and not _in_range(_job.k, c):
+		(_job.root as Node).queue_free()
+		_job = {}
 	for dx in range(-LOAD_R, LOAD_R + 1):
 		for dz in range(-LOAD_R, LOAD_R + 1):
 			var k := c + Vector2i(dx, dz)
-			if not ow._chunks.has(k) and not _queue.has(k):
+			if not ow._chunks.has(k) and not _queue.has(k) and (_job.is_empty() or _job.k != k):
 				_queue.append(k)
 
-	_queue.sort_custom(func(a, b): return (a - c).length_squared() < (b - c).length_squared())
-	while not _queue.is_empty():
-		var k2: Vector2i = _queue.pop_front()
-		if absi(k2.x - c.x) <= LOAD_R + 1 and absi(k2.y - c.y) <= LOAD_R + 1:
-			_build_chunk(k2)
-			if not build_all:
-				break
+	if _queue.size() > 1:
+		_queue.sort_custom(func(a, b): return (a - c).length_squared() < (b - c).length_squared())
+	var deadline := t_all + BUDGET_USEC
+	while not (_job.is_empty() and _queue.is_empty()):
+		if _job.is_empty():
+			var k2: Vector2i = _queue.pop_front()
+			if not _in_range(k2, c):
+				continue
+			_job = _start_chunk(k2)
+		# Obstacles are only known once a chunk is whole, and _blocked looks one chunk
+		# around the hero, so those are never left for later.
+		var urgent := build_all or maxi(absi(_job.k.x - c.x), absi(_job.k.y - c.y)) <= 1
+		if not _run_job(0 if urgent else deadline):
+			break
+		_finish_chunk()
+		if not build_all and Time.get_ticks_usec() >= deadline:
+			break
 	var changed := false
 	for k3 in ow._chunks.keys():
-		if absi(k3.x - c.x) > LOAD_R + 1 or absi(k3.y - c.y) > LOAD_R + 1:
+		if not _in_range(k3, c):
 			for e in ow._chunks[k3].ents:
 				if e.get("node") != null and e.type == "foe":
 					(e.node as Node).queue_free()
@@ -49,38 +86,148 @@ func _update_chunks(build_all := false) -> void:
 			changed = true
 	if changed or build_all:
 		ow._collect_ents()
+	var spent := Time.get_ticks_usec() - t_all
+	if spent > 500:
+		Perf.mark("terrain frame", spent)
 
 
-func _ground_mesh(origin: Vector2) -> ArrayMesh:
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	st.set_smooth_group(0)
-	var n := 10
+## Build one chunk now. Kept for callers that want a single chunk whole.
+func _build_chunk(k: Vector2i) -> void:
+	if not _job.is_empty():
+		_run_job(0)
+		_finish_chunk()
+	_job = _start_chunk(k)
+	_run_job(0)
+	_finish_chunk()
+
+
+## Make the meshes the land uses before the first chunk needs them, so the first forest
+## or the first boar does not cost a hitch.
+func _warm() -> void:
+	_warmed = true
+	for key in ["trunk", "oak", "pine", "dead", "stump", "rock", "ore", "reed", "herb", "wall", "node_oak", "node_pine",
+			"node_copper", "node_iron", "node_ember", "node_herb", "beast_deer", "beast_boar"]:
+		Kit.mesh(key)
+
+
+const GROUND_N := 10
+## Triangle indices of a ground chunk: the same for every chunk, so made once.
+static var _ground_index := PackedInt32Array()
+
+
+## Heights and colours of a chunk's (GROUND_N + 1) squared ground vertices. Each point's
+## biome is worked out once, and only the roads near the chunk are looked at.
+func _ground_arrays(origin: Vector2) -> Array:
+	var n := GROUND_N
 	var step := Land.CHUNK / n
+	var segs := Land.road_segments_near(Rect2(origin, Vector2(Land.CHUNK, Land.CHUNK)), 3.2)
+	var verts := PackedVector3Array()
+	var cols := PackedColorArray()
+	verts.resize((n + 1) * (n + 1))
+	cols.resize((n + 1) * (n + 1))
+	var i := 0
 	for iz in n + 1:
 		for ix in n + 1:
 			var x := origin.x + ix * step
 			var z := origin.y + iz * step
-			st.set_color(Land.ground_color(x, z))
-			st.add_vertex(Vector3(x, Land.height(x, z), z))
-	for iz in n:
-		for ix in n:
-			var a := iz * (n + 1) + ix
-			for idx in [a, a + 1, a + n + 1, a + 1, a + n + 2, a + n + 1]:
-				st.add_index(idx)
+			var b := Land.biome(x, z)
+			cols[i] = Land.ground_color_with(x, z, b, segs)
+			verts[i] = Vector3(x, Land.height_in(x, z, b), z)
+			i += 1
+	return [verts, cols]
+
+
+func _ground_mesh(origin: Vector2) -> ArrayMesh:
+	var n := GROUND_N
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	st.set_smooth_group(0)
+	var arrays := _ground_arrays(origin)
+	var verts: PackedVector3Array = arrays[0]
+	var cols: PackedColorArray = arrays[1]
+	for i in verts.size():
+		st.set_color(cols[i])
+		st.add_vertex(verts[i])
+	if _ground_index.is_empty():
+		for iz in n:
+			for ix in n:
+				var a := iz * (n + 1) + ix
+				_ground_index.append_array(PackedInt32Array([a, a + 1, a + n + 1, a + 1, a + n + 2, a + n + 1]))
+	for idx in _ground_index:
+		st.add_index(idx)
 	st.generate_normals()
 	return st.commit()
 
 
-func _build_chunk(k: Vector2i) -> void:
+func _start_chunk(k: Vector2i) -> Dictionary:
 	var origin := Vector2(k.x * Land.CHUNK, k.y * Land.CHUNK)
 	var root := Node3D.new()
+	root.visible = false
 	ow.add_child(root)
-	var chunk := {"root": root, "ents": [], "obstacles": []}
-	ow._chunks[k] = chunk
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(Vector2i(k.x * 7919 + 13, k.y * 104729 + 7))
+	var job := {"k": k, "origin": origin, "root": root, "chunk": {"root": root, "ents": [], "obstacles": []}, "multi": {}, "rng": rng,
+		"steps": [[STEP_GROUND]], "next": 0, "usec": 0}
 	var centre := origin + Vector2(Land.CHUNK, Land.CHUNK) * 0.5
 	if not Land.in_bounds(clampf(centre.x, -Land.X_MAX - 30, Land.X_MAX + 30), centre.y) and absf(centre.x) > Land.X_MAX + 30:
-		return
+		job.steps = []
+	return job
+
+
+## Run steps of the current job until it is done (true) or the deadline passes (false).
+## At least one step runs per call. A deadline of 0 means no limit.
+func _run_job(deadline: int) -> bool:
+	var steps: Array = _job.steps
+	while _job.next < steps.size():
+		var t := Time.get_ticks_usec()
+		_do_step(steps[_job.next])
+		_job.next += 1
+		var now := Time.get_ticks_usec()
+		_job.usec += now - t
+		if now - t > 2000:
+			Perf.mark("slow step %s" % [steps[_job.next - 1]], now - t)
+		if deadline != 0 and now >= deadline and _job.next < steps.size():
+			return false
+	return true
+
+
+func _finish_chunk() -> void:
+	var job := _job
+	_job = {}
+	(job.root as Node3D).visible = true
+	ow._chunks[job.k] = job.chunk
+	ow._collect_ents()
+	Perf.mark("chunk build %d,%d" % [job.k.x, job.k.y], job.usec)
+
+
+func _do_step(step: Array) -> void:
+	var root: Node3D = _job.root
+	var chunk: Dictionary = _job.chunk
+	match step[0]:
+		STEP_GROUND:
+			_step_ground()
+		STEP_ROW:
+			_step_row(int(step[1]))
+		STEP_HOUSE:
+			ow.places._add_house(chunk, step[1])
+		STEP_PLACE:
+			ow.places._add_place(chunk, step[1])
+		STEP_BRIDGE:
+			var deck := BoxMesh.new()
+			deck.size = Vector3(Land.BRIDGE.size.x, 0.4, Land.BRIDGE.size.y)
+			Kit._part(root, deck, Vector3(Land.BRIDGE.get_center().x, 0.55, Land.BRIDGE.get_center().y), Kit.mat("wood", Color(0.34, 0.22, 0.12)))
+			for side in [-1.0, 1.0]:
+				var rail := BoxMesh.new()
+				rail.size = Vector3(Land.BRIDGE.size.x, 0.15, 0.15)
+				Kit._part(root, rail, Vector3(Land.BRIDGE.get_center().x, 1.6, Land.BRIDGE.get_center().y + side * (Land.BRIDGE.size.y * 0.5 - 0.1)), Kit.mat("wood", Color.WHITE))
+		STEP_BATCH:
+			_step_batch()
+
+
+func _step_ground() -> void:
+	var origin: Vector2 = _job.origin
+	var root: Node3D = _job.root
+	var centre := origin + Vector2(Land.CHUNK, Land.CHUNK) * 0.5
 	Kit._part(root, _ground_mesh(origin), Vector3.ZERO, Kit.mat("ground", Color.WHITE, 0.95, 0.0, true))
 	if Land.river_dist(centre.x, centre.y) < 44.0 or Land.lake_dist(centre.x, centre.y) < Land.LAKE_R + 30.0:
 		var wm := StandardMaterial3D.new() if not Kit._mats.has("water") else null
@@ -93,62 +240,72 @@ func _build_chunk(k: Vector2i) -> void:
 		var plane := PlaneMesh.new()
 		plane.size = Vector2(Land.CHUNK, Land.CHUNK)
 		Kit._part(root, plane, Vector3(centre.x, Land.WATER_Y, centre.y), Kit._mats["water"])
+	var steps: Array = _job.steps
+	for cz in 5:
+		steps.append([STEP_ROW, cz])
+	var rect := Rect2(origin, Vector2(Land.CHUNK, Land.CHUNK))
+	for h in Land.HOUSES:
+		if rect.has_point(h):
+			steps.append([STEP_HOUSE, h])
+	for pl in Land.PLACES:
+		if rect.has_point(pl.pos):
+			steps.append([STEP_PLACE, pl])
+	if rect.has_point(Land.BRIDGE.get_center()):
+		steps.append([STEP_BRIDGE])
+	steps.append([STEP_BATCH])
 
-	var multi := {}
-	var rng := RandomNumberGenerator.new()
-	rng.seed = hash(Vector2i(k.x * 7919 + 13, k.y * 104729 + 7))
+
+## One row of the five by five grid of scatter cells. Rows must run in order: they share
+## one random sequence, which is what makes the land the same on every device.
+func _step_row(cz: int) -> void:
+	var k: Vector2i = _job.k
+	var origin: Vector2 = _job.origin
+	var chunk: Dictionary = _job.chunk
+	var multi: Dictionary = _job.multi
+	var rng: RandomNumberGenerator = _job.rng
 	var cells := 5
 	var cs := Land.CHUNK / cells
-	for cz in cells:
-		for cx in cells:
-			var p := origin + Vector2((cx + rng.randf_range(0.15, 0.85)) * cs, (cz + rng.randf_range(0.15, 0.85)) * cs)
-			var roll := rng.randf()
-			var spin := rng.randf() * TAU
-			var size := rng.randf_range(0.8, 1.3)
-			var eid := "%d_%d_%d" % [k.x, k.y, cz * cells + cx]
-			if not Land.in_bounds(p.x, p.y):
-				continue
-			var b := Land.biome(p.x, p.y)
-			if b == "village" or Land.road_dist(p.x, p.y) < 3.6 or Land.on_bridge(p.x, p.y):
-				continue
-			if p.distance_to(Land.TOWER) < 26.0 or p.distance_to(Land.TOWER_GATE) < 12.0:
-				continue
-			var crowded := false
-			for pl in Land.PLACES:
-				if p.distance_to(pl.pos) < float(pl.r) + 2.0:
-					crowded = true
-			if crowded:
-				continue
+	for cx in cells:
+		var p := origin + Vector2((cx + rng.randf_range(0.15, 0.85)) * cs, (cz + rng.randf_range(0.15, 0.85)) * cs)
+		var roll := rng.randf()
+		var spin := rng.randf() * TAU
+		var size := rng.randf_range(0.8, 1.3)
+		var eid := "%d_%d_%d" % [k.x, k.y, cz * cells + cx]
+		if not Land.in_bounds(p.x, p.y):
+			continue
+		var b := Land.biome(p.x, p.y)
+		if b == "village" or Land.road_dist(p.x, p.y) < 3.6 or Land.on_bridge(p.x, p.y):
+			continue
+		if p.distance_to(Land.TOWER) < 26.0 or p.distance_to(Land.TOWER_GATE) < 12.0:
+			continue
+		var crowded := false
+		for pl in Land.PLACES:
+			if p.distance_to(pl.pos) < float(pl.r) + 2.0:
+				crowded = true
+		if crowded:
+			continue
 
-			var bank := minf(Land.river_dist(p.x, p.y) - 5.0, Land.lake_dist(p.x, p.y) - Land.LAKE_R + 3.0)
-			if bank < 0.0:
-				continue
-			if bank < 4.0:
-				if roll < 0.3:
-					_add_fishing(chunk, eid, p)
-				elif roll < 0.6:
-					_scatter(multi, "reed", "reed", Color(0.4, 0.5, 0.25), p, spin, size)
-				continue
-			var acc := 0.0
-			for row in TABLES[b]:
-				acc += float(row[1])
-				if roll < acc:
-					_place(chunk, multi, row[0], b, eid, p, spin, size, rng)
-					break
-	for h in Land.HOUSES:
-		if Rect2(origin, Vector2(Land.CHUNK, Land.CHUNK)).has_point(h):
-			ow.places._add_house(chunk, h)
-	for pl in Land.PLACES:
-		if Rect2(origin, Vector2(Land.CHUNK, Land.CHUNK)).has_point(pl.pos):
-			ow.places._add_place(chunk, pl)
-	if Rect2(origin, Vector2(Land.CHUNK, Land.CHUNK)).has_point(Land.BRIDGE.get_center()):
-		var deck := BoxMesh.new()
-		deck.size = Vector3(Land.BRIDGE.size.x, 0.4, Land.BRIDGE.size.y)
-		Kit._part(root, deck, Vector3(Land.BRIDGE.get_center().x, 0.55, Land.BRIDGE.get_center().y), Kit.mat("wood", Color(0.34, 0.22, 0.12)))
-		for side in [-1.0, 1.0]:
-			var rail := BoxMesh.new()
-			rail.size = Vector3(Land.BRIDGE.size.x, 0.15, 0.15)
-			Kit._part(root, rail, Vector3(Land.BRIDGE.get_center().x, 1.6, Land.BRIDGE.get_center().y + side * (Land.BRIDGE.size.y * 0.5 - 0.1)), Kit.mat("wood", Color.WHITE))
+		var bank := minf(Land.river_dist(p.x, p.y) - 5.0, Land.lake_dist(p.x, p.y) - Land.LAKE_R + 3.0)
+		if bank < 0.0:
+			continue
+		if bank < 4.0:
+			if roll < 0.3:
+				_add_fishing(chunk, eid, p)
+			elif roll < 0.6:
+				_scatter(multi, "reed", "reed", Color(0.4, 0.5, 0.25), p, spin, size)
+			continue
+		var acc := 0.0
+		for row in TABLES[b]:
+			acc += float(row[1])
+			if roll < acc:
+				_place(chunk, multi, row[0], b, eid, p, spin, size, rng)
+				break
+
+
+## Turn what the scatter collected into one MultiMesh per kind of thing.
+func _step_batch() -> void:
+	var root: Node3D = _job.root
+	var multi: Dictionary = _job.multi
 	for key in multi:
 		var data: Array = multi[key]
 		var mm := MultiMesh.new()
@@ -163,7 +320,6 @@ func _build_chunk(k: Vector2i) -> void:
 		mmi.multimesh = mm
 		mmi.material_override = data[2]
 		root.add_child(mmi)
-	ow._collect_ents()
 
 
 func _scatter(multi: Dictionary, mesh_key: String, mat_key: String, tint: Color, p: Vector2, spin: float, size: float, squash := 1.0) -> void:
@@ -264,26 +420,20 @@ func _add_node(chunk: Dictionary, eid: String, node_id: String, pos: Vector3, si
 				Kit._part(full, Kit.mesh("dead"), Vector3.ZERO, Kit.mat("ashbark", Color(0.2, 0.12, 0.1)), Vector3.ZERO, Vector3.ONE * size * 1.2)
 				Kit._part(full, Kit.mesh("ore"), Vector3(0, 2.2 * size, 0), Kit.mat("ashglow", Color(1.0, 0.4, 0.1), 0.5, 3.0), Vector3.ZERO, Vector3(2, 3, 2))
 			else:
-				Kit._part(full, Kit.mesh("trunk"), Vector3.ZERO, bark, Vector3.ZERO, Vector3.ONE * size)
-				var pine := node_id == "pine"
-				Kit._part(full, Kit.mesh("pine" if pine else "oak"), Vector3.ZERO, Kit.mat("leaf_" + node_id, Color(0.1, 0.3, 0.2) if pine else Color(0.3, 0.5, 0.14)), Vector3.ZERO, Vector3.ONE * size)
+				# Trunk and crown are one mesh (one draw instead of two).
+				Kit._part(full, Kit.mesh("node_pine" if node_id == "pine" else "node_oak"), Vector3.ZERO, Kit.baked_mat(), Vector3.ZERO, Vector3.ONE * size)
 			Kit._part(empty, Kit.mesh("stump"), Vector3.ZERO, bark)
 		"mining":
 			radius = 1.1
-			var stone := Kit.mat("stone_solo", Color(0.4, 0.38, 0.36))
-			Kit._part(full, Kit.mesh("rock"), Vector3.ZERO, stone, Vector3.ZERO, Vector3(1.1, 1.2, 1.1))
-			var ore_col: Color = {"copper": Color(0.9, 0.5, 0.25), "iron": Color(0.6, 0.68, 0.8), "ember": Color(1.0, 0.3, 0.08)} [node_id]
-			var om := Kit.mat("ore_" + node_id, ore_col, 0.3, 3.0 if node_id == "ember" else 0.6)
-			for i in 5:
-				var a := TAU * i / 5.0
-				Kit._part(full, Kit.mesh("ore"), Vector3(cos(a) * 0.7, 0.5 + (i % 2) * 0.35, sin(a) * 0.7), om, Vector3(30 * cos(a), 0, 30 * sin(a)), Vector3.ONE * 1.3)
-			Kit._part(empty, Kit.mesh("rock"), Vector3.ZERO, stone, Vector3.ZERO, Vector3(1.1, 1.2, 1.1))
+			# Rock and ore crystals are one mesh with two surfaces (two draws instead of six).
+			Kit._part(full, Kit.mesh("node_" + node_id), Vector3.ZERO, null)
+			Kit._part(empty, Kit.mesh("rock"), Vector3.ZERO, Kit.mat("stone_solo", Color(0.4, 0.38, 0.36)), Vector3.ZERO, Vector3(1.1, 1.2, 1.1))
 		"foraging":
 			radius = 0.0
 			var hc: Color = {"marigold": Color(1.0, 0.8, 0.15), "bogroot": Color(0.6, 0.35, 0.8), "ashbloom": Color(1.0, 0.45, 0.15)} [node_id]
 			var hm := Kit.mat("herb_" + node_id, hc, 0.6, 2.5 if node_id == "ashbloom" else 0.4)
-			for i in 3:
-				Kit._part(full, Kit.mesh("herb"), Vector3(cos(i * 2.1) * 0.25, 0, sin(i * 2.1) * 0.25), hm, Vector3.ZERO, Vector3.ONE * 1.5)
+			# Three sprigs in one mesh. Too small to cast a shadow anyone would see.
+			Kit._part(full, Kit.mesh("node_herb"), Vector3.ZERO, hm).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var e := {"id": eid, "type": "node", "node_id": node_id, "pos": pos, "label": def.label, "height": 1.2 if def.skill == "foraging" else 3.2,
 		"node": n, "full": full, "empty": empty, "charges": int(def.charges), "depleted": false}
 	if not Run.respawn_due(eid):
@@ -297,21 +447,7 @@ func _add_node(chunk: Dictionary, eid: String, node_id: String, pos: Vector3, si
 
 func _build_beast(kind: String) -> Node3D:
 	var n := Node3D.new()
-	var deer := kind == "deer"
-	var hide := Kit.mat("hide_" + kind, Color(0.5, 0.36, 0.22) if deer else Color(0.24, 0.2, 0.18))
-	var h := 0.85 if deer else 0.55
-	Kit._part(n, MeshKit.tube(PackedVector3Array([Vector3(0, h, 0.65), Vector3(0, h + 0.05, 0.35), Vector3(0, h + 0.05, -0.3), Vector3(0, h, -0.6)]),
-		PackedFloat32Array([0.1, 0.27, 0.29, 0.15]) if deer else PackedFloat32Array([0.14, 0.32, 0.36, 0.2]), 8), Vector3.ZERO, hide)
-	for sx in [-1.0, 1.0]:
-		for sz in [-0.42, 0.45]:
-			Kit._part(n, MeshKit.lathe([[0.03, 0.0], [0.05, h * 0.5], [0.07, h]], 5), Vector3(0.15 * sx, 0, sz), hide)
-	var head_at := Vector3(0, h + (0.55 if deer else 0.1), -0.85)
-	Kit._part(n, MeshKit.tube(PackedVector3Array([Vector3(0, h, -0.5), head_at]), PackedFloat32Array([0.14, 0.09]), 6), Vector3.ZERO, hide)
-	Kit._part(n, MeshKit.tube(PackedVector3Array([head_at + Vector3(0, 0.02, 0.1), head_at + Vector3(0, 0, -0.1), head_at + Vector3(0, -0.06, -0.32)]),
-		PackedFloat32Array([0.09, 0.11, 0.05]), 6), Vector3.ZERO, hide)
-	if deer:
-		for sx in [-1.0, 1.0]:
-			Kit._part(n, MeshKit.horn(Vector3.ZERO, Vector3(0.28 * sx, 0.5, 0.05), Vector3(0.1 * sx, 0, 0.12), 0.025, 5), head_at + Vector3(0.06 * sx, 0.08, 0.05), Kit.mat("antler", Color(0.8, 0.75, 0.62)))
+	Kit._part(n, Kit.mesh("beast_" + kind), Vector3.ZERO, null)
 	return n
 
 

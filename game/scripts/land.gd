@@ -146,8 +146,12 @@ static func biome(x: float, z: float) -> String:
 
 
 static func height(x: float, z: float) -> float:
+	return height_in(x, z, biome(x, z))
+
+
+## height() for a point whose biome the caller already has.
+static func height_in(x: float, z: float, b: String) -> float:
 	var h := (sin(x * 0.045) * 0.9 + sin(z * 0.038 + 1.3) * 0.9 + sin((x + z) * 0.09) * 0.35) * 0.8 + 1.3
-	var b := biome(x, z)
 	if b == "quarry":
 		h += 1.4 * sin(x * 0.12) * sin(z * 0.1) + 0.8
 	elif b == "marsh":
@@ -170,10 +174,38 @@ static func walk_height(x: float, z: float) -> float:
 
 
 static func ground_color(x: float, z: float) -> Color:
-	var c: Color = BIOMES[biome(x, z)].ground
+	return ground_color_with(x, z, biome(x, z), road_segments_near(Rect2(x, z, 0, 0), 3.2))
+
+
+## The road segments, as [from, to] pairs, that come within `margin` of a box. A road
+## changes the ground colour only within 3.2 of it, so a chunk needs only these.
+static func road_segments_near(box: Rect2, margin: float) -> Array:
+	var out: Array = []
+	var lo := box.position - Vector2(margin, margin)
+	var hi := box.end + Vector2(margin, margin)
+	for road in ROADS:
+		for i in road.size() - 1:
+			var a: Vector2 = road[i]
+			var b: Vector2 = road[i + 1]
+			if maxf(a.x, b.x) < lo.x or minf(a.x, b.x) > hi.x or maxf(a.y, b.y) < lo.y or minf(a.y, b.y) > hi.y:
+				continue
+			out.append([a, b])
+	return out
+
+
+## ground_color() for a point whose biome the caller already has, with the road segments
+## that can matter (road_segments_near of a box holding the point and a margin of 3.2).
+static func ground_color_with(x: float, z: float, b: String, segs: Array) -> Color:
+	var c: Color = BIOMES[b].ground
 	var n := 0.5 + 0.5 * sin(x * 0.7 + sin(z * 0.9)) * sin(z * 0.6)
 	c = c.darkened(0.12 * n)
-	var rd := road_dist(x, z)
+	var p := Vector2(x, z)
+	var rd := 9999.0
+	for seg in segs:
+		var a: Vector2 = seg[0]
+		var d: Vector2 = seg[1] - a
+		var t := clampf((p - a).dot(d) / d.length_squared(), 0.0, 1.0)
+		rd = minf(rd, p.distance_to(a + d * t))
 	if rd < 3.2:
 		c = c.lerp(Color(0.42, 0.33, 0.22), smoothstep(3.2, 1.2, rd))
 	var wd := minf(river_dist(x, z) - 5.0, lake_dist(x, z) - LAKE_R + 3.0)
