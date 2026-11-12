@@ -89,7 +89,7 @@ to be built, and accepted all five recommendations in `docs/COMBAT_SPEC.md`.
 | Smoothness A: terrain draw cost and loading stutter | Sonnet, high | done, on `dev`, awaiting release |
 | Combat Build 2: range, footwork, attack any time | Sonnet | after Smoothness B (shared character script) and the Build 1 playtest |
 | Combat Build 3: weapon identities, guard stances | Sonnet | after Build 2 |
-| Sprint and road speed bonus | Sonnet, medium | started |
+| Sprint and road speed bonus | Sonnet, medium | done, on `dev`, awaiting release. Open for Battle: a runner (8.5, or 10.2 on a road) outruns every foe (chase speed 6.4) |
 | Smoothness B: character draw cost, creation hitch, shadows | Sonnet, high | started |
 | Smoothness C: HUD redraw, other players' easing | Sonnet | after B |
 | Quest system, then questlines | Sonnet, then Haiku | after the orchestrator's story outline |
