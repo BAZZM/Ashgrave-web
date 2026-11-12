@@ -58,7 +58,7 @@ attempt rather than retrying at the same tier.
 
 | # | Task | Owns | Model | Status |
 |---|------|------|-------|--------|
-| 0.1 | On-screen performance readout, off unless `?perf=1` | `game/scripts/perf.gd` (new), autoload line in `project.godot` | Sonnet, medium | started |
+| 0.1 | On-screen performance readout, off unless `?perf=1` | `game/scripts/perf.gd` (new), autoload line in `project.godot` | Sonnet, medium | done |
 | 0.2 | Automated checks: bot runs as pass/fail | `tools/` | Sonnet, high | started |
 | 0.3 | Split `overworld.gd` and `duel.gd` along their seams, no behaviour change | those two files and the new files they become | Opus | after 0.2 |
 

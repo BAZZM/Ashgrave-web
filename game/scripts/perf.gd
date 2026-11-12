@@ -56,7 +56,7 @@ func _enable() -> void:
 	layer.add_child(root)
 	# Bottom left, in the gap between the duel's dodge and block buttons.
 	var bg := ColorRect.new()
-	bg.color = Color(0, 0, 0, 0.6)
+	bg.color = Color(0, 0, 0, 0.85)
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bg.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	bg.offset_left = 222
