@@ -3,6 +3,11 @@ extends RefCounted
 
 
 static var _cache := {}
+## The vertex arrays behind the meshes `tube` built while `keep_arrays` was set, so `merge` can combine meshes
+## without reading them back from the GPU (which stalls, especially in a browser).
+static var _arrays := {}
+## Set while the overworld kit builds its meshes: only those need their arrays kept.
+static var keep_arrays := false
 
 
 static func tube(points: PackedVector3Array, radii: PackedFloat32Array, segs := 14, sx := 1.0, sz := 1.0) -> ArrayMesh:
@@ -39,7 +44,11 @@ static func tube(points: PackedVector3Array, radii: PackedFloat32Array, segs := 
 			st.add_index(c)
 			st.add_index(d)
 	st.generate_normals()
-	var built: ArrayMesh = st.commit()
+	var arrays := st.commit_to_arrays()
+	var built := ArrayMesh.new()
+	built.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	if keep_arrays:
+		_arrays[built] = arrays
 	_cache[key] = built
 	return built
 
@@ -150,3 +159,44 @@ static func horn(from: Vector3, to: Vector3, bend: Vector3, radius: float, steps
 		pts.append(from.lerp(to, k) + bend * sin(k * PI))
 		radii.append(radius * (1.0 - k * 0.97))
 	return tube(pts, radii, 8)
+
+
+## One mesh from several meshes that `tube`/`lathe`/`horn` built. `groups` is a list of
+## surfaces; each surface is a list of parts [mesh, Transform3D, Color]. The transform
+## places the part (what a MeshInstance3D's position, rotation and scale would have done);
+## with `tinted` the colour is written into the vertices, to be shown by a material that
+## uses vertex colours (sRGB, so it matches an albedo colour). Fewer, bigger draws.
+static func merge(groups: Array, tinted := false) -> ArrayMesh:
+	var out := ArrayMesh.new()
+	for parts in groups:
+		var verts := PackedVector3Array()
+		var norms := PackedVector3Array()
+		var uvs := PackedVector2Array()
+		var cols := PackedColorArray()
+		var idx := PackedInt32Array()
+		for part in parts:
+			var a: Array = _arrays[part[0]]
+			var xf: Transform3D = part[1]
+			var normal_basis := xf.basis.inverse().transposed()
+			var vs: PackedVector3Array = a[Mesh.ARRAY_VERTEX]
+			var ns: PackedVector3Array = a[Mesh.ARRAY_NORMAL]
+			var us: PackedVector2Array = a[Mesh.ARRAY_TEX_UV]
+			var base := verts.size()
+			for i in vs.size():
+				verts.append(xf * vs[i])
+				norms.append((normal_basis * ns[i]).normalized())
+				uvs.append(us[i])
+				if tinted:
+					cols.append(part[2])
+			for i in a[Mesh.ARRAY_INDEX]:
+				idx.append(base + i)
+		var arr := []
+		arr.resize(Mesh.ARRAY_MAX)
+		arr[Mesh.ARRAY_VERTEX] = verts
+		arr[Mesh.ARRAY_NORMAL] = norms
+		arr[Mesh.ARRAY_TEX_UV] = uvs
+		if tinted:
+			arr[Mesh.ARRAY_COLOR] = cols
+		arr[Mesh.ARRAY_INDEX] = idx
+		out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	return out

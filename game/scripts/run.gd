@@ -55,7 +55,7 @@ static func defaults() -> Dictionary:
 
 		"skills": {}, "mats": {}, "tools": {"axe": 0, "pick": 0},
 		"ow_x": Land.START.x, "ow_z": Land.START.z, "in_tower": false,
-		"task": {}, "ow_opened": [], "skills_seeded": false,
+		"task": {}, "ow_opened": [], "skills_seeded": false, "visited": [],
 
 		"respawn": {}, "tower_slain": [], "stamp": 0, "mastery": {}, "perks": {}, "quests": {}, "flags": {},
 
