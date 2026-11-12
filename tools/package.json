@@ -1,0 +1,9 @@
+{
+  "name": "ashgrave-tools",
+  "private": true,
+  "description": "Dependencies for tools/check.js (a local MQTT relay)",
+  "dependencies": {
+    "aedes": "^1.2.0",
+    "ws": "^8.22.2"
+  }
+}
