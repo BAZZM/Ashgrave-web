@@ -2,6 +2,7 @@ class_name World
 extends Node3D
 
 const SPEED := 4.6
+const GoldenBot := preload("res://scripts/overworld_bot.gd")
 const PROMPTS := {"chest": "OPEN", "smith": "TRADE", "brazier": "REST", "relic": "TAKE", "exit": "ASCEND", "entry": "DESCEND"}
 
 var is_land := false
@@ -63,6 +64,8 @@ func _ready() -> void:
 					Run.data.upgrades[id] = 2
 		elif a.begins_with("--shot-when="):
 			_shot_when = a.trim_prefix("--shot-when=")
+		elif a.begins_with("--golden="):
+			GoldenBot.golden_world(self, a.trim_prefix("--golden="))
 	if direct_duel or _shot_when in ["windup", "open", "result", "tutorial"]:
 		get_tree().change_scene_to_file.call_deferred("res://scenes/duel.tscn")
 		return

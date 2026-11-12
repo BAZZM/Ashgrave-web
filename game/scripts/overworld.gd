@@ -95,6 +95,8 @@ func _ready() -> void:
 			_shot_when = a.trim_prefix("--shot-when=")
 		elif a.begins_with("--at="):
 			at = a.trim_prefix("--at=")
+		elif a.begins_with("--golden="):
+			bots.golden_begin(a.trim_prefix("--golden="))
 		elif a.begins_with("--skills=") and not Run.title_seen:
 			for sk in Craft.SKILLS:
 				Run.data.skills[sk] = Craft.xp_for(int(a.trim_prefix("--skills=")))
