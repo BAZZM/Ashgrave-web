@@ -75,5 +75,5 @@ Their logic now lives in part scripts:
 | `placeholder_visual.gd`, `fighter_visual.gd`, `anim_pack_visual.gd` | Character models built in code and their animation; `FighterVisual` is the interface the duel uses. | Smoothness (mesh count), Battle (animation feel) |
 | `mesh_kit.gd` | Static mesh builders (lathe, tube, horn, blades). | Shared |
 | `online.gd` | Autoload: relay connections, presence, direct messages. Message format must stay compatible. | Battle (PvP), Smoothness |
-| `perf.gd` | Autoload: on-screen performance readout (`?perf=1`). | Smoothness |
+| `perf.gd` | Autoload: on-screen performance readout (`?perf=1`, off by default). Always on (web): the crash breadcrumb in localStorage (a write every 4 s, a per-frame clock check) and the report of the previous run's death; the page half lives in the inline script at the top of `index.html`. | Smoothness |
 | `sfx.gd` | Plays the imported sound effects (`res://audio/`) and the ambience loop. New sounds need the editor. | Battle, Visual |
