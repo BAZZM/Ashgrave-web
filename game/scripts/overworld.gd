@@ -9,6 +9,7 @@ const OverworldInteract := preload("res://scripts/overworld_interact.gd")
 const OverworldRemote := preload("res://scripts/overworld_remote.gd")
 const OverworldDuels := preload("res://scripts/overworld_duels.gd")
 const OverworldBot := preload("res://scripts/overworld_bot.gd")
+const OverworldTravel := preload("res://scripts/overworld_travel.gd")
 
 var is_land := true
 var theme := {"name": "Hearthvale", "special": "open"}
@@ -54,6 +55,7 @@ var interaction: OverworldInteract
 var remotes: OverworldRemote
 var duels: OverworldDuels
 var bots: OverworldBot
+var travel: OverworldTravel
 
 
 func _ready() -> void:
@@ -65,7 +67,8 @@ func _ready() -> void:
 	remotes = OverworldRemote.new(self)
 	duels = OverworldDuels.new(self)
 	bots = OverworldBot.new(self)
-	for part in [terrain, places, sky, mover, interaction, remotes, duels, bots]:
+	travel = OverworldTravel.new(self)
+	for part in [terrain, places, sky, mover, interaction, remotes, duels, bots, travel]:
 		add_child(part)
 	Run.ensure_loaded()
 	var at := ""

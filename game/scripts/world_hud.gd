@@ -180,6 +180,8 @@ func _press(index: int, pos: Vector2) -> void:
 	if screen == "players":
 		_press_players(pos)
 		return
+	if screen == "map" and world.is_land and _press_map(pos):
+		return
 	if screen in ["map", "skills", "quests"]:
 		_close()
 		return
@@ -887,17 +889,49 @@ func _draw_list(s: Vector2) -> void:
 	_text(foot, Vector2(p.get_center().x, p.end.y - 20), 18, Color(1, 1, 1, 0.9), true, p.size.x - 80)
 
 
+func _map_xform() -> Dictionary:
+	var p := _panel()
+	var area := Rect2(p.position.x + 30, p.position.y + 84, p.size.x - 60, p.size.y - 110)
+	var k := minf(area.size.x / (Land.X_MAX * 2.0), area.size.y / (Land.Z_MAX - Land.Z_MIN))
+	var msize := Vector2(Land.X_MAX * 2.0, Land.Z_MAX - Land.Z_MIN) * k
+	return {"k": k, "msize": msize, "origin": area.get_center() - msize * 0.5}
+
+
+func _map_point(x: float, z: float) -> Vector2:
+	var m := _map_xform()
+	return m.origin + Vector2(x + Land.X_MAX, z - Land.Z_MIN) * float(m.k)
+
+
+# A tap on the land map: on a discovered place it starts fast travel (or says why not).
+# Returns false when the tap hit no marker, so the caller closes the map.
+func _press_map(pos: Vector2) -> bool:
+	var best := 34.0
+	var hit := ""
+	for m in world.travel.markers():
+		var d := pos.distance_to(_map_point(m.pos.x, m.pos.y))
+		if d < best:
+			best = d
+			hit = m.id
+	if hit == "":
+		return false
+	var why: String = world.travel.request(hit)
+	_close()
+	if why != "":
+		Run.captions.append(why)
+	return true
+
+
 func _draw_land_map(s: Vector2) -> void:
 	draw_rect(Rect2(Vector2.ZERO, s), Color(0, 0, 0, 0.78))
 	var p := _panel()
 	_box(p)
 	_text("THE LAND", p.position + Vector2(28, 60), 38, GOLD, false)
-	_text("Tap to close", Vector2(p.end.x - 110, p.position.y + 54), 18, Color(1, 1, 1, 0.6))
+	_text("Tap a place to travel. Tap elsewhere to close.", Vector2(p.end.x - 210, p.position.y + 54), 18, Color(1, 1, 1, 0.6), true, 380.0)
 	var tex: ImageTexture = Overworld.build_map()
-	var area := Rect2(p.position.x + 30, p.position.y + 84, p.size.x - 60, p.size.y - 110)
-	var k := minf(area.size.x / (Land.X_MAX * 2.0), area.size.y / (Land.Z_MAX - Land.Z_MIN))
-	var msize := Vector2(Land.X_MAX * 2.0, Land.Z_MAX - Land.Z_MIN) * k
-	var origin := area.get_center() - msize * 0.5
+	var xf := _map_xform()
+	var k: float = xf.k
+	var msize: Vector2 = xf.msize
+	var origin: Vector2 = xf.origin
 	draw_texture_rect(tex, Rect2(origin, msize), false)
 	draw_rect(Rect2(origin, msize), Color(GOLD.r, GOLD.g, GOLD.b, 0.6), false, 2.0)
 	var at := func(x: float, z: float) -> Vector2: return origin + Vector2(x + Land.X_MAX, z - Land.Z_MIN) * k
@@ -906,6 +940,13 @@ func _draw_land_map(s: Vector2) -> void:
 		_text(label[0], at.call(float(label[1]), float(label[2])), 15, Color(1, 1, 1, 0.9))
 	_diamond(at.call(Land.TOWER.x, Land.TOWER.y), 9.0, Color(1.0, 0.4, 0.15))
 	_text("The Ashgrave", at.call(Land.TOWER.x, Land.TOWER.y - 16.0), 15, Color(1.0, 0.6, 0.3))
+	for m in world.travel.markers():
+		var c: Vector2 = at.call(m.pos.x, m.pos.y)
+		var col := GOLD if m.ok else Color(0.7, 0.7, 0.7, 0.8)
+		draw_circle(c, 11.0, Color(0, 0, 0, 0.7))
+		draw_arc(c, 11.0, 0.0, TAU, 20, col, 3.0)
+		draw_circle(c, 4.5, col)
+		_text(m.label, c + Vector2(0, 28), 15, col)
 	draw_circle(at.call(world.hero_pos.x, world.hero_pos.z), 6.0 + sin(_clock * 5.0), Color.WHITE)
 
 
