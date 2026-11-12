@@ -1127,7 +1127,8 @@ func _damage_enemy(dmg: float) -> void:
 		enemy.play(&"broken")
 		_slow(0.25, 3.2)
 		cinematic = 1.0
-		_cam_to(Vector3(1.9, 1.5, 1.6), enemy.get_clash_point(), 0.5)
+		# _look is in this node's space; the clash point is in world space.
+		_cam_to(Vector3(1.9, 1.5, 1.6), to_local(enemy.get_clash_point()), 0.5)
 	elif not enraged and e_hp <= def.max_hp * 0.5:
 		enraged = true
 		e_speed *= 1.15

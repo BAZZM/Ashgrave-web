@@ -155,3 +155,4 @@ Merge the tracks, balance, and fix what playtests turn up.
 |-----|--------|
 | Two players online never saw each other (split across relays) | fixed, live |
 | A fighter who died stayed tipped over until reload; later falls looked wrong | fixed, live |
+| Finisher camera aimed away from the foe in open-world duels (world point used as a local one) | fixed on `dev` |
