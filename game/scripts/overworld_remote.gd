@@ -59,6 +59,9 @@ func _tick_remote(delta: float) -> void:
 		node.position = e.pos
 		node.rotation.y = lerp_angle(node.rotation.y, float(p.get("yw", 0.0)), minf(delta * 8.0, 1.0))
 		node.set_walk(clampf(gap.length() * 1.2, 0.0, 1.0))
+		# The eased gap settles near speed / 7, so a runner shows a bigger gap than a walker.
+		e.pace = lerpf(float(e.get("pace", 1.0)), clampf(gap.length() * 7.0 / 5.0, 1.0, 2.0), minf(delta * 4.0, 1.0))
+		node.set_pace(e.pace)
 	for id in ow._remote.keys():
 		var gone: bool = not Online.players.has(id) or Online.players[id].get("tw", false)
 		if gone or (ow._remote[id].pos as Vector3).distance_to(ow.hero_pos) > 110.0:

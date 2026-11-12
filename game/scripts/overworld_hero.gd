@@ -1,9 +1,27 @@
 extends Node
 
 const SPEED := 5.0
+## Running: speed multiplier, seconds to build up from a walk, and how far out the stick
+## (0-1) or a held key must be. Easing the stick back in below the threshold walks.
+const RUN_MULT := 1.7
+const RUN_BUILD := 0.5
+const RUN_STICK := 0.8
+## Seconds to drop from a run back to a walk.
+const RUN_EASE := 0.2
+## On a road (distance from its centre line, in units): speed bonus, road half-width,
+## and how fast the bonus fades in and out (per second) so crossing the edge is smooth.
+const ROAD_BONUS := 1.2
+const ROAD_WIDTH := 2.0
+const ROAD_BLEND := 6.0
+## Camera follow rate (per second) at a walk, and extra added at a full run.
+const CAM_FOLLOW := 8.0
+const CAM_FOLLOW_RUN := 4.0
 
 var ow: Overworld
 var _walked := 0.0
+var _run := 0.0
+var _road := 0.0
+var _pace := 1.0
 
 
 func _init(owner_world: Overworld) -> void:
@@ -28,7 +46,15 @@ func _move_hero(delta: float) -> void:
 	if amount > 0.05:
 		ow._gather = {}
 		ow.gather_progress = -1.0
-		var speed := SPEED * (1.0 + 0.0035 * (Run.skill("agility") - 1))
+		var mult := 1.0
+		if ow._bot == "":
+			var want_run := 1.0 if input.length() >= RUN_STICK else 0.0
+			_run = move_toward(_run, want_run, delta / (RUN_BUILD if want_run > _run else RUN_EASE))
+			var on_road := 1.0 if Land.road_dist(ow.hero_pos.x, ow.hero_pos.z) < ROAD_WIDTH else 0.0
+			_road = move_toward(_road, on_road, delta * ROAD_BLEND)
+			mult = (1.0 + (RUN_MULT - 1.0) * _run) * (1.0 + (ROAD_BONUS - 1.0) * _road)
+		_pace = mult
+		var speed := SPEED * mult * (1.0 + 0.0035 * (Run.skill("agility") - 1))
 		var step := dir.limit_length(1.0) * speed * delta
 		var before := ow.hero_pos
 		if not ow.terrain._blocked(ow.hero_pos + Vector3(step.x, 0, 0)):
@@ -45,8 +71,12 @@ func _move_hero(delta: float) -> void:
 		ow.look_cool -= delta
 		if ow.look_cool <= 0.0:
 			ow.cam_yaw = lerp_angle(ow.cam_yaw, ow.hero_yaw, minf(delta * 1.1, 1.0))
+	else:
+		_run = 0.0
+		_pace = 1.0
 	ow.hero_pos.y = lerpf(ow.hero_pos.y, Land.walk_height(ow.hero_pos.x, ow.hero_pos.z), clampf(delta * 12.0, 0.0, 1.0))
 	ow.hero.set_walk(amount)
+	ow.hero.set_pace(_pace)
 	ow.hero.position = ow.hero_pos
 	ow.hero.rotation.y = ow.hero_yaw
 
@@ -58,7 +88,7 @@ func _update_camera(delta: float) -> void:
 	var d := 3.3 if showcase else 6.6
 	var want := ow.hero_pos + back * d + Vector3(0, 1.35 if showcase else 3.3, 0)
 	want.y = maxf(want.y, Land.height(want.x, want.z) + 1.0)
-	ow.cam.position = ow.cam.position.lerp(want, clampf(delta * 8.0, 0.0, 1.0))
+	ow.cam.position = ow.cam.position.lerp(want, clampf(delta * (CAM_FOLLOW + CAM_FOLLOW_RUN * _run), 0.0, 1.0))
 	ow.cam.look_at(ow.hero_pos + Vector3(0, 1.15 if showcase else 1.6, 0))
 	ow.cam.h_offset = lerpf(ow.cam.h_offset, 1.45 if showcase else 0.0, clampf(delta * 8.0, 0.0, 1.0))
 	if ow._show_light:
