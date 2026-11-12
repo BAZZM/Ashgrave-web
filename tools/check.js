@@ -318,6 +318,98 @@ scenario('gather', 'gather bot mines, crafts and takes the task', (ctx) => solo(
   },
 }));
 
+// ---- 4b. world agility (docs/COMBAT_RULES.md section 6, acceptance in section 9)
+
+// `--autoplay=gather --agility`: the hero moves by the real movement code on a cleared lane,
+// fed a scripted stick; the game prints AGILITY lines measured in game time (see
+// overworld_bot.gd). Each check below quotes the spec number beside the measured one.
+function parseAgility(lines) {
+  const out = {};
+  for (const l of lines) {
+    const m = /^AGILITY (\w+) (.*)$/.exec(l);
+    if (!m) continue;
+    const kv = {};
+    for (const part of m[2].split(' ')) {
+      const e = part.indexOf('=');
+      if (e > 0) kv[part.slice(0, e)] = part.slice(e + 1);
+    }
+    (out[m[1]] = out[m[1]] || []).push(kv);
+  }
+  return out;
+}
+
+scenario('agility', 'world movement: run, sprint, turns, dash and its limits match COMBAT_RULES section 6', async (ctx) => {
+  const relay = await ctx.newRelay();
+  const c = await ctx.client('bot');
+  c.stopRe = /^AGILITY (done|fail)/;
+  await c.start(ctx.base, ['--autoplay=gather', '--agility'], [relay.url]);
+  const r = await waitUntil([c], () => c.find(/^AGILITY (done|fail)/), 420);
+  const notes = errorNotes([c]);
+  if (r !== 'ok') { notes.push(`no AGILITY done within 420s (${r})`); return { ok: false, notes }; }
+  if (c.find(/^AGILITY fail/)) return { ok: false, notes: [...notes, c.find(/^AGILITY fail/)] };
+  const a = parseAgility(c.lines);
+  const g = (name, key = null, i = 0) => {
+    const row = a[name] && a[name][i];
+    if (!row) return NaN;
+    return key === null ? row : (row[key] === undefined ? NaN : (isNaN(Number(row[key])) ? row[key] : Number(row[key])));
+  };
+  const rows = [];
+  // [label, spec, measured, ok]
+  const num = (label, spec, name, key, lo, hi, i = 0) => {
+    const v = g(name, key, i);
+    rows.push([label, spec, Number.isFinite(v) ? v.toFixed(3) : 'missing', Number.isFinite(v) && v >= lo && v <= hi]);
+  };
+  const flag = (label, spec, name, key, want) => {
+    const v = g(name, key);
+    rows.push([label, spec, String(v), String(v) === String(want)]);
+  };
+  num('sprint: 100 u at full stick, flat off-road (s)', '<= 9.0', 'sprint', 't100', 0, 9.0);
+  num('run speed reached by (s)', '0.25', 'sprint', 'run_t', 0.15, 0.35);
+  num('sprint starts after (s)', '1.0', 'sprint', 'sprint_t', 0.95, 1.15);
+  num('sprint top speed reached by (s)', '1.0 + 0.4', 'sprint', 'top_t', 1.3, 1.6);
+  num('sprint top speed (u/s)', '12.5', 'sprint', 'top', 12.4, 12.6);
+  num('stopping from sprint: time (s)', '12.5/60 = 0.21', 'stop', 'time', 0.15, 0.3);
+  num('walk at stick 0.7 (u/s)', '0.7 x 5.5 = 3.85', 'walk', 'speed', 3.75, 3.95);
+  num('camera look-ahead at sprint (u)', 'max 2.5', 'sprint', 'look_max', 2.3, 2.5001);
+  num('camera look-ahead at walk 0.7 (u)', '3.85 x 0.25 = 0.96', 'walk', 'look_max', 0.8, 1.1);
+  num('camera FOV at sprint (deg)', '66', 'sprint', 'fov_max', 65.5, 66.1);
+  num('turn 90 deg at run (s)', '90/540 = 0.167', 'turn_run', 't_yaw', 0.12, 0.21);
+  num('turn 90 deg at walk (s)', '90/720 = 0.125', 'turn_walk', 't_yaw', 0.09, 0.17);
+  num('turn 60 deg at sprint (s)', '60/300 = 0.2', 'turn_sprint60', 't_yaw', 0.15, 0.26);
+  flag('sprint kept through a 60 deg turn', 'kept', 'turn_sprint60', 'sprint_after', true);
+  flag('sprint lost on a 120 deg turn', 'lost', 'turn_sprint120', 'sprint_after', false);
+  num('  ... how fast it is lost (s)', '< 0.25', 'turn_sprint120', 't_lost', 0, 0.1);
+  flag('sprint lost when stick drops to 0.7', 'lost', 'sprint_slow', 'sprint_after', false);
+  flag('sprint lost when blocked', 'lost', 'sprint_block', 'sprint_after', false);
+  num('  ... speed after hitting the wall (u/s)', '~0', 'sprint_block', 'speed_after', 0, 0.5);
+  num('dash distance (u)', '4.5 +/- 0.3', 'dash', 'dist', 4.2, 4.8);
+  num('dash duration (s)', '<= 0.25', 'dash', 'dur', 0.18, 0.25);
+  const pb = g('dash', 'pips_before'), pa = g('dash', 'pips_after'), du = g('dash', 'dur');
+  const cost = pb - (pa - 0.6 * du);
+  rows.push(['dash cost (pips; refill over the dash removed)', '1', Number.isFinite(cost) ? cost.toFixed(3) : 'missing', Math.abs(cost - 1) < 0.05]);
+  flag('dash tries at 0 .1 .3 .4 .8 1.2 1.6 1.85 s (T accepted)', 'TFFTTFFT (lockout 0.35, 3 pips)', 'dash', 'tries', 'TFFTTFFT');
+  num('i-frames: last sampled on at (s)', '< 0.18', 'dash', 'iframe_last', 0.14, 0.1801);
+  num('i-frames: first sampled off at (s)', '>= 0.18', 'dash', 'iframe_off', 0.18, 0.22);
+  num('camera FOV peak in a dash (deg)', '70', 'dash', 'fov_max', 69.5, 70.1);
+  for (let i = 0; i < 4; i++) num(`dash ${i + 1} distance (u)`, '4.5 +/- 0.3', 'dash_each', 'dist', 4.2, 4.8, i);
+  flag('dash into a wall 2 u ahead stops', 'stops', 'dash_wall', 'stopped', true);
+  num('  ... distance covered (u)', '< 2.0', 'dash_wall', 'dist', 0.1, 2.0);
+  flag('  ... hero not left inside it', 'false', 'dash_wall', 'hero_blocked', false);
+  flag('dash toward water 2 u ahead stops', 'stops', 'dash_water', 'stopped', true);
+  num('  ... distance covered (u)', '< 2.0', 'dash_water', 'dist', 0.1, 2.0);
+  flag('  ... hero not left in water', 'false', 'dash_water', 'in_water', false);
+  num('road run (u/s)', '11.4', 'road', 'run', 11.3, 11.5);
+  num('road sprint (u/s)', '15.0', 'road', 'sprint', 14.8, 15.3);
+  const kinds = Object.keys(relay.counts);
+  rows.push(['relay message kinds seen', 'none new (none)', kinds.length ? kinds.join(',') : 'none', kinds.length === 0]);
+  let ok = true;
+  for (const [label, spec, got, good] of rows) {
+    if (!good) ok = false;
+    notes.push(`${good ? 'ok ' : 'BAD'} ${label}: ${got}  (spec ${spec})`);
+  }
+  return { ok: ok && c.errors.length === 0, notes };
+}, true);
+
 // ---- 5 and 6. two players
 
 // Two clients, one browser each, on `relayCount` shared local relays. Passes

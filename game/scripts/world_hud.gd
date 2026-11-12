@@ -75,6 +75,7 @@ func _buttons() -> Dictionary:
 	var s := size
 	return {
 		"act": Rect2(s.x - 230, s.y - 220, 170, 170),
+		"dash": Rect2(s.x - 380, s.y - 180, 130, 130),
 		"bag": Rect2(s.x - 150, 26, 100, 60),
 		"map": Rect2(s.x - 262, 26, 100, 60),
 		"skills": Rect2(s.x - 394, 26, 120, 60),
@@ -153,6 +154,9 @@ func _input(event: InputEvent) -> void:
 					world.begin()
 				elif screen == "":
 					world.interact()
+			KEY_SHIFT:
+				if world.is_land and screen == "" and world.started:
+					world.mover.try_dash()
 			KEY_I: open("bag") if screen == "" else _close()
 			KEY_M: open("map") if screen == "" else _close()
 			KEY_K: open("skills") if screen == "" else _close()
@@ -190,6 +194,9 @@ func _press(index: int, pos: Vector2) -> void:
 		return
 	if screen != "":
 		_press_screen(pos)
+		return
+	if world.is_land and _buttons().dash.has_point(pos):
+		world.mover.try_dash()
 		return
 	if _caption != "" and pos.y > size.y * 0.72 and absf(pos.x - size.x * 0.5) < size.x * 0.3:
 		_caption_age = 99.0
@@ -616,6 +623,25 @@ func _draw_explore(s: Vector2) -> void:
 	if _caption != "":
 		var a := clampf(_caption_age * 3.0, 0.0, 1.0)
 		_wrapped(_caption, Vector2(s.x * 0.5, s.y * 0.84), 22, Color(1, 0.95, 0.85, a), minf(s.x * 0.56, 760.0))
+	if world.is_land:
+		_draw_dash(b.dash)
+
+
+## The dash button and its pips (one diamond per pip, the next one filling as it recharges).
+func _draw_dash(r: Rect2) -> void:
+	var can: bool = world.mover.dash_ready()
+	_box(r, world.mover.dashing())
+	if not can and not world.mover.dashing():
+		draw_rect(r, Color(0, 0, 0, 0.45))
+	_text("DASH", r.get_center() + Vector2(0, 8), 22, Color(1, 1, 1, 1.0 if can else 0.5))
+	var pips: float = world.mover.dash_pips()
+	var pmax: int = int(world.mover.dash_pip_max())
+	for i in pmax:
+		var c := Vector2(r.get_center().x + (i - (pmax - 1) * 0.5) * 22.0, r.position.y - 16.0)
+		_diamond(c, 7.0, Color(0.25, 0.22, 0.2, 0.8))
+		var fill := clampf(pips - i, 0.0, 1.0)
+		if fill > 0.0:
+			_diamond(c, 7.0 * (0.4 + 0.6 * fill), Color(GOLD.r, GOLD.g, GOLD.b, 0.35 + 0.65 * fill))
 
 
 func _draw_gear(s: Vector2) -> void:

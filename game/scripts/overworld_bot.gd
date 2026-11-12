@@ -23,6 +23,7 @@ var _g_said := false
 
 func _init(owner_world: Overworld) -> void:
 	ow = owner_world
+	agility = "--agility" in OS.get_cmdline_user_args()
 
 
 func _walk_to(target: Vector3, delta: float) -> Vector3:
@@ -195,3 +196,309 @@ func _take_shot_if_due() -> void:
 	await RenderingServer.frame_post_draw
 	ow.get_viewport().get_texture().get_image().save_png(path)
 	ow.get_tree().quit()
+
+
+## ---- Agility test (tools/check.js scenario `agility`): `--autoplay=gather --agility`. The
+## gather bot keeps foes from chasing; the hero then moves by the real movement code (speed
+## tiers, sprint, dash) fed with a scripted stick on a cleared lane. Everything is measured in
+## game time, one movement slice at a time, so it does not depend on the frame rate. Prints one
+## "AGILITY <name> key=value ..." line per measurement and "AGILITY done" at the end.
+const AG_PHASES := ["sprint", "stop", "walk", "turn_run", "turn_walk", "turn_sprint60", "turn_sprint120",
+	"sprint_slow", "sprint_block", "dash", "dash_wall", "dash_water", "road"]
+const AG_TURNS := {
+	"turn_run": {"hold": Vector2(0, -1), "hold_t": 0.7, "to": Vector2(1, 0), "deg": 90.0},
+	"turn_walk": {"hold": Vector2(0, -0.5), "hold_t": 0.8, "to": Vector2(0.5, 0), "deg": 90.0},
+	"turn_sprint60": {"hold": Vector2(0, -1), "hold_t": 1.8, "to": Vector2(0.866, -0.5), "deg": 60.0},
+	"turn_sprint120": {"hold": Vector2(0, -1), "hold_t": 1.8, "to": Vector2(0.866, 0.5), "deg": 120.0},
+}
+const AG_DASH_TRIES := [0.0, 0.10, 0.30, 0.40, 0.80, 1.20, 1.60, 1.85]
+const AG_LANE_LEN := 160.0
+var agility := false
+var _ag_i := -1
+var _ag_t := 0.0
+var _ag_all := 0.0
+var _ag := {}
+var _ag_lane := {}
+var _ag_wall := Vector3.ZERO
+var _ag_wall_on := false
+
+
+func agility_active() -> bool:
+	return agility and ow._bot == "gather"
+
+
+func _ag_ok(p: Vector3) -> bool:
+	if not Land.in_bounds(p.x, p.z) or Vector2(p.x, p.z).distance_to(Land.TOWER) < 45.0:
+		return false
+	return not Land.is_water(p.x, p.z) and Land.road_dist(p.x, p.z) > 6.0
+
+
+## A straight lane of AG_LANE_LEN units with no water, road, tower or bounds on it (obstacles are
+## cleared while testing), nearest the start of the game.
+func _ag_find_lane() -> Dictionary:
+	var origins: Array = []
+	for x in range(-200, 201, 20):
+		for z in range(-240, 181, 20):
+			origins.append(Vector3(x, 0, z))
+	origins.sort_custom(func(a, b): return a.distance_to(Land.START) < b.distance_to(Land.START))
+	for o in origins:
+		for k in 8:
+			var dir := Vector3(cos(k * PI / 4.0), 0, sin(k * PI / 4.0))
+			var perp := Vector3(-dir.z, 0, dir.x)
+			var good := true
+			var s := 0.0
+			while s <= AG_LANE_LEN and good:
+				var p: Vector3 = o + dir * s
+				good = _ag_ok(p) and _ag_ok(p + perp * 3.0) and _ag_ok(p - perp * 3.0)
+				s += 4.0
+			if good:
+				return {"o": o, "d": dir}
+	return {}
+
+
+## Stand at a point (x, z) facing `dir`, camera frozen behind, all movement state cleared.
+func _ag_place(pos: Vector3, dir: Vector3) -> void:
+	pos.y = Land.walk_height(pos.x, pos.z)
+	ow.hero_pos = pos
+	var yaw := atan2(-dir.x, -dir.z)
+	ow.hero_yaw = yaw
+	ow.cam_yaw = yaw
+	ow.look_cool = 1e9
+	ow.hero.position = pos
+	var m = ow.mover
+	m.reset_motion()
+	m._pips = m._pip_max
+	m._lock = 0.0
+	m._end_xz = Vector2(pos.x, pos.z)
+	_ag_wall_on = false
+	_ag = {"o": pos, "d": dir, "yaw": yaw, "log": []}
+
+
+func _ag_s() -> float:
+	return (ow.hero_pos - (_ag.o as Vector3)).dot(_ag.d)
+
+
+func _ag_clear_obstacles() -> void:
+	for k in ow._chunks:
+		ow._chunks[k].obstacles.clear()
+	if _ag_wall_on:
+		var ch: Variant = ow._chunks.get(ow.terrain._chunk_of(_ag_wall))
+		if ch != null:
+			ch.obstacles.append(Vector3(_ag_wall.x, _ag_wall.z, 0.5))
+
+
+func _ag_say(name: String, kv: String) -> void:
+	print("AGILITY %s %s" % [name, kv])
+
+
+func _ag_next() -> void:
+	_ag_i += 1
+	_ag_t = 0.0
+	if _ag_i >= AG_PHASES.size():
+		print("AGILITY done")
+		ow.get_tree().quit()
+		return
+	var name: String = AG_PHASES[_ag_i]
+	var o: Vector3 = _ag_lane.o
+	var d: Vector3 = _ag_lane.d
+	if name == "stop":
+		_ag.release_t = 0.0
+		_ag.release_s = _ag_s()
+		return
+	if name == "road":
+		_ag_place(Vector3(0, 0, -25), Vector3(0, 0, -1))
+	elif name == "dash_water":
+		_ag_place_shore()
+	else:
+		_ag_place(o, d)
+	_ag.name = name
+	_ag.max_look = 0.0
+	_ag.max_fov = 0.0
+	_ag.said = false
+	if name == "dash":
+		_ag.dashes = []
+		_ag.tries = []
+		_ag.fl = []
+	if name == "dash_wall":
+		_ag_wall = ow.hero_pos + d * 2.0
+		_ag_wall_on = true
+
+
+func _ag_place_shore() -> void:
+	for a in range(0, 360, 30):
+		var dir := Vector3(-cos(deg_to_rad(a)), 0, -sin(deg_to_rad(a)))
+		var from := Vector3(Land.LAKE.x, 0, Land.LAKE.y) - dir * 70.0
+		var x := 0.0
+		while x < 70.0:
+			var p: Vector3 = from + dir * x
+			if Land.in_bounds(p.x, p.z) and Land.is_water(p.x, p.z):
+				var start: Vector3 = from + dir * (x - 2.0)
+				if _ag_ok(start) and Land.in_bounds(from.x, from.z):
+					_ag_place(start, dir)
+					return
+				break
+			x += 0.5
+	_ag_place(_ag_lane.o, _ag_lane.d)
+
+
+func agility_input(dt: float) -> Vector2:
+	if _ag_i < 0:
+		Engine.time_scale = 3.0
+		_ag_lane = _ag_find_lane()
+		if _ag_lane.is_empty():
+			print("AGILITY fail no clear lane")
+			ow.get_tree().quit()
+			return Vector2.ZERO
+		_ag_say("lane", "x=%.0f z=%.0f dir=%.2f,%.2f" % [_ag_lane.o.x, _ag_lane.o.z, _ag_lane.d.x, _ag_lane.d.z])
+		_ag_next()
+	_ag_clear_obstacles()
+	_ag_t += dt
+	_ag_all += dt
+	var m = ow.mover
+	var name: String = AG_PHASES[_ag_i] if _ag_i < AG_PHASES.size() else ""
+	var out := Vector2.ZERO
+	var s := _ag_s() if _ag.has("o") else 0.0
+	if name != "":
+		_ag.max_look = maxf(float(_ag.get("max_look", 0.0)), m._look.length())
+		_ag.max_fov = maxf(float(_ag.get("max_fov", 0.0)), ow.cam.fov)
+	match name:
+		"sprint":
+			out = Vector2(0, -1)
+			var ev: Dictionary = _ag
+			if not ev.has("t_run") and m._spd >= 9.4:
+				ev.t_run = _ag_t
+			if not ev.has("t_sprint") and m._sprinting:
+				ev.t_sprint = _ag_t
+			if not ev.has("t_top") and m._spd >= 12.4:
+				ev.t_top = _ag_t
+			if not ev.has("t100") and s >= 100.0:
+				ev.t100 = _ag_t
+			ev.top = maxf(float(ev.get("top", 0.0)), m._spd)
+			if s >= 135.0 or _ag_t > 14.0:
+				_ag_say("sprint", "run_t=%.2f sprint_t=%.2f top_t=%.2f top=%.2f t100=%.2f dist=%.1f look_max=%.2f fov_max=%.1f" % [
+					ev.get("t_run", -1.0), ev.get("t_sprint", -1.0), ev.get("t_top", -1.0), ev.top, ev.get("t100", -1.0), s, ev.max_look, ev.max_fov])
+				_ag_next()
+		"stop":
+			if _ag_t > 2.0 or (m._spd < 0.01 and _ag_t > 0.02):
+				_ag_say("stop", "time=%.2f distance=%.2f" % [_ag_t, _ag_s() - float(_ag.release_s)])
+				_ag_next()
+		"walk":
+			out = Vector2(0, -0.7)
+			if not _ag.has("t95") and m._spd >= 0.95 * 3.85:
+				_ag.t95 = _ag_t
+			if _ag_t >= 1.5:
+				_ag_say("walk", "stick=0.7 speed=%.2f t95=%.2f look_max=%.2f fov=%.1f" % [m._spd, _ag.get("t95", -1.0), _ag.max_look, ow.cam.fov])
+				_ag_next()
+		"turn_run", "turn_walk", "turn_sprint60", "turn_sprint120":
+			var tt: Dictionary = AG_TURNS[name]
+			out = tt.hold
+			if _ag_t > float(tt.hold_t):
+				if not _ag.has("sw_t"):
+					_ag.sw_t = _ag_t
+					_ag.sw_spd = m._spd
+					_ag.sw_sprint = m._sprinting
+					_ag.target = float(_ag.yaw) - deg_to_rad(float(tt.deg))
+				out = tt.to
+				var el: float = _ag_t - float(_ag.sw_t)
+				if not _ag.has("t_yaw") and absf(angle_difference(ow.hero_yaw, float(_ag.target))) < deg_to_rad(2.0):
+					_ag.t_yaw = el
+				if not _ag.has("t_lost") and not m._sprinting:
+					_ag.t_lost = el
+				if el >= 0.8:
+					var ty: float = _ag.get("t_yaw", -1.0)
+					_ag_say(name, "deg=%.0f t_yaw=%.3f rate=%.0f sprint_before=%s sprint_after=%s t_lost=%.3f speed_before=%.2f speed_after=%.2f" % [
+						tt.deg, ty, (float(tt.deg) - 2.0) / ty if ty > 0.0 else -1.0, _ag.sw_sprint, m._sprinting, _ag.get("t_lost", -1.0), _ag.sw_spd, m._spd])
+					_ag_next()
+		"sprint_slow":
+			out = Vector2(0, -1)
+			if _ag_t > 1.8:
+				if not _ag.has("sw_t"):
+					_ag.sw_t = _ag_t
+					_ag.before = m._sprinting
+				out = Vector2(0, -0.7)
+				if not _ag.has("t_lost") and not m._sprinting:
+					_ag.t_lost = _ag_t - float(_ag.sw_t)
+				if _ag_t - float(_ag.sw_t) >= 0.6:
+					_ag_say("sprint_slow", "sprint_before=%s sprint_after=%s t_lost=%.3f speed_after=%.2f" % [_ag.before, m._sprinting, _ag.get("t_lost", -1.0), m._spd])
+					_ag_next()
+		"sprint_block":
+			out = Vector2(0, -1)
+			if _ag_t > 1.8:
+				var ahead: Vector3 = ow.hero_pos + (_ag.d as Vector3) * 4.0
+				if not _ag.has("sw_t") and ow._chunks.has(ow.terrain._chunk_of(ahead)):
+					_ag.sw_t = _ag_t
+					_ag.before = m._sprinting
+					_ag.spd_before = m._spd
+					_ag_wall = ahead
+					_ag_wall_on = true
+				if _ag.has("sw_t") and not _ag.has("t_lost") and not m._sprinting:
+					_ag.t_lost = _ag_t - float(_ag.sw_t)
+				if _ag.has("sw_t") and _ag_t - float(_ag.sw_t) >= 1.0:
+					_ag_say("sprint_block", "sprint_before=%s sprint_after=%s t_lost=%.3f speed_before=%.2f speed_after=%.2f stopped_short=%.2f" % [
+						_ag.before, m._sprinting, _ag.get("t_lost", -1.0), _ag.spd_before, m._spd, (_ag_wall - (_ag.o as Vector3)).dot(_ag.d) - _ag_s()])
+					_ag_wall_on = false
+					_ag_next()
+		"dash":
+			out = Vector2(0, -1)
+			var dashing_now: bool = m.dashing()
+			# The end of a dash is seen here, one step after it happened.
+			if _ag.get("in_dash", false) and not dashing_now:
+				var dd: Dictionary = _ag.cur
+				dd.dur = float(_ag.prev_t) - float(dd.t0)
+				dd.dist = (ow.hero_pos - (dd.p0 as Vector3)).dot(_ag.d)
+				dd.pips_after = m._pips
+				_ag.dashes.append(dd)
+				_ag.in_dash = false
+			if dashing_now and _ag.dashes.is_empty():
+				_ag.fl.append([m._dash_t, m.dash_iframes()])
+			# Tries are timed from 0.5 s into the run, which is when the first dash is made.
+			var idx: int = _ag.tries.size()
+			if idx < AG_DASH_TRIES.size() and _ag_t - 0.5 >= float(AG_DASH_TRIES[idx]):
+				var pb: float = m._pips
+				var p0: Vector3 = ow.hero_pos
+				var ok: bool = m.try_dash()
+				_ag.tries.append([ok, pb])
+				if ok:
+					_ag.cur = {"t0": _ag_t - dt, "p0": p0, "pips_before": pb}
+					_ag.in_dash = true
+			_ag.prev_t = _ag_t
+			if _ag_t > 2.9:
+				var res := ""
+				var pr := ""
+				for tr in _ag.tries:
+					res += "T" if tr[0] else "F"
+					pr += "%.2f," % tr[1]
+				var lt := 0.0
+				var ff := -1.0
+				for f in _ag.fl:
+					if f[1]:
+						lt = maxf(lt, float(f[0]))
+					elif ff < 0.0:
+						ff = float(f[0])
+				var d1: Dictionary = _ag.dashes[0] if not _ag.dashes.is_empty() else {}
+				_ag_say("dash", "n=%d tries=%s pips_at_try=%s dist=%.2f dur=%.3f pips_before=%.2f pips_after=%.2f iframe_last=%.3f iframe_off=%.3f fov_max=%.1f" % [
+					_ag.dashes.size(), res, pr, d1.get("dist", -1.0), d1.get("dur", -1.0), d1.get("pips_before", -1.0), d1.get("pips_after", -1.0), lt, ff, _ag.max_fov])
+				for q in _ag.dashes.size():
+					_ag_say("dash_each", "i=%d dist=%.2f dur=%.3f" % [q, _ag.dashes[q].dist, _ag.dashes[q].dur])
+				_ag_next()
+		"dash_wall", "dash_water":
+			var wall_ready: bool = name == "dash_water" or ow._chunks.has(ow.terrain._chunk_of(_ag_wall))
+			if not _ag.has("tried") and _ag_t > 0.3 and wall_ready:
+				_ag.tried = true
+				_ag.p0 = ow.hero_pos
+				_ag.ok = m.try_dash()
+			if _ag.has("tried") and not m.dashing() and _ag_t > 0.6:
+				var dist: float = (ow.hero_pos - (_ag.p0 as Vector3)).length()
+				var bad: bool = ow.terrain._blocked(ow.hero_pos)
+				var in_water := Land.is_water(ow.hero_pos.x, ow.hero_pos.z)
+				_ag_say(name, "started=%s dist=%.2f stopped=%s hero_blocked=%s in_water=%s" % [_ag.ok, dist, m.dash_stopped, bad, in_water])
+				_ag_wall_on = false
+				_ag_next()
+		"road":
+			out = Vector2(0, -1)
+			if not _ag.has("run") and _ag_t >= 0.9:
+				_ag.run = m._spd
+			if s >= 100.0 or _ag_t > 9.0:
+				_ag_say("road", "run=%.2f sprint=%.2f sprinting=%s t=%.2f" % [_ag.get("run", -1.0), m._spd, m._sprinting, _ag_t])
+				_ag_next()
+	return out
