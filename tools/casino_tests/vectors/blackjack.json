@@ -1,0 +1,4103 @@
+{
+ "actions": [
+  {
+   "buy_in": 5000,
+   "player": "p0",
+   "seat": 0,
+   "type": "sit"
+  },
+  {
+   "buy_in": 5000,
+   "player": "p1",
+   "seat": 1,
+   "type": "sit"
+  },
+  {
+   "buy_in": 5000,
+   "player": "p2",
+   "seat": 2,
+   "type": "sit"
+  },
+  {
+   "amount": 53,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 54,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 47,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "split"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "split"
+  },
+  {
+   "seat": 2,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "split"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 40,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 48,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 41,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "stand"
+  },
+  {
+   "amount": 53,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 17,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 39,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "amount": 32,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 30,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 52,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "amount": 48,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 58,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 46,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "amount": 36,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 27,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 38,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "double"
+  },
+  {
+   "seat": 1,
+   "type": "split"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "stand"
+  },
+  {
+   "amount": 5,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 43,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 35,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "double"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "amount": 39,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 13,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 28,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "amount": 42,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 50,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 25,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "split"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "stand"
+  },
+  {
+   "amount": 45,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 49,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 25,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "double"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "amount": 35,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 35,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 9,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 8,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 31,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 23,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "split"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 45,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 13,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 54,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "stand"
+  },
+  {
+   "amount": 41,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 59,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 1,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "split"
+  },
+  {
+   "seat": 2,
+   "type": "split"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "amount": 41,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 32,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 60,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "amount": 3,
+   "seat": 0,
+   "type": "insurance"
+  },
+  {
+   "amount": 1,
+   "seat": 1,
+   "type": "insurance"
+  },
+  {
+   "amount": 22,
+   "seat": 2,
+   "type": "insurance"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "stand"
+  },
+  {
+   "amount": 9,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 29,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 11,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "amount": 0,
+   "seat": 0,
+   "type": "insurance"
+  },
+  {
+   "amount": 6,
+   "seat": 1,
+   "type": "insurance"
+  },
+  {
+   "amount": 0,
+   "seat": 2,
+   "type": "insurance"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 6,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 43,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 54,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 6,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 13,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 27,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "stand"
+  },
+  {
+   "amount": 44,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 14,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 35,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 53,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 17,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 46,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 55,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 5,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 10,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 25,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 56,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 59,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "double"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 17,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 34,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 41,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "double"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "stand"
+  },
+  {
+   "amount": 48,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 27,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 53,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "double"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 9,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 37,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 54,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 10,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 26,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 49,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "amount": 48,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 28,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 32,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "double"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 32,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 13,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 55,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 9,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 12,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 41,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "double"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "stand"
+  },
+  {
+   "amount": 2,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 7,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 43,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "double"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "amount": 15,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 13,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 36,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "double"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "amount": 41,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 4,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 24,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 40,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 26,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 48,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 30,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 60,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 29,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 45,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 21,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 7,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "double"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 5,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 43,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 42,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "split"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 0,
+   "type": "double"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "amount": 41,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 46,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 18,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 34,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 30,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 23,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 43,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 46,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 26,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "stand"
+  },
+  {
+   "amount": 5,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 5,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 53,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "stand"
+  },
+  {
+   "amount": 12,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 29,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 46,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "double"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "amount": 36,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 56,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 13,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "stand"
+  },
+  {
+   "amount": 25,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 14,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 33,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "stand"
+  },
+  {
+   "amount": 21,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 40,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 21,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "amount": 9,
+   "seat": 0,
+   "type": "insurance"
+  },
+  {
+   "amount": 8,
+   "seat": 1,
+   "type": "insurance"
+  },
+  {
+   "amount": 4,
+   "seat": 2,
+   "type": "insurance"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 22,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 51,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 24,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "split"
+  },
+  {
+   "amount": 9,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 15,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 23,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "double"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "amount": 13,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 6,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 58,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "stand"
+  },
+  {
+   "amount": 27,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 43,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 17,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "amount": 12,
+   "seat": 0,
+   "type": "insurance"
+  },
+  {
+   "amount": 0,
+   "seat": 1,
+   "type": "insurance"
+  },
+  {
+   "amount": 4,
+   "seat": 2,
+   "type": "insurance"
+  },
+  {
+   "amount": 16,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 25,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 36,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "stand"
+  },
+  {
+   "amount": 30,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 34,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 52,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "stand"
+  },
+  {
+   "amount": 37,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 7,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 13,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "stand"
+  },
+  {
+   "amount": 53,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 33,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 56,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 43,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 52,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 16,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "double"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "amount": 9,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 7,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 40,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "double"
+  },
+  {
+   "seat": 1,
+   "type": "split"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "stand"
+  },
+  {
+   "amount": 29,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 30,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 56,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "split"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "stand"
+  },
+  {
+   "amount": 29,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 59,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 11,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "stand"
+  },
+  {
+   "amount": 26,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 52,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 2,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 55,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 32,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 46,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "stand"
+  },
+  {
+   "amount": 37,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 21,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 47,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "amount": 3,
+   "seat": 0,
+   "type": "insurance"
+  },
+  {
+   "amount": 1,
+   "seat": 1,
+   "type": "insurance"
+  },
+  {
+   "amount": 23,
+   "seat": 2,
+   "type": "insurance"
+  },
+  {
+   "amount": 40,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 26,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 25,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "amount": 5,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 39,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 38,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 56,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 9,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 22,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "split"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 15,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 41,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 27,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "double"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "stand"
+  },
+  {
+   "amount": 56,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 29,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 40,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "double"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "amount": 43,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 23,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 19,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 10,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 41,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 32,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "amount": 2,
+   "seat": 0,
+   "type": "insurance"
+  },
+  {
+   "amount": 5,
+   "seat": 1,
+   "type": "insurance"
+  },
+  {
+   "amount": 4,
+   "seat": 2,
+   "type": "insurance"
+  },
+  {
+   "amount": 38,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 32,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 6,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "double"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "stand"
+  },
+  {
+   "amount": 50,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 9,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 16,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 18,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 12,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 6,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "stand"
+  },
+  {
+   "amount": 57,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 10,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 34,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "double"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "stand"
+  },
+  {
+   "amount": 47,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 58,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 25,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 30,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 20,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 34,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "stand"
+  },
+  {
+   "amount": 21,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 54,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 3,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "split"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 23,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 8,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 54,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "amount": 57,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 50,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 42,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 13,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 18,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 58,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "double"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "stand"
+  },
+  {
+   "amount": 20,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 7,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 17,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "amount": 56,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 22,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 18,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "double"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 47,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 52,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 27,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 58,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 21,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 14,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 53,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 42,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 58,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 23,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 27,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 16,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "stand"
+  },
+  {
+   "amount": 54,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 39,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 22,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 51,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 55,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 25,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "amount": 22,
+   "seat": 0,
+   "type": "insurance"
+  },
+  {
+   "amount": 22,
+   "seat": 1,
+   "type": "insurance"
+  },
+  {
+   "amount": 0,
+   "seat": 2,
+   "type": "insurance"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "amount": 41,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 37,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 55,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "amount": 43,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 23,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 50,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "amount": 3,
+   "seat": 0,
+   "type": "insurance"
+  },
+  {
+   "amount": 0,
+   "seat": 1,
+   "type": "insurance"
+  },
+  {
+   "amount": 19,
+   "seat": 2,
+   "type": "insurance"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "amount": 26,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 57,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 40,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "amount": 2,
+   "seat": 0,
+   "type": "insurance"
+  },
+  {
+   "amount": 11,
+   "seat": 1,
+   "type": "insurance"
+  },
+  {
+   "amount": 14,
+   "seat": 2,
+   "type": "insurance"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "stand"
+  },
+  {
+   "amount": 23,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 59,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 40,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "amount": 2,
+   "seat": 0,
+   "type": "insurance"
+  },
+  {
+   "amount": 18,
+   "seat": 1,
+   "type": "insurance"
+  },
+  {
+   "amount": 6,
+   "seat": 2,
+   "type": "insurance"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "stand"
+  },
+  {
+   "amount": 6,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 16,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 34,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "stand"
+  },
+  {
+   "amount": 58,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 51,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 47,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "double"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "amount": 10,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 25,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 58,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "stand"
+  },
+  {
+   "amount": 42,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 51,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 12,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 45,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 10,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 8,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "stand"
+  },
+  {
+   "amount": 28,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 47,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 56,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "amount": 48,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 4,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 29,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 5,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 59,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 22,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 41,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 8,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 59,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "double"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 53,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 46,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 36,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 30,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 38,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 21,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "split"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "stand"
+  },
+  {
+   "amount": 27,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 51,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 39,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 43,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 43,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 4,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "double"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "split"
+  },
+  {
+   "seat": 2,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 32,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 46,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 42,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 53,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 50,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 59,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 23,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 44,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 52,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "split"
+  },
+  {
+   "seat": 0,
+   "type": "double"
+  },
+  {
+   "seat": 0,
+   "type": "double"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "amount": 8,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 53,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 39,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "amount": 35,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 26,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 56,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 2,
+   "type": "stand"
+  },
+  {
+   "amount": 54,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 48,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 35,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "amount": 21,
+   "seat": 0,
+   "type": "insurance"
+  },
+  {
+   "amount": 2,
+   "seat": 1,
+   "type": "insurance"
+  },
+  {
+   "amount": 1,
+   "seat": 2,
+   "type": "insurance"
+  },
+  {
+   "seat": 0,
+   "type": "double"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "amount": 50,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 5,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 32,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 39,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 9,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 23,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "amount": 21,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 52,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 38,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "stand"
+  },
+  {
+   "amount": 2,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 7,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 10,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "double"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "amount": 46,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 23,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 53,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "stand"
+  },
+  {
+   "amount": 23,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 9,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 17,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 18,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 23,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 53,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "stand"
+  },
+  {
+   "amount": 15,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 45,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 27,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "amount": 14,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 33,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 37,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "hit"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "hit"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "amount": 57,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 54,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 45,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "double"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "double"
+  },
+  {
+   "amount": 35,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 1,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 9,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "double"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "hit"
+  },
+  {
+   "seat": 2,
+   "type": "stand"
+  },
+  {
+   "amount": 34,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 4,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 23,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "double"
+  },
+  {
+   "seat": 1,
+   "type": "stand"
+  },
+  {
+   "seat": 2,
+   "type": "stand"
+  },
+  {
+   "amount": 13,
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 23,
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 46,
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "deal"
+  },
+  {
+   "seat": 0,
+   "type": "stand"
+  },
+  {
+   "seat": 1,
+   "type": "double"
+  },
+  {
+   "seat": 2,
+   "type": "stand"
+  }
+ ],
+ "canonical_form": "one JSON object per event, keys sorted, no whitespace, joined by \\n; SHA-256 of the UTF-8",
+ "config": {
+  "decks": 6,
+  "max_bet": 500,
+  "min_bet": 1,
+  "penetration_pct": 75,
+  "seats": 3
+ },
+ "event_count": 4417,
+ "event_log_sha256": "80c07dd6835ad9a70a748e915d4635af24ddb38feb5aad75f95cbb4f36fa98a0",
+ "final_balances": {
+  "house": 5151,
+  "seat0": 3375,
+  "seat1": 3240,
+  "seat2": 3234,
+  "table": 0
+ },
+ "first_event": "{\"account\":\"house\",\"amount\":0,\"seq\":1,\"type\":\"open\"}",
+ "game": "blackjack",
+ "seeds": [
+  "5cbaebf8ab95626c3ea3f910b6eaac95",
+  "9eb9def45e01b2183c02b14f7cff5403",
+  "87229e2cb74697bf9558ab96c9e6ace4",
+  "b6f2aea176869c2acc55a79435605d30",
+  "09aa26197d1b8ccaeacc40bd3555670d",
+  "d2b621cfd5e6e394c4ada16d67852e49",
+  "6723596cb52af1ecde19948a024b3d6a"
+ ]
+}

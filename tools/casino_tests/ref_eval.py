@@ -5,8 +5,9 @@
    7-card hand with a separate, textbook 5-card ranking, and checks that it puts
    the hands in exactly the same order (and the same categories) as the GDScript
    evaluator.
-2. Re-implements the RNG (xoshiro128** seeded by splitmix32, rejection-sampled
-   bounded draws, Fisher-Yates) and checks the GDScript stream bit for bit.
+2. Re-implements the RNG (xoshiro128** seeded from 128 bits through the
+   murmur3 finaliser and four discarded outputs, rejection-sampled bounded draws, Fisher-Yates) and checks
+   the GDScript stream bit for bit, and the golden vectors in vectors/rng.json.
 
 Usage: ref_eval.py <hands.tsv>   (hands.tsv.rng is read too). Exit 1 on mismatch.
 """
@@ -66,20 +67,22 @@ def rotl(x, k):
     return ((x << k) | (x >> (32 - k))) & M
 
 
+def fmix32(h):
+    h &= M
+    h = mul32(h ^ (h >> 16), 0x85EBCA6B)
+    h = mul32(h ^ (h >> 13), 0xC2B2AE35)
+    return (h ^ (h >> 16)) & M
+
+
 class Rng:
-    def __init__(self, seed):
-        lo = seed & M
-        hi = (seed >> 32) & M
-        sm = (lo ^ mul32(hi, 0x85EBCA6B)) & M
-        self.s = []
-        for _ in range(4):
-            sm = (sm + 0x9E3779B9) & M
-            z = sm
-            z = mul32(z ^ (z >> 16), 0x85EBCA6B)
-            z = mul32(z ^ (z >> 13), 0xC2B2AE35)
-            self.s.append((z ^ (z >> 16)) & M)
+    def __init__(self, seed_hex):
+        assert len(seed_hex) == 32
+        words = [int(seed_hex[i * 8:i * 8 + 8], 16) for i in range(4)]
+        self.s = [fmix32((w + 0x9E3779B9 * (i + 1)) & M) for i, w in enumerate(words)]
         if self.s == [0, 0, 0, 0]:
             self.s[0] = 1
+        for _ in range(4):
+            self.next_u32()
 
     def next_u32(self):
         s0, s1, s2, s3 = self.s
@@ -95,7 +98,9 @@ class Rng:
         return result
 
     def next_below(self, n):
-        if n <= 1:
+        if n < 1 or n > 2**32:
+            return -1
+        if n == 1:
             return 0
         threshold = (2**32 - n) % n
         while True:
@@ -117,7 +122,7 @@ def check_rng(path):
         if not line.strip():
             continue
         seed, vals, bel, deck = line.split("\t")
-        r = Rng(int(seed))
+        r = Rng(seed)
         want_vals = [r.next_u32() for _ in range(8)]
         want_bel = [r.next_below(k) for k in [1, 2, 3, 7, 10, 52, 37, 1000003, 0x80000001]]
         d = list(range(52))
@@ -130,11 +135,42 @@ def check_rng(path):
     return n, bad
 
 
+def check_rng_vectors():
+    """vectors/rng.json: the golden vectors a port must reproduce."""
+    import json
+    import os
+    p = os.path.join(os.path.dirname(os.path.abspath(__file__)), "vectors", "rng.json")
+    data = json.load(open(p))
+    bad = 0
+    for v in data["vectors"]:
+        r = Rng(v["seed"])
+        u = [r.next_u32() for _ in range(len(v["u32"]))]
+        bl = [r.next_below(n) for n in v["below_n"]]
+        r2 = Rng(v["seed"])
+        d = list(range(52))
+        r2.shuffle(d)
+        if u != v["u32"] or bl != v["below"] or d != v["deck"]:
+            bad += 1
+            print("RNG VECTOR MISMATCH", v["seed"])
+    # The game vectors' canonical event form is plain sorted-key JSON.
+    for g in ("blackjack", "roulette", "holdem"):
+        gv = json.load(open(os.path.join(os.path.dirname(p), g + ".json")))
+        fe = gv["first_event"]
+        if json.dumps(json.loads(fe), sort_keys=True, separators=(",", ":")) != fe:
+            bad += 1
+            print("CANONICAL FORM MISMATCH", g, fe)
+    return len(data["vectors"]), bad
+
+
 def main():
     path = sys.argv[1]
     t0 = time.time()
     n_rng, bad_rng = check_rng(path + ".rng")
     print(f"python rng: {n_rng} seeds checked (u32 stream, bounded draws, shuffle), {bad_rng} mismatches")
+    n_vec, bad_vec = check_rng_vectors()
+    print(f"python rng golden vectors: {n_vec} checked, {bad_vec} mismatches")
+    bad_rng += bad_vec
+    n_rng = min(n_rng, n_vec)
     rows = []
     for line in open(path):
         if not line.strip():

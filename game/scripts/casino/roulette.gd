@@ -11,7 +11,16 @@ extends RefCounted
 ##   "top line"), dozen 2 / column 2 (index 1..3), red black odd even low high 1.
 ## Inside bets name their pockets in "numbers"; they must be a real table spot.
 ##
+## Limits: min_bet..max_bet per bet, at most max_bets bets down per seat.
+##
+## Randomness: every spin is drawn by a generator freshly seeded with 128 bits
+## from `seed_source.next_seed()`, so past results say nothing about the next
+## one. The spin is settled in the same apply() that draws it, so its "spin"
+## event carries the seed at once (nothing it governs is still hidden).
+##
 ## Accounts: "seat<i>", "table" (bets down), "house" (unbounded).
+## SENDABLE: view_for(seat), events_for(seat, raw_events). SERVER-ONLY:
+## to_dict() (it holds the last spin's generator state).
 
 const U := preload("res://scripts/casino/util.gd")
 const Rng := preload("res://scripts/casino/rng.gd")
@@ -30,9 +39,12 @@ var bets: Array = []
 var spins := 0
 var history: Array = []
 var _spots: Dictionary = {}
+## Object with next_seed() (see rng.gd). Not serialised: pass it again after
+## from_dict().
+var seed_source = null
 
 
-func _init(config: Dictionary = {}, seed: int = 1) -> void:
+func _init(config: Dictionary = {}, source = null) -> void:
 	var w := String(config.get("wheel", "european"))
 	cfg = {
 		"wheel": "american" if w == "american" else "european",
@@ -41,7 +53,7 @@ func _init(config: Dictionary = {}, seed: int = 1) -> void:
 		"max_bet": maxi(1, int(config.get("max_bet", 1000000))),
 		"max_bets": maxi(1, int(config.get("max_bets", 64))),
 	}
-	rng.seed_with(seed)
+	seed_source = source
 	chips.open("house", 0, true)
 	chips.open("table", 0)
 	for i in cfg["seats"]:
@@ -211,8 +223,14 @@ func _bet(seat: int, a: Dictionary):
 		return U.err("bet_limits", "bet must be %d..%d" % [cfg["min_bet"], cfg["max_bet"]])
 	if amt > chips.balance(acct(seat)):
 		return U.err("insufficient_chips")
-	if bets.size() >= cfg["max_bets"]:
-		return U.err("too_many_bets")
+	# Counted per seat, so one seat cannot crowd the others off the layout.
+	# No separate table cap is needed: seats * max_bets already bounds it.
+	var mine := 0
+	for b0 in bets:
+		if b0["seat"] == seat:
+			mine += 1
+	if mine >= cfg["max_bets"]:
+		return U.err("too_many_bets", "at most %d bets per seat" % cfg["max_bets"])
 	var nums := []
 	var raw = a.get("numbers", [])
 	if typeof(raw) != TYPE_ARRAY:
@@ -255,9 +273,15 @@ func _clear(seat: int) -> void:
 
 
 func _spin():
+	var words := U.take_seed(seed_source)
+	if words.is_empty():
+		return U.err("no_seed", "the seed source gave no valid 128-bit seed")
+	rng = Rng.new()
+	rng.seed_128(words)
 	var r := rng.next_below(pockets())
 	spins += 1
-	chips.log_event("spin", {"spin": spins, "result": r, "label": label(r), "color": color(r)})
+	chips.log_event("spin", {"spin": spins, "result": r, "label": label(r), "color": color(r),
+		"seed": Rng.seed_hex(words)})
 	for b in bets:
 		var cov := covers(b["kind"], b["numbers"], b["index"])
 		var amt: int = b["amount"]
@@ -283,6 +307,13 @@ func view_for(seat: int) -> Dictionary:
 		ss.append({"seat": i, "player": seats[i]["player"], "stack": chips.balance(acct(i))})
 	return {"seat": seat, "wheel": cfg["wheel"], "seats": ss, "bets": bets.duplicate(true),
 		"history": history.duplicate(), "spins": spins, "min_bet": cfg["min_bet"], "max_bet": cfg["max_bet"]}
+
+
+## The events a seat may receive, from apply()'s raw_events. Roulette has no
+## hidden information once a spin is settled, so nothing is removed; call it
+## anyway so the server treats every game the same way.
+static func events_for(_seat: int, evts: Array) -> Array:
+	return evts.filter(func(e): return e.get("type", "") != "seed")
 
 
 func to_dict() -> Dictionary:

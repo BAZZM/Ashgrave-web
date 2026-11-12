@@ -10,9 +10,21 @@ extends RefCounted
 ## - Insurance up to half the bet (rounded down) when the dealer shows an ace,
 ##   pays 2:1. No surrender.
 ##
+## Randomness: every shoe is shuffled by a generator freshly seeded with 128
+## bits from `seed_source.next_seed()`. The first shoe is built at the first
+## deal; a new one when a round would start past the cut card. Each deal also
+## makes sure one spare seed is held for an emergency reshuffle (a shoe that
+## runs out mid-round), so a round never needs the seed source once started.
+## A shoe's seed is logged in a "seed" event when the shoe is made and
+## published in a "seed_reveal" event once the shoe is retired and no round
+## dealt from it is still in play: at the next shuffle between rounds, or at
+## the end of the round in which an emergency reshuffle retired it.
+##
 ## Accounts: "seat<i>" (the player's stack), "table" (wagers in play), "house"
 ## (unbounded). Actions are Dictionaries; apply() returns
-## {ok:true, events:[...]} or {ok:false, error, message} and never mutates on error.
+## {ok:true, raw_events:[...]} or {ok:false, error, message} and never mutates
+## on error. SENDABLE: view_for(seat), events_for(seat, raw_events).
+## SERVER-ONLY: raw_events ("seed" events), to_dict() (shoe order, seeds).
 
 const U := preload("res://scripts/casino/util.gd")
 const Cards := preload("res://scripts/casino/cards.gd")
@@ -32,9 +44,17 @@ var dealer: Array = []
 var hole_shown := true
 var turn_seat := -1
 var turn_hand := -1
+var shoe_no := 0
+## Seeds of retired shoes not yet published: [[shoe_no, hex], ...].
+var pending_reveal: Array = []
+## Spare 128-bit seed (four u32) for an emergency reshuffle, or [].
+var reserve_seed: Array = []
+## Object with next_seed() (see rng.gd). Not serialised: pass it again after
+## from_dict().
+var seed_source = null
 
 
-func _init(config: Dictionary = {}, seed: int = 1) -> void:
+func _init(config: Dictionary = {}, source = null) -> void:
 	cfg = {
 		"seats": clampi(int(config.get("seats", 6)), 1, 6),
 		"decks": clampi(int(config.get("decks", 6)), 1, 8),
@@ -42,14 +62,12 @@ func _init(config: Dictionary = {}, seed: int = 1) -> void:
 		"min_bet": maxi(1, int(config.get("min_bet", 1))),
 		"max_bet": maxi(1, int(config.get("max_bet", 1000000))),
 	}
-	rng.seed_with(seed)
+	seed_source = source
 	chips.open("house", 0, true)
 	chips.open("table", 0)
 	seats = []
 	for i in cfg["seats"]:
 		seats.append(_empty_seat())
-	shoe = Cards.new_shoe(cfg["decks"], cfg["penetration_pct"], rng)
-	chips.log_event("shuffle", {"cards": (shoe["cards"] as Array).size(), "cut": shoe["cut"]})
 
 
 static func _empty_seat() -> Dictionary:
@@ -190,8 +208,29 @@ func _draw() -> int:
 	return Cards.shoe_draw(shoe)
 
 
+## Retires the current shoe (its seed waits in pending_reveal) and seeds a
+## fresh generator for the next one. Returns the new shoe's hex seed.
+func _reseed(words: Array) -> String:
+	if not shoe.is_empty() and shoe.has("seed"):
+		pending_reveal.append([shoe_no, String(shoe["seed"])])
+	shoe_no += 1
+	rng = Rng.new()
+	rng.seed_128(words)
+	var hex := Rng.seed_hex(words)
+	chips.log_event("seed", {"unit": "shoe", "shoe": shoe_no, "seed": hex})
+	return hex
+
+
+## Publishes the seeds of retired shoes. Only called between rounds.
+func _flush_reveals() -> void:
+	for p in pending_reveal:
+		chips.log_event("seed_reveal", {"unit": "shoe", "shoe": p[0], "seed": p[1]})
+	pending_reveal = []
+
+
 ## The shoe ran out mid-round (only possible with few decks and many splits):
 ## reshuffle every card not on the table, as a dealer shuffles the discards.
+## Uses the spare seed taken at the deal; its seed is revealed at round end.
 func _emergency_shuffle() -> void:
 	var in_play := {}
 	for c in dealer:
@@ -207,9 +246,20 @@ func _emergency_shuffle() -> void:
 				in_play[c] = int(in_play[c]) - 1
 			else:
 				cards.append(c)
+	var words := reserve_seed
+	if words.is_empty():
+		# A second emergency in one round (one deck, many splits): ask the
+		# source now. A source that fails here is a host bug; count a fault
+		# and fall back to continuing the old stream rather than stop the round.
+		words = U.take_seed(seed_source)
+		if words.is_empty():
+			chips.faults += 1
+			words = [rng.next_u32(), rng.next_u32(), rng.next_u32(), rng.next_u32()]
+	var hex := _reseed(words)
+	reserve_seed = []
 	rng.shuffle(cards)
-	shoe = {"cards": cards, "pos": 0, "cut": 0, "decks": cfg["decks"], "pen": cfg["penetration_pct"]}
-	chips.log_event("shuffle", {"cards": cards.size(), "cut": 0, "emergency": true})
+	shoe = {"cards": cards, "pos": 0, "cut": 0, "decks": cfg["decks"], "pen": cfg["penetration_pct"], "seed": hex}
+	chips.log_event("shuffle", {"shoe": shoe_no, "cards": cards.size(), "cut": 0, "emergency": true})
 
 
 func _deal():
@@ -221,9 +271,25 @@ func _deal():
 			any = true
 	if not any:
 		return U.err("no_bets")
-	if Cards.shoe_past_cut(shoe):
+	# Take every seed this round could need before changing anything.
+	var need_shoe: bool = shoe.is_empty() or Cards.shoe_past_cut(shoe)
+	var shoe_words := []
+	if need_shoe:
+		shoe_words = U.take_seed(seed_source)
+		if shoe_words.is_empty():
+			return U.err("no_seed", "the seed source gave no valid 128-bit seed")
+	var spare := reserve_seed
+	if spare.is_empty():
+		spare = U.take_seed(seed_source)
+		if spare.is_empty():
+			return U.err("no_seed", "the seed source gave no valid 128-bit seed")
+	reserve_seed = spare
+	if need_shoe:
+		var hex := _reseed(shoe_words)
 		shoe = Cards.new_shoe(cfg["decks"], cfg["penetration_pct"], rng)
-		chips.log_event("shuffle", {"cards": (shoe["cards"] as Array).size(), "cut": shoe["cut"]})
+		shoe["seed"] = hex
+		chips.log_event("shuffle", {"shoe": shoe_no, "cards": (shoe["cards"] as Array).size(), "cut": shoe["cut"]})
+		_flush_reveals()
 	round_no += 1
 	dealer = []
 	hole_shown = false
@@ -488,6 +554,7 @@ func _finish_round() -> void:
 	turn_seat = -1
 	turn_hand = -1
 	chips.log_event("round_end", {"round": round_no, "dealer": dealer.duplicate(), "dealer_total": dt})
+	_flush_reveals()
 
 
 # ----------------------------------------------------------------- views / state
@@ -506,8 +573,16 @@ func view_for(seat: int) -> Dictionary:
 	return {"seat": seat, "phase": phase, "round": round_no, "dealer": d,
 		"dealer_total": total(dealer)[0] if hole_shown else (card_value(dealer[0]) if dealer.size() > 0 else 0),
 		"seats": ss, "turn_seat": turn_seat, "turn_hand": turn_hand,
-		"shoe_left": Cards.shoe_left(shoe), "legal": legal_actions(seat),
+		"shoe_left": Cards.shoe_left(shoe) if not shoe.is_empty() else 0, "legal": legal_actions(seat),
 		"min_bet": cfg["min_bet"], "max_bet": cfg["max_bet"]}
+
+
+## The events a seat may receive, from apply()'s raw_events: the "seed" event
+## of a shoe still in use is dropped ("seed_reveal" publishes it later).
+## Blackjack has no other per-seat secret: the hole card is never in an event
+## before "dealer_reveal".
+static func events_for(_seat: int, evts: Array) -> Array:
+	return evts.filter(func(e): return e.get("type", "") != "seed")
 
 
 func to_dict() -> Dictionary:
@@ -516,7 +591,8 @@ func to_dict() -> Dictionary:
 		"cfg": cfg.duplicate(), "rng": rng.to_dict(), "chips": chips.to_dict(),
 		"shoe": shoe.duplicate(true), "phase": phase, "round": round_no,
 		"seats": seats.duplicate(true), "dealer": dealer.duplicate(), "hole_shown": hole_shown,
-		"turn_seat": turn_seat, "turn_hand": turn_hand,
+		"turn_seat": turn_seat, "turn_hand": turn_hand, "shoe_no": shoe_no,
+		"pending_reveal": pending_reveal.duplicate(true), "reserve_seed": reserve_seed.duplicate(),
 	}
 
 
@@ -534,3 +610,6 @@ func from_dict(d: Dictionary) -> void:
 	hole_shown = n["hole_shown"]
 	turn_seat = n["turn_seat"]
 	turn_hand = n["turn_hand"]
+	shoe_no = int(n.get("shoe_no", 0))
+	pending_reveal = n.get("pending_reveal", [])
+	reserve_seed = n.get("reserve_seed", [])

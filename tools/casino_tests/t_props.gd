@@ -11,10 +11,14 @@ const BJ := preload("res://scripts/casino/blackjack.gd")
 const R := preload("res://scripts/casino/roulette.gd")
 const Rng := preload("res://scripts/casino/rng.gd")
 const Chips := preload("res://scripts/casino/chips.gd")
+const Seq := preload("res://tests/seed_seq.gd")
 
 var t
 var bad := 0
 var stats := {}
+## Oracle export (tools/casino_tests/oracle.py): one JSON line per hand / round.
+var _pots_f: FileAccess = null
+var _bj_f: FileAccess = null
 
 
 func _fail(msg: String) -> void:
@@ -23,9 +27,10 @@ func _fail(msg: String) -> void:
 		t.check(false, msg)
 
 
-func _rt(g, script) -> RefCounted:
+## Rebuilt from JSON; the seed source is not state, so it is passed again.
+func _rt(g, script, src) -> RefCounted:
 	var d = JSON.parse_string(JSON.stringify(g.to_dict()))
-	var n = script.new()
+	var n = script.new({}, src)
 	n.from_dict(d)
 	return n
 
@@ -44,6 +49,9 @@ func run(tt) -> void:
 	var n_hold := 2000 if q else 20000
 	var n_bj := 2000 if q else 20000
 	var n_rou := 2000 if q else 20000
+	if t.export_path != "":
+		_pots_f = FileAccess.open(t.export_path + ".pots", FileAccess.WRITE)
+		_bj_f = FileAccess.open(t.export_path + ".bj", FileAccess.WRITE)
 	var t0 := Time.get_ticks_msec()
 	var hs := _holdem_run(n_hold, 1000)
 	t.check(bad == 0, "holdem property run clean")
@@ -75,6 +83,11 @@ func run(tt) -> void:
 	_fuzz(2000 if q else 20000)
 	t.check(bad == 0, "fuzz: garbage actions never crash or break invariants")
 	print("  fuzz: %s" % str(stats))
+	if _pots_f != null:
+		_pots_f.close()
+		_bj_f.close()
+		_pots_f = null
+		_bj_f = null
 
 
 # ======================================================== Fuzz
@@ -104,8 +117,9 @@ func _junk(pol) -> Variant:
 ## Random garbage and half-right actions against each game; every answer must
 ## be a well-formed result and the ledger must stay sound.
 func _fuzz(n: int) -> void:
-	var pol = Rng.make(4242)
-	var games := [H.new({"min_buy_in": 1, "max_buy_in": 5000}, 1), BJ.new({}, 2), R.new({"wheel": "american"}, 3)]
+	var pol = Rng.test_only_from_int(4242)
+	var games := [H.new({"min_buy_in": 1, "max_buy_in": 5000}, Seq.new(1)), BJ.new({}, Seq.new(2)),
+		R.new({"wheel": "american"}, Seq.new(3))]
 	for g in games:
 		for i in 3:
 			g.apply({"type": "sit", "seat": i, "player": "f%d" % i, "buy_in": 1000})
@@ -178,12 +192,13 @@ func _holdem_run(total: int, seed: int) -> Dictionary:
 
 ## Plays `hands` hands; returns the final state signature.
 func _holdem_session(seed: int, hands: int, twin: bool) -> String:
-	var pol = Rng.make(seed * 7919 + 13)
+	var pol = Rng.test_only_from_int(seed * 7919 + 13)
 	var bb: int = [2, 2, 10, 50][pol.next_below(4)]
 	var cfg := {"seats": 2 + pol.next_below(5), "sb": bb / 2, "bb": bb,
 		"ante": [0, 0, 1, bb / 2][pol.next_below(4)], "min_buy_in": bb, "max_buy_in": bb * 100}
-	var A = H.new(cfg, seed)
-	var B = H.new(cfg, seed) if twin else null
+	var srcB = Seq.new(seed)
+	var A = H.new(cfg, Seq.new(seed))
+	var B = H.new(cfg, srcB) if twin else null
 	var names := 0
 	var played := 0
 	var guard := 0
@@ -221,7 +236,7 @@ func _holdem_session(seed: int, hands: int, twin: bool) -> String:
 				_fail("hand %d did not finish" % A.hand_no)
 				break
 			if twin and pol.next_below(12) == 0:
-				B = _rt(B, H)
+				B = _rt(B, H, srcB)
 			var roll: int = pol.next_below(1000)
 			if roll < 4:
 				var who: int = pol.next_below(A.n_seats())
@@ -250,27 +265,30 @@ func _holdem_session(seed: int, hands: int, twin: bool) -> String:
 					_fail("chips in hand changed %d -> %d" % [in_hand_chips, now])
 					in_hand_chips = now
 			if pol.next_below(4) == 0:
-				_leak_check(A, pol.next_below(A.n_seats() + 1) - 1, res["events"])
+				_leak_check(A, pol.next_below(A.n_seats() + 1) - 1, res["raw_events"])
 		_hold_inv(A)
 		if A.chips.balance("pot") != 0:
 			_fail("pot not empty after hand")
 		# The hand's log replays to the balances.
-		var rp := Chips.replay(A.chips.events_since(start_seq), start_bal)
+		var hand_evts: Array = A.chips.events_since(start_seq)
+		var rp := Chips.replay(hand_evts, start_bal)
 		if rp != A.chips.balances:
 			_fail("log replay mismatch on hand %d" % A.hand_no)
+		if twin:
+			_export_pots(A, r["raw_events"] + hand_evts)
 		if twin:
 			var sa := _sig(A)
 			if sa != _sig(B):
 				_fail("twin diverged after hand %d" % A.hand_no)
-				B = _rt(A, H)
+				B = _rt(A, H, srcB)
 			A.chips.trim(A.chips.seq)
 			B.chips.trim(B.chips.seq)
-		for e in A.history[-1]["awards"]:
+		for e in A.audit_history[-1]["awards"]:
 			if e["winners"].size() > 1:
 				_stat("split_pots")
-		if A.history[-1]["awards"].size() > 1:
+		if A.audit_history[-1]["awards"].size() > 1:
 			_stat("side_pots")
-		if not A.history[-1]["shown"].is_empty():
+		if not A.audit_history[-1]["shown"].is_empty():
 			_stat("showdowns")
 	if played < hands:
 		_fail("session %d played only %d hands" % [seed, played])
@@ -283,7 +301,7 @@ func _both(A, B, a: Dictionary) -> Dictionary:
 	if B != null:
 		var rb: Dictionary = B.apply(a.duplicate(true))
 		if ra["ok"] != rb["ok"] or ra.get("error", "") != rb.get("error", "") \
-				or (ra["ok"] and ra["events"].size() != rb["events"].size()):
+				or (ra["ok"] and ra["raw_events"].size() != rb["raw_events"].size()):
 			_fail("twin answered differently to %s" % str(a))
 	return ra
 
@@ -405,11 +423,22 @@ func _leak_check(g, seat: int, evts: Array) -> void:
 	for k in range(g.deck_pos, g.deck.size()):
 		hidden[g.deck[k]] = true
 	var seen := []
-	_collect(g.view_for(seat), seen)
-	_collect(H.events_for(seat, evts), seen)
+	var view: Dictionary = g.view_for(seat)
+	var sent: Array = H.events_for(seat, evts)
+	_collect(view, seen)
+	_collect(sent, seen)
 	for c in seen:
 		if hidden.has(c):
 			_fail("seat %d can see hidden card %d" % [seat, c])
+			return
+	# The live hand's seed never reaches a client before the hand ends.
+	if g.phase == "betting" and g.hand_seed != "":
+		if JSON.stringify(view).contains(g.hand_seed) or JSON.stringify(sent).contains(g.hand_seed):
+			_fail("seat %d can see the live hand's seed" % seat)
+			return
+	for e in sent:
+		if e["type"] == "seed":
+			_fail("events_for passed a seed event")
 			return
 	if seat >= 0 and g.seats[seat]["in_hand"] and g.view_for(seat)["hole"] != g.seats[seat]["hole"]:
 		_fail("seat %d missing its own cards" % seat)
@@ -428,11 +457,12 @@ func _bj_run(total: int, seed: int) -> void:
 
 
 func _bj_session(seed: int, rounds: int, twin: bool) -> String:
-	var pol = Rng.make(seed * 104729 + 7)
+	var pol = Rng.test_only_from_int(seed * 104729 + 7)
 	var cfg := {"decks": [1, 2, 6, 8][pol.next_below(4)], "seats": 1 + pol.next_below(6),
 		"min_bet": [1, 2, 5][pol.next_below(3)], "max_bet": 200, "penetration_pct": 50 + pol.next_below(46)}
-	var A = BJ.new(cfg, seed)
-	var B = BJ.new(cfg, seed) if twin else null
+	var srcB = Seq.new(seed)
+	var A = BJ.new(cfg, Seq.new(seed))
+	var B = BJ.new(cfg, srcB) if twin else null
 	for i in A.seats.size():
 		_both(A, B, {"type": "sit", "seat": i, "player": "p%d" % i, "buy_in": 500})
 	var played := 0
@@ -450,6 +480,9 @@ func _bj_session(seed: int, rounds: int, twin: bool) -> String:
 					amt = maxi(A.cfg["min_bet"], amt - 1)  # plenty of odd bets for the 3:2 rounding
 				if not _both(A, B, {"type": "bet", "seat": i, "amount": amt})["ok"]:
 					_fail("bet refused")
+		var pre := []
+		for i in A.seats.size():
+			pre.append([A.stack(i) + int(A.seats[i]["bet"]), int(A.seats[i]["bet"])])
 		if not _both(A, B, {"type": "deal"})["ok"]:
 			continue
 		played += 1
@@ -461,7 +494,7 @@ func _bj_session(seed: int, rounds: int, twin: bool) -> String:
 				_fail("round did not finish")
 				break
 			if twin and pol.next_below(8) == 0:
-				B = _rt(B, BJ)
+				B = _rt(B, BJ, srcB)
 			if A.phase == "insurance":
 				for i in A.seats.size():
 					var la: Array = A.legal_actions(i)
@@ -504,13 +537,15 @@ func _bj_session(seed: int, rounds: int, twin: bool) -> String:
 				if A.phase != "betting" and not A.hole_shown and v["dealer"][1] != -1:
 					_fail("hole card leaked")
 		_bj_inv(A)
+		if twin:
+			_export_bj(A, pre)
 		for s in A.seats:
 			for h in s["hands"]:
 				_stat("res_" + h["result"])
 		if twin:
 			if _sig(A) != _sig(B):
 				_fail("blackjack twin diverged in round %d" % A.round_no)
-				B = _rt(A, BJ)
+				B = _rt(A, BJ, srcB)
 			A.chips.trim(A.chips.seq)
 			B.chips.trim(B.chips.seq)
 	if played < rounds:
@@ -561,10 +596,11 @@ func _rou_run(total: int, seed: int) -> void:
 
 
 func _rou_session(seed: int, spins: int, twin: bool) -> String:
-	var pol = Rng.make(seed * 31337 + 1)
+	var pol = Rng.test_only_from_int(seed * 31337 + 1)
 	var cfg := {"wheel": "american" if pol.next_below(2) == 0 else "european", "seats": 1 + pol.next_below(6), "max_bet": 100}
-	var A = R.new(cfg, seed)
-	var B = R.new(cfg, seed) if twin else null
+	var srcB = Seq.new(seed)
+	var A = R.new(cfg, Seq.new(seed))
+	var B = R.new(cfg, srcB) if twin else null
 	var kinds := R.INSIDE + R.OUTSIDE
 	for i in A.seats.size():
 		_both(A, B, {"type": "sit", "seat": i, "player": "p%d" % i, "buy_in": 1000})
@@ -592,9 +628,9 @@ func _rou_session(seed: int, spins: int, twin: bool) -> String:
 			if pol.next_below(100) == 0:
 				_both(A, B, {"type": "clear", "seat": i})
 		if twin and pol.next_below(5) == 0:
-			B = _rt(B, R)
+			B = _rt(B, R, srcB)
 		var res: Dictionary = _both(A, B, {"type": "spin"})
-		for e in res["events"]:
+		for e in res["raw_events"]:
 			if e["type"] == "spin":
 				if e["result"] == 0 or e["result"] == 37:
 					_stat("pocket_" + e["label"])
@@ -607,9 +643,60 @@ func _rou_session(seed: int, spins: int, twin: bool) -> String:
 		if twin:
 			if _sig(A) != _sig(B):
 				_fail("roulette twin diverged at spin %d" % A.spins)
-				B = _rt(A, R)
+				B = _rt(A, R, srcB)
 			A.chips.trim(A.chips.seq)
 			B.chips.trim(B.chips.seq)
 	_stat("spins", spins)
 	A.chips.trim(A.chips.seq)
 	return _sig(A)
+
+
+# ======================================================== Oracle export
+
+## One Hold'em hand, rebuilt from its raw event log alone (no engine state):
+## what each seat put in and got back, who folded, the cards, the payouts.
+func _export_pots(g, evts: Array) -> void:
+	if _pots_f == null:
+		return
+	var h := {"n": g.n_seats(), "button": -1, "commit": {}, "uncalled": {}, "folded": [], "hole": {},
+		"board": [], "won": {}}
+	for e in evts:
+		match String(e["type"]):
+			"hand_start":
+				h["button"] = e["button"]
+			"post", "commit":
+				h["commit"][str(e["seat"])] = int(h["commit"].get(str(e["seat"]), 0)) + int(e["amount"])
+			"uncalled":
+				h["uncalled"][str(e["seat"])] = int(h["uncalled"].get(str(e["seat"]), 0)) + int(e["amount"])
+			"fold":
+				h["folded"].append(e["seat"])
+			"hole":
+				h["hole"][str(e["seat"])] = e["cards"]
+			"flop", "turn", "river":
+				# "turn" is also the to-act notice; street events carry the board.
+				if e.has("board"):
+					h["board"] = e["board"]
+			"transfer":
+				if e["reason"] == "pot":
+					var k := String(e["to"]).substr(4)
+					h["won"][k] = int(h["won"].get(k, 0)) + int(e["amount"])
+	_pots_f.store_line(JSON.stringify(h))
+
+
+## One blackjack round: stacks before (bet included) and after, the original
+## bet, insurance, every hand's cards and final bet, the dealer's cards.
+func _export_bj(g, pre: Array) -> void:
+	if _bj_f == null:
+		return
+	var seats := []
+	for i in g.seats.size():
+		var s: Dictionary = g.seats[i]
+		if s["hands"].is_empty():
+			continue
+		var hands := []
+		for hd in s["hands"]:
+			hands.append({"cards": hd["cards"], "bet": hd["bet"], "split": hd["split"], "doubled": hd["doubled"],
+				"split_aces": hd["split_aces"]})
+		seats.append({"seat": i, "before": pre[i][0], "orig": pre[i][1], "after": g.stack(i),
+			"ins": s["insurance"], "hands": hands})
+	_bj_f.store_line(JSON.stringify({"dealer": g.dealer, "seats": seats}))

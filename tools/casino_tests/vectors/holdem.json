@@ -1,0 +1,2944 @@
+{
+ "actions": [
+  {
+   "buy_in": 112,
+   "player": "n1",
+   "seat": 0,
+   "type": "sit"
+  },
+  {
+   "buy_in": 380,
+   "player": "n2",
+   "seat": 1,
+   "type": "sit"
+  },
+  {
+   "buy_in": 113,
+   "player": "n3",
+   "seat": 2,
+   "type": "sit"
+  },
+  {
+   "buy_in": 282,
+   "player": "n4",
+   "seat": 3,
+   "type": "sit"
+  },
+  {
+   "buy_in": 133,
+   "player": "n5",
+   "seat": 4,
+   "type": "sit"
+  },
+  {
+   "buy_in": 366,
+   "player": "n6",
+   "seat": 5,
+   "type": "sit"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 3,
+   "type": "call"
+  },
+  {
+   "seat": 4,
+   "to": 124,
+   "type": "raise"
+  },
+  {
+   "seat": 5,
+   "type": "fold"
+  },
+  {
+   "seat": 0,
+   "type": "call"
+  },
+  {
+   "seat": 1,
+   "type": "fold"
+  },
+  {
+   "seat": 2,
+   "type": "fold"
+  },
+  {
+   "seat": 3,
+   "type": "fold"
+  },
+  {
+   "amount": 500,
+   "seat": 0,
+   "type": "top_up"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "seat": 5,
+   "type": "fold"
+  },
+  {
+   "seat": 0,
+   "type": "fold"
+  },
+  {
+   "seat": 1,
+   "type": "fold"
+  },
+  {
+   "seat": 2,
+   "type": "call"
+  },
+  {
+   "seat": 3,
+   "type": "fold"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 5,
+   "type": "fold"
+  },
+  {
+   "seat": 0,
+   "to": 57,
+   "type": "raise"
+  },
+  {
+   "seat": 1,
+   "to": 275,
+   "type": "raise"
+  },
+  {
+   "seat": 2,
+   "type": "fold"
+  },
+  {
+   "seat": 3,
+   "type": "call"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "seat": 0,
+   "to": 493,
+   "type": "raise"
+  },
+  {
+   "seat": 1,
+   "type": "call"
+  },
+  {
+   "seat": 3,
+   "type": "call"
+  },
+  {
+   "amount": 500,
+   "seat": 1,
+   "type": "top_up"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 0,
+   "type": "fold"
+  },
+  {
+   "seat": 1,
+   "type": "fold"
+  },
+  {
+   "seat": 2,
+   "to": 53,
+   "type": "raise"
+  },
+  {
+   "seat": 3,
+   "type": "fold"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "seat": 5,
+   "type": "fold"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 1,
+   "type": "fold"
+  },
+  {
+   "seat": 2,
+   "to": 102,
+   "type": "raise"
+  },
+  {
+   "seat": 3,
+   "to": 705,
+   "type": "raise"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "seat": 5,
+   "type": "fold"
+  },
+  {
+   "seat": 0,
+   "type": "call"
+  },
+  {
+   "seat": 2,
+   "type": "call"
+  },
+  {
+   "amount": 500,
+   "seat": 0,
+   "type": "top_up"
+  },
+  {
+   "amount": 500,
+   "seat": 2,
+   "type": "top_up"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 2,
+   "type": "call"
+  },
+  {
+   "seat": 3,
+   "to": 579,
+   "type": "raise"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "seat": 5,
+   "type": "fold"
+  },
+  {
+   "seat": 0,
+   "type": "fold"
+  },
+  {
+   "seat": 1,
+   "type": "call"
+  },
+  {
+   "seat": 2,
+   "type": "fold"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 3,
+   "type": "call"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "seat": 5,
+   "to": 111,
+   "type": "raise"
+  },
+  {
+   "seat": 0,
+   "type": "call"
+  },
+  {
+   "seat": 1,
+   "type": "fold"
+  },
+  {
+   "seat": 2,
+   "to": 326,
+   "type": "raise"
+  },
+  {
+   "seat": 3,
+   "to": 1087,
+   "type": "raise"
+  },
+  {
+   "seat": 5,
+   "type": "fold"
+  },
+  {
+   "seat": 0,
+   "type": "call"
+  },
+  {
+   "seat": 2,
+   "type": "fold"
+  },
+  {
+   "amount": 500,
+   "seat": 0,
+   "type": "top_up"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "seat": 5,
+   "type": "fold"
+  },
+  {
+   "seat": 0,
+   "type": "fold"
+  },
+  {
+   "seat": 1,
+   "to": 262,
+   "type": "raise"
+  },
+  {
+   "seat": 2,
+   "type": "fold"
+  },
+  {
+   "seat": 3,
+   "type": "call"
+  },
+  {
+   "seat": 3,
+   "to": 1511,
+   "type": "bet"
+  },
+  {
+   "seat": 1,
+   "type": "call"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 5,
+   "type": "fold"
+  },
+  {
+   "seat": 0,
+   "to": 272,
+   "type": "raise"
+  },
+  {
+   "seat": 1,
+   "type": "fold"
+  },
+  {
+   "seat": 2,
+   "type": "call"
+  },
+  {
+   "seat": 3,
+   "type": "call"
+  },
+  {
+   "seat": 4,
+   "type": "call"
+  },
+  {
+   "seat": 3,
+   "to": 949,
+   "type": "bet"
+  },
+  {
+   "seat": 0,
+   "type": "call"
+  },
+  {
+   "amount": 500,
+   "seat": 2,
+   "type": "top_up"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 0,
+   "type": "fold"
+  },
+  {
+   "seat": 1,
+   "type": "fold"
+  },
+  {
+   "seat": 2,
+   "type": "fold"
+  },
+  {
+   "seat": 3,
+   "to": 909,
+   "type": "raise"
+  },
+  {
+   "seat": 4,
+   "type": "call"
+  },
+  {
+   "seat": 1,
+   "type": "leave"
+  },
+  {
+   "seat": 5,
+   "type": "fold"
+  },
+  {
+   "buy_in": 314,
+   "player": "n7",
+   "seat": 1,
+   "type": "sit"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 1,
+   "to": 15,
+   "type": "raise"
+  },
+  {
+   "seat": 2,
+   "type": "leave"
+  },
+  {
+   "seat": 3,
+   "to": 515,
+   "type": "raise"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "seat": 5,
+   "type": "call"
+  },
+  {
+   "seat": 0,
+   "type": "fold"
+  },
+  {
+   "seat": 1,
+   "type": "fold"
+  },
+  {
+   "buy_in": 204,
+   "player": "n8",
+   "seat": 2,
+   "type": "sit"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 2,
+   "to": 139,
+   "type": "raise"
+  },
+  {
+   "seat": 3,
+   "to": 396,
+   "type": "raise"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "seat": 5,
+   "to": 517,
+   "type": "raise"
+  },
+  {
+   "seat": 5,
+   "type": "leave"
+  },
+  {
+   "seat": 0,
+   "type": "fold"
+  },
+  {
+   "seat": 1,
+   "type": "call"
+  },
+  {
+   "seat": 2,
+   "type": "fold"
+  },
+  {
+   "seat": 3,
+   "type": "call"
+  },
+  {
+   "amount": 500,
+   "seat": 3,
+   "type": "top_up"
+  },
+  {
+   "buy_in": 167,
+   "player": "n9",
+   "seat": 5,
+   "type": "sit"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 3,
+   "to": 21,
+   "type": "raise"
+  },
+  {
+   "seat": 4,
+   "type": "call"
+  },
+  {
+   "seat": 5,
+   "type": "call"
+  },
+  {
+   "seat": 0,
+   "type": "call"
+  },
+  {
+   "seat": 1,
+   "type": "call"
+  },
+  {
+   "seat": 2,
+   "to": 58,
+   "type": "raise"
+  },
+  {
+   "seat": 3,
+   "type": "fold"
+  },
+  {
+   "seat": 4,
+   "to": 607,
+   "type": "raise"
+  },
+  {
+   "seat": 5,
+   "type": "fold"
+  },
+  {
+   "seat": 0,
+   "type": "call"
+  },
+  {
+   "seat": 1,
+   "type": "fold"
+  },
+  {
+   "seat": 2,
+   "type": "fold"
+  },
+  {
+   "seat": 4,
+   "type": "check"
+  },
+  {
+   "seat": 0,
+   "to": 205,
+   "type": "bet"
+  },
+  {
+   "seat": 4,
+   "type": "call"
+  },
+  {
+   "seat": 0,
+   "type": "leave"
+  },
+  {
+   "buy_in": 125,
+   "player": "n10",
+   "seat": 0,
+   "type": "sit"
+  },
+  {
+   "amount": 493,
+   "seat": 2,
+   "type": "top_up"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 4,
+   "type": "call"
+  },
+  {
+   "seat": 5,
+   "type": "fold"
+  },
+  {
+   "seat": 0,
+   "type": "fold"
+  },
+  {
+   "seat": 1,
+   "type": "call"
+  },
+  {
+   "seat": 2,
+   "type": "call"
+  },
+  {
+   "seat": 3,
+   "type": "check"
+  },
+  {
+   "seat": 2,
+   "to": 45,
+   "type": "bet"
+  },
+  {
+   "seat": 3,
+   "type": "call"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "seat": 1,
+   "type": "fold"
+  },
+  {
+   "seat": 2,
+   "type": "check"
+  },
+  {
+   "seat": 3,
+   "to": 308,
+   "type": "bet"
+  },
+  {
+   "seat": 2,
+   "to": 453,
+   "type": "raise"
+  },
+  {
+   "seat": 3,
+   "type": "fold"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 5,
+   "type": "fold"
+  },
+  {
+   "seat": 0,
+   "type": "call"
+  },
+  {
+   "seat": 1,
+   "type": "call"
+  },
+  {
+   "seat": 2,
+   "to": 280,
+   "type": "raise"
+  },
+  {
+   "seat": 3,
+   "type": "fold"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "seat": 0,
+   "type": "fold"
+  },
+  {
+   "seat": 1,
+   "type": "call"
+  },
+  {
+   "seat": 1,
+   "to": 428,
+   "type": "bet"
+  },
+  {
+   "seat": 2,
+   "to": 579,
+   "type": "raise"
+  },
+  {
+   "seat": 1,
+   "type": "call"
+  },
+  {
+   "amount": 500,
+   "seat": 2,
+   "type": "top_up"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 0,
+   "to": 80,
+   "type": "raise"
+  },
+  {
+   "seat": 1,
+   "type": "call"
+  },
+  {
+   "seat": 2,
+   "to": 323,
+   "type": "raise"
+  },
+  {
+   "seat": 3,
+   "type": "fold"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "seat": 5,
+   "type": "call"
+  },
+  {
+   "seat": 0,
+   "type": "call"
+  },
+  {
+   "seat": 1,
+   "type": "call"
+  },
+  {
+   "seat": 1,
+   "type": "check"
+  },
+  {
+   "seat": 2,
+   "type": "check"
+  },
+  {
+   "seat": 1,
+   "type": "check"
+  },
+  {
+   "seat": 2,
+   "type": "check"
+  },
+  {
+   "seat": 1,
+   "type": "check"
+  },
+  {
+   "seat": 2,
+   "type": "check"
+  },
+  {
+   "amount": 500,
+   "seat": 0,
+   "type": "top_up"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 1,
+   "type": "fold"
+  },
+  {
+   "seat": 2,
+   "type": "fold"
+  },
+  {
+   "seat": 3,
+   "type": "call"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "seat": 5,
+   "type": "call"
+  },
+  {
+   "seat": 0,
+   "type": "fold"
+  },
+  {
+   "seat": 5,
+   "type": "check"
+  },
+  {
+   "seat": 3,
+   "to": 11,
+   "type": "bet"
+  },
+  {
+   "seat": 5,
+   "type": "fold"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 2,
+   "type": "fold"
+  },
+  {
+   "seat": 3,
+   "type": "call"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "seat": 5,
+   "type": "fold"
+  },
+  {
+   "seat": 0,
+   "type": "call"
+  },
+  {
+   "seat": 1,
+   "type": "fold"
+  },
+  {
+   "seat": 0,
+   "type": "check"
+  },
+  {
+   "seat": 3,
+   "to": 124,
+   "type": "bet"
+  },
+  {
+   "seat": 0,
+   "to": 410,
+   "type": "raise"
+  },
+  {
+   "seat": 3,
+   "type": "fold"
+  },
+  {
+   "amount": 499,
+   "seat": 3,
+   "type": "top_up"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 3,
+   "type": "fold"
+  },
+  {
+   "seat": 4,
+   "to": 639,
+   "type": "raise"
+  },
+  {
+   "seat": 5,
+   "type": "fold"
+  },
+  {
+   "seat": 0,
+   "type": "fold"
+  },
+  {
+   "seat": 1,
+   "type": "fold"
+  },
+  {
+   "seat": 2,
+   "type": "call"
+  },
+  {
+   "amount": 500,
+   "seat": 2,
+   "type": "top_up"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 4,
+   "to": 888,
+   "type": "raise"
+  },
+  {
+   "seat": 5,
+   "type": "fold"
+  },
+  {
+   "seat": 0,
+   "type": "call"
+  },
+  {
+   "seat": 1,
+   "type": "call"
+  },
+  {
+   "seat": 2,
+   "type": "fold"
+  },
+  {
+   "seat": 3,
+   "type": "fold"
+  },
+  {
+   "seat": 4,
+   "type": "check"
+  },
+  {
+   "seat": 1,
+   "type": "fold"
+  },
+  {
+   "amount": 500,
+   "seat": 0,
+   "type": "top_up"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 5,
+   "type": "call"
+  },
+  {
+   "seat": 0,
+   "to": 22,
+   "type": "raise"
+  },
+  {
+   "seat": 1,
+   "to": 128,
+   "type": "raise"
+  },
+  {
+   "seat": 2,
+   "type": "fold"
+  },
+  {
+   "seat": 3,
+   "type": "call"
+  },
+  {
+   "seat": 4,
+   "type": "call"
+  },
+  {
+   "seat": 5,
+   "type": "call"
+  },
+  {
+   "seat": 0,
+   "to": 334,
+   "type": "raise"
+  },
+  {
+   "seat": 1,
+   "to": 985,
+   "type": "raise"
+  },
+  {
+   "seat": 3,
+   "type": "call"
+  },
+  {
+   "seat": 4,
+   "type": "call"
+  },
+  {
+   "seat": 5,
+   "type": "call"
+  },
+  {
+   "seat": 0,
+   "type": "call"
+  },
+  {
+   "seat": 4,
+   "to": 985,
+   "type": "bet"
+  },
+  {
+   "seat": 1,
+   "type": "call"
+  },
+  {
+   "amount": 500,
+   "seat": 0,
+   "type": "top_up"
+  },
+  {
+   "amount": 500,
+   "seat": 3,
+   "type": "top_up"
+  },
+  {
+   "amount": 500,
+   "seat": 5,
+   "type": "top_up"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 0,
+   "type": "fold"
+  },
+  {
+   "seat": 1,
+   "type": "call"
+  },
+  {
+   "seat": 2,
+   "type": "fold"
+  },
+  {
+   "seat": 3,
+   "type": "fold"
+  },
+  {
+   "seat": 4,
+   "to": 2473,
+   "type": "raise"
+  },
+  {
+   "seat": 5,
+   "type": "call"
+  },
+  {
+   "seat": 1,
+   "to": 3594,
+   "type": "raise"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "amount": 500,
+   "seat": 5,
+   "type": "top_up"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 1,
+   "type": "call"
+  },
+  {
+   "seat": 2,
+   "type": "fold"
+  },
+  {
+   "seat": 3,
+   "to": 272,
+   "type": "raise"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "seat": 5,
+   "to": 500,
+   "type": "raise"
+  },
+  {
+   "seat": 0,
+   "type": "fold"
+  },
+  {
+   "seat": 1,
+   "to": 5863,
+   "type": "raise"
+  },
+  {
+   "seat": 3,
+   "type": "fold"
+  },
+  {
+   "amount": 500,
+   "seat": 5,
+   "type": "top_up"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 2,
+   "type": "fold"
+  },
+  {
+   "seat": 3,
+   "type": "fold"
+  },
+  {
+   "seat": 1,
+   "type": "leave"
+  },
+  {
+   "seat": 4,
+   "to": 18,
+   "type": "raise"
+  },
+  {
+   "seat": 5,
+   "type": "fold"
+  },
+  {
+   "seat": 0,
+   "to": 259,
+   "type": "raise"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "buy_in": 293,
+   "player": "n11",
+   "seat": 1,
+   "type": "sit"
+  },
+  {
+   "amount": 472,
+   "seat": 4,
+   "type": "top_up"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 3,
+   "to": 187,
+   "type": "raise"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "seat": 5,
+   "type": "call"
+  },
+  {
+   "seat": 0,
+   "type": "call"
+  },
+  {
+   "seat": 1,
+   "type": "call"
+  },
+  {
+   "seat": 2,
+   "type": "fold"
+  },
+  {
+   "seat": 1,
+   "to": 58,
+   "type": "bet"
+  },
+  {
+   "seat": 3,
+   "type": "fold"
+  },
+  {
+   "seat": 5,
+   "type": "call"
+  },
+  {
+   "seat": 0,
+   "to": 160,
+   "type": "raise"
+  },
+  {
+   "seat": 2,
+   "type": "leave"
+  },
+  {
+   "seat": 1,
+   "type": "call"
+  },
+  {
+   "seat": 5,
+   "type": "fold"
+  },
+  {
+   "amount": 500,
+   "seat": 1,
+   "type": "top_up"
+  },
+  {
+   "buy_in": 143,
+   "player": "n12",
+   "seat": 2,
+   "type": "sit"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "seat": 5,
+   "type": "call"
+  },
+  {
+   "seat": 0,
+   "to": 1124,
+   "type": "raise"
+  },
+  {
+   "seat": 1,
+   "type": "call"
+  },
+  {
+   "seat": 2,
+   "type": "fold"
+  },
+  {
+   "seat": 3,
+   "type": "call"
+  },
+  {
+   "seat": 5,
+   "type": "call"
+  },
+  {
+   "amount": 500,
+   "seat": 1,
+   "type": "top_up"
+  },
+  {
+   "amount": 500,
+   "seat": 3,
+   "type": "top_up"
+  },
+  {
+   "amount": 500,
+   "seat": 5,
+   "type": "top_up"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 5,
+   "type": "fold"
+  },
+  {
+   "seat": 0,
+   "to": 372,
+   "type": "raise"
+  },
+  {
+   "seat": 1,
+   "type": "call"
+  },
+  {
+   "seat": 2,
+   "type": "call"
+  },
+  {
+   "seat": 3,
+   "to": 500,
+   "type": "raise"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "seat": 0,
+   "type": "fold"
+  },
+  {
+   "seat": 1,
+   "type": "call"
+  },
+  {
+   "amount": 500,
+   "seat": 1,
+   "type": "top_up"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 0,
+   "type": "fold"
+  },
+  {
+   "seat": 1,
+   "type": "fold"
+  },
+  {
+   "seat": 2,
+   "to": 325,
+   "type": "raise"
+  },
+  {
+   "seat": 3,
+   "type": "call"
+  },
+  {
+   "seat": 4,
+   "type": "call"
+  },
+  {
+   "seat": 5,
+   "type": "call"
+  },
+  {
+   "seat": 4,
+   "to": 139,
+   "type": "bet"
+  },
+  {
+   "seat": 5,
+   "to": 175,
+   "type": "raise"
+  },
+  {
+   "seat": 2,
+   "type": "call"
+  },
+  {
+   "seat": 3,
+   "type": "call"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "seat": 2,
+   "to": 47,
+   "type": "bet"
+  },
+  {
+   "seat": 3,
+   "to": 152,
+   "type": "raise"
+  },
+  {
+   "seat": 2,
+   "type": "fold"
+  },
+  {
+   "amount": 477,
+   "seat": 2,
+   "type": "top_up"
+  },
+  {
+   "amount": 466,
+   "seat": 4,
+   "type": "top_up"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 1,
+   "to": 412,
+   "type": "raise"
+  },
+  {
+   "seat": 2,
+   "to": 500,
+   "type": "raise"
+  },
+  {
+   "seat": 3,
+   "type": "call"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "seat": 5,
+   "to": 1230,
+   "type": "raise"
+  },
+  {
+   "seat": 0,
+   "type": "call"
+  },
+  {
+   "seat": 1,
+   "type": "call"
+  },
+  {
+   "seat": 5,
+   "to": 55,
+   "type": "bet"
+  },
+  {
+   "seat": 0,
+   "type": "fold"
+  },
+  {
+   "amount": 472,
+   "seat": 1,
+   "type": "top_up"
+  },
+  {
+   "amount": 500,
+   "seat": 2,
+   "type": "top_up"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 2,
+   "to": 19,
+   "type": "raise"
+  },
+  {
+   "seat": 3,
+   "type": "call"
+  },
+  {
+   "seat": 4,
+   "type": "call"
+  },
+  {
+   "seat": 5,
+   "to": 1012,
+   "type": "raise"
+  },
+  {
+   "seat": 0,
+   "type": "call"
+  },
+  {
+   "seat": 1,
+   "type": "call"
+  },
+  {
+   "seat": 2,
+   "type": "call"
+  },
+  {
+   "seat": 3,
+   "type": "call"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "seat": 3,
+   "type": "check"
+  },
+  {
+   "seat": 5,
+   "type": "fold"
+  },
+  {
+   "amount": 500,
+   "seat": 0,
+   "type": "top_up"
+  },
+  {
+   "amount": 500,
+   "seat": 1,
+   "type": "top_up"
+  },
+  {
+   "amount": 500,
+   "seat": 2,
+   "type": "top_up"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 3,
+   "type": "fold"
+  },
+  {
+   "seat": 4,
+   "to": 29,
+   "type": "raise"
+  },
+  {
+   "seat": 5,
+   "to": 1028,
+   "type": "raise"
+  },
+  {
+   "seat": 0,
+   "type": "call"
+  },
+  {
+   "seat": 1,
+   "type": "fold"
+  },
+  {
+   "seat": 2,
+   "type": "fold"
+  },
+  {
+   "seat": 4,
+   "type": "call"
+  },
+  {
+   "amount": 462,
+   "seat": 0,
+   "type": "top_up"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 4,
+   "type": "call"
+  },
+  {
+   "seat": 5,
+   "type": "fold"
+  },
+  {
+   "seat": 0,
+   "type": "call"
+  },
+  {
+   "seat": 1,
+   "type": "fold"
+  },
+  {
+   "seat": 2,
+   "type": "call"
+  },
+  {
+   "seat": 3,
+   "to": 2698,
+   "type": "raise"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "seat": 0,
+   "type": "call"
+  },
+  {
+   "seat": 2,
+   "type": "call"
+  },
+  {
+   "amount": 498,
+   "seat": 0,
+   "type": "top_up"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 5,
+   "to": 183,
+   "type": "raise"
+  },
+  {
+   "seat": 0,
+   "type": "call"
+  },
+  {
+   "seat": 1,
+   "type": "call"
+  },
+  {
+   "seat": 2,
+   "to": 1144,
+   "type": "raise"
+  },
+  {
+   "seat": 3,
+   "type": "fold"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "seat": 5,
+   "type": "call"
+  },
+  {
+   "seat": 0,
+   "type": "fold"
+  },
+  {
+   "seat": 1,
+   "type": "fold"
+  },
+  {
+   "amount": 500,
+   "seat": 5,
+   "type": "top_up"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 0,
+   "type": "call"
+  },
+  {
+   "seat": 1,
+   "type": "fold"
+  },
+  {
+   "seat": 2,
+   "type": "call"
+  },
+  {
+   "seat": 3,
+   "type": "call"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "seat": 5,
+   "type": "check"
+  },
+  {
+   "seat": 5,
+   "to": 7,
+   "type": "bet"
+  },
+  {
+   "seat": 0,
+   "type": "call"
+  },
+  {
+   "seat": 2,
+   "to": 835,
+   "type": "raise"
+  },
+  {
+   "seat": 3,
+   "type": "call"
+  },
+  {
+   "seat": 5,
+   "type": "call"
+  },
+  {
+   "seat": 0,
+   "type": "call"
+  },
+  {
+   "seat": 2,
+   "type": "fold"
+  },
+  {
+   "amount": 500,
+   "seat": 0,
+   "type": "top_up"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 1,
+   "type": "call"
+  },
+  {
+   "seat": 2,
+   "type": "call"
+  },
+  {
+   "seat": 3,
+   "to": 3257,
+   "type": "raise"
+  },
+  {
+   "seat": 4,
+   "type": "call"
+  },
+  {
+   "seat": 5,
+   "type": "call"
+  },
+  {
+   "seat": 0,
+   "type": "call"
+  },
+  {
+   "seat": 1,
+   "type": "fold"
+  },
+  {
+   "seat": 2,
+   "type": "fold"
+  },
+  {
+   "amount": 500,
+   "seat": 4,
+   "type": "top_up"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 2,
+   "to": 1060,
+   "type": "raise"
+  },
+  {
+   "seat": 3,
+   "to": 2399,
+   "type": "raise"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "seat": 5,
+   "to": 3577,
+   "type": "raise"
+  },
+  {
+   "seat": 0,
+   "type": "fold"
+  },
+  {
+   "seat": 1,
+   "type": "fold"
+  },
+  {
+   "seat": 2,
+   "type": "call"
+  },
+  {
+   "seat": 3,
+   "type": "call"
+  },
+  {
+   "amount": 500,
+   "seat": 2,
+   "type": "top_up"
+  },
+  {
+   "amount": 500,
+   "seat": 3,
+   "type": "top_up"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 3,
+   "type": "call"
+  },
+  {
+   "seat": 4,
+   "type": "call"
+  },
+  {
+   "seat": 5,
+   "type": "fold"
+  },
+  {
+   "seat": 0,
+   "type": "fold"
+  },
+  {
+   "seat": 1,
+   "to": 170,
+   "type": "raise"
+  },
+  {
+   "seat": 3,
+   "type": "leave"
+  },
+  {
+   "seat": 2,
+   "type": "fold"
+  },
+  {
+   "seat": 4,
+   "to": 368,
+   "type": "raise"
+  },
+  {
+   "seat": 1,
+   "type": "call"
+  },
+  {
+   "buy_in": 173,
+   "player": "n13",
+   "seat": 3,
+   "type": "sit"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 4,
+   "type": "call"
+  },
+  {
+   "seat": 5,
+   "type": "call"
+  },
+  {
+   "seat": 0,
+   "type": "call"
+  },
+  {
+   "seat": 1,
+   "type": "fold"
+  },
+  {
+   "seat": 2,
+   "type": "call"
+  },
+  {
+   "seat": 3,
+   "to": 64,
+   "type": "raise"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "seat": 5,
+   "type": "call"
+  },
+  {
+   "seat": 0,
+   "to": 976,
+   "type": "raise"
+  },
+  {
+   "seat": 2,
+   "type": "fold"
+  },
+  {
+   "seat": 3,
+   "type": "fold"
+  },
+  {
+   "seat": 5,
+   "type": "call"
+  },
+  {
+   "seat": 5,
+   "type": "check"
+  },
+  {
+   "seat": 0,
+   "type": "fold"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 5,
+   "type": "call"
+  },
+  {
+   "seat": 0,
+   "to": 535,
+   "type": "raise"
+  },
+  {
+   "seat": 1,
+   "type": "call"
+  },
+  {
+   "seat": 2,
+   "type": "call"
+  },
+  {
+   "seat": 3,
+   "type": "fold"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "seat": 5,
+   "type": "call"
+  },
+  {
+   "seat": 5,
+   "type": "check"
+  },
+  {
+   "seat": 0,
+   "type": "check"
+  },
+  {
+   "seat": 1,
+   "type": "fold"
+  },
+  {
+   "seat": 5,
+   "type": "check"
+  },
+  {
+   "seat": 0,
+   "type": "check"
+  },
+  {
+   "seat": 5,
+   "to": 3802,
+   "type": "bet"
+  },
+  {
+   "seat": 0,
+   "type": "call"
+  },
+  {
+   "amount": 500,
+   "seat": 0,
+   "type": "top_up"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 0,
+   "to": 222,
+   "type": "raise"
+  },
+  {
+   "seat": 1,
+   "type": "call"
+  },
+  {
+   "seat": 2,
+   "type": "fold"
+  },
+  {
+   "seat": 3,
+   "type": "fold"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "seat": 5,
+   "type": "fold"
+  },
+  {
+   "amount": 500,
+   "seat": 1,
+   "type": "top_up"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 1,
+   "type": "fold"
+  },
+  {
+   "seat": 2,
+   "to": 541,
+   "type": "raise"
+  },
+  {
+   "seat": 3,
+   "type": "call"
+  },
+  {
+   "seat": 4,
+   "type": "call"
+  },
+  {
+   "seat": 5,
+   "type": "call"
+  },
+  {
+   "seat": 0,
+   "to": 596,
+   "type": "raise"
+  },
+  {
+   "seat": 2,
+   "type": "call"
+  },
+  {
+   "seat": 5,
+   "type": "fold"
+  },
+  {
+   "amount": 500,
+   "seat": 3,
+   "type": "top_up"
+  },
+  {
+   "amount": 500,
+   "seat": 4,
+   "type": "top_up"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 2,
+   "type": "call"
+  },
+  {
+   "seat": 3,
+   "type": "fold"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "seat": 5,
+   "type": "fold"
+  },
+  {
+   "seat": 0,
+   "to": 790,
+   "type": "raise"
+  },
+  {
+   "seat": 1,
+   "type": "fold"
+  },
+  {
+   "seat": 2,
+   "type": "fold"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 3,
+   "type": "fold"
+  },
+  {
+   "seat": 4,
+   "type": "call"
+  },
+  {
+   "seat": 5,
+   "type": "call"
+  },
+  {
+   "seat": 0,
+   "type": "fold"
+  },
+  {
+   "seat": 1,
+   "type": "fold"
+  },
+  {
+   "seat": 2,
+   "type": "check"
+  },
+  {
+   "seat": 2,
+   "type": "fold"
+  },
+  {
+   "seat": 4,
+   "to": 83,
+   "type": "bet"
+  },
+  {
+   "seat": 5,
+   "type": "fold"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 4,
+   "type": "call"
+  },
+  {
+   "seat": 5,
+   "type": "call"
+  },
+  {
+   "seat": 0,
+   "type": "call"
+  },
+  {
+   "seat": 1,
+   "type": "call"
+  },
+  {
+   "seat": 2,
+   "type": "call"
+  },
+  {
+   "seat": 3,
+   "type": "check"
+  },
+  {
+   "seat": 2,
+   "type": "check"
+  },
+  {
+   "seat": 3,
+   "to": 156,
+   "type": "bet"
+  },
+  {
+   "seat": 1,
+   "type": "leave"
+  },
+  {
+   "seat": 4,
+   "type": "call"
+  },
+  {
+   "seat": 5,
+   "type": "call"
+  },
+  {
+   "seat": 0,
+   "type": "fold"
+  },
+  {
+   "seat": 2,
+   "type": "fold"
+  },
+  {
+   "seat": 3,
+   "type": "fold"
+  },
+  {
+   "seat": 4,
+   "to": 308,
+   "type": "bet"
+  },
+  {
+   "seat": 5,
+   "type": "call"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "buy_in": 455,
+   "player": "n14",
+   "seat": 1,
+   "type": "sit"
+  },
+  {
+   "amount": 461,
+   "seat": 4,
+   "type": "top_up"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 5,
+   "type": "call"
+  },
+  {
+   "seat": 0,
+   "type": "fold"
+  },
+  {
+   "seat": 1,
+   "type": "call"
+  },
+  {
+   "seat": 2,
+   "type": "fold"
+  },
+  {
+   "seat": 3,
+   "to": 46,
+   "type": "raise"
+  },
+  {
+   "seat": 4,
+   "to": 185,
+   "type": "raise"
+  },
+  {
+   "seat": 5,
+   "type": "fold"
+  },
+  {
+   "seat": 1,
+   "type": "fold"
+  },
+  {
+   "seat": 3,
+   "type": "fold"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 0,
+   "type": "call"
+  },
+  {
+   "seat": 1,
+   "to": 103,
+   "type": "raise"
+  },
+  {
+   "seat": 2,
+   "to": 554,
+   "type": "raise"
+  },
+  {
+   "seat": 3,
+   "type": "call"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "seat": 5,
+   "type": "fold"
+  },
+  {
+   "seat": 0,
+   "type": "fold"
+  },
+  {
+   "seat": 1,
+   "type": "call"
+  },
+  {
+   "amount": 500,
+   "seat": 1,
+   "type": "top_up"
+  },
+  {
+   "amount": 500,
+   "seat": 3,
+   "type": "top_up"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 1,
+   "type": "fold"
+  },
+  {
+   "seat": 2,
+   "type": "call"
+  },
+  {
+   "seat": 3,
+   "type": "fold"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "seat": 5,
+   "type": "fold"
+  },
+  {
+   "seat": 0,
+   "type": "fold"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 2,
+   "to": 1068,
+   "type": "raise"
+  },
+  {
+   "seat": 3,
+   "type": "call"
+  },
+  {
+   "seat": 4,
+   "type": "call"
+  },
+  {
+   "seat": 5,
+   "to": 4519,
+   "type": "raise"
+  },
+  {
+   "seat": 0,
+   "type": "call"
+  },
+  {
+   "seat": 1,
+   "type": "call"
+  },
+  {
+   "seat": 2,
+   "type": "fold"
+  },
+  {
+   "amount": 500,
+   "seat": 0,
+   "type": "top_up"
+  },
+  {
+   "amount": 500,
+   "seat": 1,
+   "type": "top_up"
+  },
+  {
+   "amount": 500,
+   "seat": 3,
+   "type": "top_up"
+  },
+  {
+   "amount": 500,
+   "seat": 4,
+   "type": "top_up"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 3,
+   "type": "call"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "seat": 5,
+   "type": "call"
+  },
+  {
+   "seat": 0,
+   "to": 59,
+   "type": "raise"
+  },
+  {
+   "seat": 1,
+   "type": "call"
+  },
+  {
+   "seat": 2,
+   "type": "fold"
+  },
+  {
+   "seat": 3,
+   "type": "call"
+  },
+  {
+   "seat": 5,
+   "type": "call"
+  },
+  {
+   "seat": 1,
+   "type": "fold"
+  },
+  {
+   "seat": 3,
+   "type": "check"
+  },
+  {
+   "seat": 5,
+   "type": "fold"
+  },
+  {
+   "seat": 0,
+   "to": 372,
+   "type": "bet"
+  },
+  {
+   "seat": 3,
+   "type": "fold"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "seat": 5,
+   "to": 10385,
+   "type": "raise"
+  },
+  {
+   "seat": 0,
+   "type": "fold"
+  },
+  {
+   "seat": 1,
+   "type": "fold"
+  },
+  {
+   "seat": 2,
+   "type": "fold"
+  },
+  {
+   "seat": 3,
+   "type": "call"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 5,
+   "type": "fold"
+  },
+  {
+   "seat": 0,
+   "type": "call"
+  },
+  {
+   "seat": 1,
+   "type": "fold"
+  },
+  {
+   "seat": 2,
+   "type": "call"
+  },
+  {
+   "seat": 3,
+   "type": "fold"
+  },
+  {
+   "seat": 4,
+   "type": "check"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "seat": 0,
+   "type": "fold"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 0,
+   "to": 340,
+   "type": "raise"
+  },
+  {
+   "seat": 1,
+   "type": "fold"
+  },
+  {
+   "seat": 2,
+   "type": "fold"
+  },
+  {
+   "seat": 3,
+   "type": "fold"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "seat": 5,
+   "type": "call"
+  },
+  {
+   "seat": 5,
+   "type": "fold"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 1,
+   "to": 421,
+   "type": "raise"
+  },
+  {
+   "seat": 2,
+   "type": "call"
+  },
+  {
+   "seat": 3,
+   "type": "fold"
+  },
+  {
+   "seat": 4,
+   "type": "call"
+  },
+  {
+   "seat": 5,
+   "type": "fold"
+  },
+  {
+   "seat": 0,
+   "type": "fold"
+  },
+  {
+   "seat": 1,
+   "type": "check"
+  },
+  {
+   "seat": 2,
+   "type": "check"
+  },
+  {
+   "seat": 4,
+   "type": "check"
+  },
+  {
+   "seat": 1,
+   "type": "fold"
+  },
+  {
+   "seat": 2,
+   "type": "fold"
+  },
+  {
+   "amount": 480,
+   "seat": 1,
+   "type": "top_up"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 2,
+   "type": "fold"
+  },
+  {
+   "seat": 3,
+   "type": "call"
+  },
+  {
+   "seat": 4,
+   "type": "call"
+  },
+  {
+   "seat": 5,
+   "type": "call"
+  },
+  {
+   "seat": 0,
+   "type": "fold"
+  },
+  {
+   "seat": 1,
+   "type": "fold"
+  },
+  {
+   "seat": 3,
+   "to": 153,
+   "type": "bet"
+  },
+  {
+   "seat": 4,
+   "type": "call"
+  },
+  {
+   "seat": 5,
+   "to": 3264,
+   "type": "raise"
+  },
+  {
+   "seat": 3,
+   "type": "fold"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 3,
+   "type": "fold"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "seat": 5,
+   "type": "call"
+  },
+  {
+   "seat": 0,
+   "type": "call"
+  },
+  {
+   "seat": 1,
+   "type": "fold"
+  },
+  {
+   "seat": 2,
+   "type": "check"
+  },
+  {
+   "seat": 2,
+   "to": 432,
+   "type": "bet"
+  },
+  {
+   "seat": 5,
+   "type": "call"
+  },
+  {
+   "seat": 0,
+   "type": "fold"
+  },
+  {
+   "seat": 2,
+   "to": 67,
+   "type": "bet"
+  },
+  {
+   "seat": 5,
+   "to": 3048,
+   "type": "raise"
+  },
+  {
+   "seat": 2,
+   "type": "call"
+  },
+  {
+   "amount": 500,
+   "seat": 2,
+   "type": "top_up"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "seat": 5,
+   "to": 8037,
+   "type": "raise"
+  },
+  {
+   "seat": 0,
+   "type": "fold"
+  },
+  {
+   "seat": 1,
+   "type": "call"
+  },
+  {
+   "seat": 2,
+   "type": "fold"
+  },
+  {
+   "seat": 3,
+   "type": "call"
+  },
+  {
+   "amount": 500,
+   "seat": 3,
+   "type": "top_up"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 5,
+   "to": 2885,
+   "type": "raise"
+  },
+  {
+   "seat": 0,
+   "type": "fold"
+  },
+  {
+   "seat": 1,
+   "type": "call"
+  },
+  {
+   "seat": 2,
+   "type": "call"
+  },
+  {
+   "seat": 3,
+   "type": "call"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "amount": 500,
+   "seat": 3,
+   "type": "top_up"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 0,
+   "to": 934,
+   "type": "raise"
+  },
+  {
+   "seat": 1,
+   "to": 1976,
+   "type": "raise"
+  },
+  {
+   "seat": 2,
+   "type": "fold"
+  },
+  {
+   "seat": 3,
+   "type": "call"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "seat": 5,
+   "type": "call"
+  },
+  {
+   "seat": 0,
+   "type": "fold"
+  },
+  {
+   "seat": 5,
+   "type": "fold"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 1,
+   "type": "fold"
+  },
+  {
+   "seat": 2,
+   "type": "fold"
+  },
+  {
+   "seat": 3,
+   "to": 1460,
+   "type": "raise"
+  },
+  {
+   "seat": 4,
+   "type": "fold"
+  },
+  {
+   "seat": 5,
+   "type": "leave"
+  },
+  {
+   "seat": 0,
+   "type": "call"
+  },
+  {
+   "buy_in": 43,
+   "player": "n15",
+   "seat": 5,
+   "type": "sit"
+  },
+  {
+   "type": "start_hand"
+  },
+  {
+   "seat": 2,
+   "type": "call"
+  },
+  {
+   "seat": 3,
+   "type": "fold"
+  },
+  {
+   "seat": 4,
+   "to": 340,
+   "type": "raise"
+  },
+  {
+   "seat": 5,
+   "type": "call"
+  },
+  {
+   "seat": 0,
+   "type": "fold"
+  },
+  {
+   "seat": 1,
+   "type": "call"
+  },
+  {
+   "seat": 2,
+   "type": "call"
+  },
+  {
+   "seat": 1,
+   "type": "check"
+  },
+  {
+   "seat": 2,
+   "type": "fold"
+  },
+  {
+   "seat": 4,
+   "type": "check"
+  },
+  {
+   "seat": 1,
+   "type": "fold"
+  }
+ ],
+ "canonical_form": "one JSON object per event, keys sorted, no whitespace, joined by \\n; SHA-256 of the UTF-8",
+ "config": {
+  "ante": 0,
+  "bb": 2,
+  "max_buy_in": 500,
+  "min_buy_in": 40,
+  "sb": 1,
+  "seats": 6
+ },
+ "event_count": 3343,
+ "event_log_sha256": "60d25e0677f68eefda4febd18238ef7e04f6e47e277b23b2b2e6633203c942e5",
+ "final_balances": {
+  "pot": 0,
+  "seat0": 158,
+  "seat1": 3057,
+  "seat2": 1658,
+  "seat3": 1922,
+  "seat4": 1735,
+  "seat5": 173
+ },
+ "first_event": "{\"account\":\"pot\",\"amount\":0,\"seq\":1,\"type\":\"open\"}",
+ "game": "holdem",
+ "seeds": [
+  "123da46a62a11de0a68435939e94aeaf",
+  "ba8524bc43651138b22afba5513ee4cb",
+  "3f364b1a075444ee8069014e5cfca9c0",
+  "c2b9eeb5c6b57694b9529f50e9c291b3",
+  "14e234f86059f997a24b6a06ae260156",
+  "ce0b79f223ac8ce6fe3652b99d55c0b7",
+  "c7102c2425d20d1fc2d9231057347ec1",
+  "29f42eebb691a8a63b9d50177b6d94f4",
+  "2e93387fca28f32dae2157575ab2936e",
+  "1fe883ae921efdc922241ec05bcf0858",
+  "15e29a88e4b597b4cde6af429e0552f2",
+  "ed78750b97845cbf1dbb82df98a5e9c7",
+  "9d834c3b61c509de0817edf172360511",
+  "2ed992cb1b05a10a2320f9c63a39992c",
+  "86cdfd8e0a2f9b6cc84816ded658fd69",
+  "7676c33b3fdc789a56953c1754bde57e",
+  "20b54c240eee4311147b493eb07f5849",
+  "f7919c4426dc3ab6763d770bdc48e5d9",
+  "12763634955b2a8650a802ae2ebd4a6f",
+  "ece0287ed01c059bea62c80b22584366",
+  "8b166f7ad2f094e99861f73fcb19f066",
+  "1b8f2441f0897153ca1312b6d6a3765f",
+  "14ec8100ef4e0b6f98551d01e7f5476e",
+  "329022bc35b79df58905e7a74ed82141",
+  "ae3bfd7eb62cfead12574b4f6c5c14da",
+  "c46a42a55e6278d2dda2b79cd8f04878",
+  "efaa6ab2739206ce36485cf95cba39a2",
+  "471f3887813f5b78376a7672e367c50f",
+  "469d195c45d6e5558bb82843f6e64487",
+  "d95650fdbc700add2fb89dd8053a7dac",
+  "8aea9f1bcdb08e7458e2b0023f704b66",
+  "2de74d2e65d0f436f12219c21d4c3645",
+  "98409645fc503589e400681970ab140b",
+  "9ebbf17276e9a916320ba03d5f9902c6",
+  "6fa5cd31cf2eb5985977856f30049ece",
+  "2270f7e7a2abc156d2246db4f7e61272",
+  "c5a78c6b7ec3b4ac4a752b92e1040b9d",
+  "6d0cc1e42e29fe82aa46eb68d36e8fc6",
+  "81a413466629c4bd736a6ab34f35172e",
+  "453c5cd3089431869e9fe4561acacb4e",
+  "66df3cc32bb1c8d38a7c1b4a725e8375",
+  "98fb8b9506ce10d60551c2616858589a",
+  "bc0d77eb9ec412e48e655eb35a4ba7a0",
+  "fc002132ec6de2977ea37261da62a163",
+  "ba6c5e6f2f4c69ea669529c370c778f3",
+  "905fad8948d8d4626d6df73758fea3f4",
+  "6953e0c0620aebea02a40f92b18ee036",
+  "ae51cbbe783a1dd6e0b53ef8703d96c2",
+  "af1f2eed6ff8db42c0ea45f44a5a4846",
+  "8b98b558f0d781d1d9d9cade2af5b917",
+  "2f81d6dbbda276261253b4927d26df18",
+  "2e60a544abfc8cfaa914596da436b75a",
+  "03df53a6aae6a8526c4aeb0f182db431",
+  "80c98268cac0c60f03adb7229038b235",
+  "eae608385f138d1c52c03c65f1001558",
+  "ea0d3c379d5404be8d1cacf88fec7f7a",
+  "270d62d94efe09466bb863d838b073e0",
+  "fc34cdef653d3e024debb46ad2e1357f",
+  "9efd3638258cbeeba8d7c9d7ab69bdb9",
+  "27057b6c71ed512353c5c7162d0d2b46"
+ ]
+}

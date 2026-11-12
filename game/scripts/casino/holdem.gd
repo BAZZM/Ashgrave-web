@@ -24,7 +24,20 @@ extends RefCounted
 ## - Odd chips of a split pot go one at a time to the winners clockwise from the
 ##   seat left of the button. No rake.
 ## - leave mid-hand folds the hand (unless all-in, which plays on), even out of
-##   turn; the stack is cashed out when the hand ends.
+##   turn; the stack is cashed out when the hand ends. A leaver's bet stands
+##   for the players still to act, and any part of it nobody calls goes back
+##   to the leaver like any other uncalled bet.
+## - One player name holds at most one seat. A top-up must leave the stack
+##   between the minimum and maximum buy-in.
+##
+## Randomness: every hand is shuffled by a generator freshly seeded with 128
+## bits from `seed_source.next_seed()`. The seed is logged in a "seed" event
+## and in the hand history; events_for() withholds it until "hand_end", which
+## carries it (the hand is over, so it reveals nothing still in play).
+##
+## SENDABLE to a client: view_for(seat) and events_for(seat, raw_events) only.
+## SERVER-ONLY: apply()'s "raw_events" (all hole cards, the seed), to_dict()
+## (RNG state and deck), audit_history (every hand's hole cards and seed).
 ##
 ## Accounts: "seat<i>" stacks, "pot" (everything committed this hand).
 
@@ -55,10 +68,14 @@ var current_bet := 0
 var last_raise := 0
 var last_aggressor := -1
 var hist: Dictionary = {}
-var history: Array = []
+var audit_history: Array = []
+var hand_seed := ""
+## Object with next_seed() (see rng.gd). Not serialised: pass it again after
+## from_dict().
+var seed_source = null
 
 
-func _init(config: Dictionary = {}, seed: int = 1) -> void:
+func _init(config: Dictionary = {}, source = null) -> void:
 	var bb := maxi(2, int(config.get("bb", 2)))
 	cfg = {
 		"seats": clampi(int(config.get("seats", 6)), 2, 6),
@@ -68,7 +85,7 @@ func _init(config: Dictionary = {}, seed: int = 1) -> void:
 		"min_buy_in": maxi(1, int(config.get("min_buy_in", bb * 20))),
 		"max_buy_in": maxi(1, int(config.get("max_buy_in", bb * 250))),
 	}
-	rng.seed_with(seed)
+	seed_source = source
 	chips.open("pot", 0)
 	for i in cfg["seats"]:
 		seats.append(_empty_seat())
@@ -191,6 +208,9 @@ func _sit(seat: int, a: Dictionary):
 		return U.err("bad_player")
 	if buy == null or buy < cfg["min_buy_in"] or buy > cfg["max_buy_in"]:
 		return U.err("bad_amount", "buy-in must be %d..%d" % [cfg["min_buy_in"], cfg["max_buy_in"]])
+	for s in seats:
+		if s["player"] == p:
+			return U.err("player_seated", "%s already has a seat" % p)
 	seats[seat] = _empty_seat()
 	seats[seat]["player"] = p
 	chips.open(acct(seat), buy)
@@ -202,8 +222,8 @@ func _top_up(seat: int, a: Dictionary):
 	if phase != "waiting" and seats[seat]["in_hand"]:
 		return U.err("in_hand", "top up between hands")
 	var amt = U.field_int(a, "amount")
-	if amt == null or amt <= 0 or amt > cfg["max_buy_in"] - stack(seat):
-		return U.err("bad_amount", "stack may not exceed %d" % cfg["max_buy_in"])
+	if amt == null or amt <= 0 or stack(seat) + amt > cfg["max_buy_in"] or stack(seat) + amt < cfg["min_buy_in"]:
+		return U.err("bad_amount", "stack after top-up must be %d..%d" % [cfg["min_buy_in"], cfg["max_buy_in"]])
 	# A top-up is new chips sitting down: the account is reopened larger.
 	var have: int = chips.close(acct(seat))
 	chips.open(acct(seat), have + amt)
@@ -250,6 +270,9 @@ func _start_hand():
 			elig.append(i)
 	if elig.size() < 2:
 		return U.err("not_enough_players")
+	var words := U.take_seed(seed_source)
+	if words.is_empty():
+		return U.err("no_seed", "the seed source gave no valid 128-bit seed")
 	hand_no += 1
 	for i in n_seats():
 		var s: Dictionary = seats[i]
@@ -266,6 +289,9 @@ func _start_hand():
 	else:
 		sb_seat = _next(button, in_hand)
 		bb_seat = _next(sb_seat, in_hand)
+	rng = Rng.new()
+	rng.seed_128(words)
+	hand_seed = Rng.seed_hex(words)
 	deck = Cards.deck()
 	rng.shuffle(deck)
 	deck_pos = 0
@@ -276,9 +302,10 @@ func _start_hand():
 	var players := []
 	for i in elig:
 		players.append({"seat": i, "player": seats[i]["player"], "stack": stack(i)})
-	hist = {"hand": hand_no, "button": button, "sb": sb_seat, "bb": bb_seat,
+	hist = {"hand": hand_no, "seed": hand_seed, "button": button, "sb": sb_seat, "bb": bb_seat,
 		"blinds": [cfg["sb"], cfg["bb"], cfg["ante"]], "players": players,
 		"actions": [], "board": [], "shown": [], "awards": []}
+	_ev("seed", {"unit": "hand", "hand": hand_no, "seed": hand_seed})
 	_ev("hand_start", {"hand": hand_no, "button": button, "sb": sb_seat, "bb": bb_seat, "players": players.duplicate(true)})
 	if cfg["ante"] > 0:
 		var i := sb_seat
@@ -455,7 +482,8 @@ func _return_uncalled() -> void:
 	for i in n_seats():
 		if seats[i]["in_hand"] and (top < 0 or seats[i]["bet"] > seats[top]["bet"]):
 			top = i
-	if top < 0 or not _live(top):
+	# The top bettor may have folded by leaving: their excess still goes back.
+	if top < 0:
 		return
 	var second := 0
 	for i in n_seats():
@@ -630,11 +658,13 @@ func _end_hand() -> void:
 		if seats[i]["player"] != "":
 			stacks[str(i)] = stack(i)
 	hist["stacks"] = stacks
-	history.append(hist)
-	if history.size() > HISTORY_KEEP:
-		history = history.slice(history.size() - HISTORY_KEEP)
-	_ev("hand_end", {"hand": hand_no, "stacks": stacks})
+	audit_history.append(hist)
+	if audit_history.size() > HISTORY_KEEP:
+		audit_history = audit_history.slice(audit_history.size() - HISTORY_KEEP)
+	# The hand is over: its seed may now be published for verification.
+	_ev("hand_end", {"hand": hand_no, "stacks": stacks, "seed": hand_seed})
 	hist = {}
+	hand_seed = ""
 	for i in n_seats():
 		if seats[i]["leaving"]:
 			_cash_out(i)
@@ -643,7 +673,8 @@ func _end_hand() -> void:
 # ----------------------------------------------------------------- views
 
 ## Exactly what the player at `seat` may know. Spectators pass -1. Never holds
-## the deck, the RNG or another seat's hole cards unless that seat has shown.
+## the deck, the RNG, the hand's seed or another seat's hole cards unless that
+## seat has shown.
 func view_for(seat: int) -> Dictionary:
 	var ss := []
 	for i in n_seats():
@@ -666,10 +697,14 @@ func view_for(seat: int) -> Dictionary:
 		"seats": ss, "legal": legal_actions(seat)}
 
 
-## The events a given seat may receive: other seats' hole cards are removed.
+## The events a given seat may receive, from apply()'s raw_events: other
+## seats' hole cards are removed and the "seed" event of a hand in play is
+## dropped (hand_end carries the seed once the hand is over).
 static func events_for(seat: int, evts: Array) -> Array:
 	var out := []
 	for e in evts:
+		if e.get("type", "") == "seed":
+			continue
 		if e.get("type", "") == "hole" and int(e.get("seat", -1)) != seat:
 			var c: Dictionary = e.duplicate()
 			c["cards"] = []
@@ -687,7 +722,8 @@ func to_dict() -> Dictionary:
 		"phase": phase, "street": street, "button": button, "sb_seat": sb_seat, "bb_seat": bb_seat,
 		"deck": deck.duplicate(), "deck_pos": deck_pos, "board": board.duplicate(),
 		"to_act": to_act, "current_bet": current_bet, "last_raise": last_raise,
-		"last_aggressor": last_aggressor, "hist": hist.duplicate(true), "history": history.duplicate(true)}
+		"last_aggressor": last_aggressor, "hist": hist.duplicate(true),
+		"audit_history": audit_history.duplicate(true), "hand_seed": hand_seed}
 
 
 func from_dict(d: Dictionary) -> void:
@@ -711,4 +747,5 @@ func from_dict(d: Dictionary) -> void:
 	last_raise = n["last_raise"]
 	last_aggressor = n["last_aggressor"]
 	hist = n["hist"]
-	history = n["history"]
+	audit_history = n["audit_history"]
+	hand_seed = String(n.get("hand_seed", ""))

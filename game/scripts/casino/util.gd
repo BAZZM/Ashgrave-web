@@ -1,6 +1,9 @@
 extends RefCounted
 ## Small shared helpers: strict reading of action fields that may have come
-## through JSON (numbers arrive as floats), and the apply() result shapes.
+## through JSON (numbers arrive as floats), the apply() result shapes, and
+## taking a seed from a seed source.
+
+const Rng := preload("res://scripts/casino/rng.gd")
 
 
 ## An int from an int, or from a float holding a whole number; else `fallback`.
@@ -33,8 +36,10 @@ static func ints(a: Variant) -> Array:
 	return out
 
 
+## A successful apply(). "raw_events" is the server-side log slice: it can hold
+## secrets (hole cards, seeds). Clients get a game's events_for() of it only.
 static func ok(events: Array) -> Dictionary:
-	return {"ok": true, "events": events}
+	return {"ok": true, "raw_events": events}
 
 
 static func err(code: String, message := "") -> Dictionary:
@@ -49,3 +54,11 @@ static func action_type(action: Variant) -> Array:
 	if t == null:
 		return ["", err("bad_action", "action needs a String 'type'")]
 	return [t, null]
+
+
+## A fresh 128-bit seed (four u32) from `source`, or [] when there is no
+## source or it returned something that is not a seed.
+static func take_seed(source: Variant) -> Array:
+	if source == null or typeof(source) != TYPE_OBJECT or not source.has_method("next_seed"):
+		return []
+	return Rng.parse_seed(source.next_seed())

@@ -89,7 +89,7 @@ func run(t) -> void:
 	t.eq(Eval.category_name(Eval.value(Cards.parse_list("Ac Ad Kc Qd Jh"))), "pair", "name")
 
 	# Random hands: every result's five cards come from the seven and score the same.
-	var rng = Rng.make(20261112)
+	var rng = Rng.test_only_from_int(20261112)
 	var n := 100000
 	var hands := []
 	var deck := Cards.deck()

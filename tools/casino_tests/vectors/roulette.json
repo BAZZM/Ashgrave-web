@@ -1,0 +1,2852 @@
+{
+ "actions": [
+  {
+   "buy_in": 5000,
+   "player": "p0",
+   "seat": 0,
+   "type": "sit"
+  },
+  {
+   "buy_in": 5000,
+   "player": "p1",
+   "seat": 1,
+   "type": "sit"
+  },
+  {
+   "buy_in": 5000,
+   "player": "p2",
+   "seat": 2,
+   "type": "sit"
+  },
+  {
+   "amount": 1,
+   "kind": "high",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 11,
+   "kind": "corner",
+   "numbers": [
+    11,
+    12,
+    14,
+    15
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 16,
+   "index": 3,
+   "kind": "dozen",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 2,
+   "kind": "red",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 18,
+   "kind": "split",
+   "numbers": [
+    32,
+    33
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 8,
+   "kind": "basket",
+   "numbers": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 8,
+   "index": 2,
+   "kind": "column",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 11,
+   "index": 1,
+   "kind": "column",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 5,
+   "kind": "basket",
+   "numbers": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 9,
+   "kind": "high",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 18,
+   "kind": "basket",
+   "numbers": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 3,
+   "kind": "split",
+   "numbers": [
+    3,
+    6
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 16,
+   "kind": "corner",
+   "numbers": [
+    16,
+    17,
+    19,
+    20
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 1,
+   "kind": "line",
+   "numbers": [
+    22,
+    23,
+    24,
+    25,
+    26,
+    27
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 7,
+   "kind": "odd",
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 5,
+   "index": 3,
+   "kind": "column",
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 15,
+   "index": 3,
+   "kind": "dozen",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 1,
+   "kind": "trio",
+   "numbers": [
+    0,
+    2,
+    3
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 6,
+   "kind": "red",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 15,
+   "kind": "odd",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 19,
+   "kind": "corner",
+   "numbers": [
+    32,
+    33,
+    35,
+    36
+   ],
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 4,
+   "kind": "low",
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 14,
+   "kind": "street",
+   "numbers": [
+    28,
+    29,
+    30
+   ],
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 3,
+   "kind": "basket",
+   "numbers": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 19,
+   "index": 3,
+   "kind": "dozen",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 10,
+   "kind": "corner",
+   "numbers": [
+    29,
+    30,
+    32,
+    33
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 19,
+   "kind": "straight",
+   "numbers": [
+    32
+   ],
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 11,
+   "kind": "street",
+   "numbers": [
+    28,
+    29,
+    30
+   ],
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 11,
+   "kind": "even",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 3,
+   "kind": "line",
+   "numbers": [
+    7,
+    8,
+    9,
+    10,
+    11,
+    12
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 1,
+   "kind": "corner",
+   "numbers": [
+    23,
+    24,
+    26,
+    27
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 19,
+   "kind": "odd",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 6,
+   "kind": "straight",
+   "numbers": [
+    15
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 15,
+   "kind": "low",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 1,
+   "kind": "corner",
+   "numbers": [
+    28,
+    29,
+    31,
+    32
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 8,
+   "kind": "high",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 3,
+   "kind": "red",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 18,
+   "index": 1,
+   "kind": "dozen",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 13,
+   "kind": "basket",
+   "numbers": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 19,
+   "kind": "split",
+   "numbers": [
+    7,
+    8
+   ],
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 10,
+   "kind": "straight",
+   "numbers": [
+    9
+   ],
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 9,
+   "kind": "basket",
+   "numbers": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 11,
+   "kind": "basket",
+   "numbers": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 1,
+   "kind": "basket",
+   "numbers": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 11,
+   "kind": "low",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 18,
+   "kind": "black",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 13,
+   "index": 3,
+   "kind": "column",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 5,
+   "kind": "low",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 18,
+   "kind": "even",
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 8,
+   "kind": "street",
+   "numbers": [
+    16,
+    17,
+    18
+   ],
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 7,
+   "kind": "odd",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 4,
+   "kind": "black",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 13,
+   "kind": "odd",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 8,
+   "kind": "line",
+   "numbers": [
+    25,
+    26,
+    27,
+    28,
+    29,
+    30
+   ],
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 3,
+   "kind": "split",
+   "numbers": [
+    33,
+    36
+   ],
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 4,
+   "kind": "odd",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 12,
+   "kind": "split",
+   "numbers": [
+    19,
+    20
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 8,
+   "kind": "odd",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 19,
+   "index": 1,
+   "kind": "column",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 11,
+   "index": 3,
+   "kind": "dozen",
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 2,
+   "index": 1,
+   "kind": "column",
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 10,
+   "kind": "split",
+   "numbers": [
+    2,
+    5
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 20,
+   "kind": "black",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 13,
+   "kind": "even",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 17,
+   "kind": "corner",
+   "numbers": [
+    16,
+    17,
+    19,
+    20
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 6,
+   "kind": "black",
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 18,
+   "kind": "straight",
+   "numbers": [
+    33
+   ],
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 3,
+   "kind": "straight",
+   "numbers": [
+    3
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 19,
+   "kind": "street",
+   "numbers": [
+    22,
+    23,
+    24
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 19,
+   "kind": "split",
+   "numbers": [
+    14,
+    15
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 2,
+   "kind": "trio",
+   "numbers": [
+    0,
+    1,
+    2
+   ],
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 11,
+   "kind": "black",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 8,
+   "kind": "basket",
+   "numbers": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 3,
+   "kind": "black",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 16,
+   "kind": "black",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 5,
+   "kind": "low",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 3,
+   "kind": "low",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 11,
+   "kind": "straight",
+   "numbers": [
+    1
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 20,
+   "kind": "trio",
+   "numbers": [
+    0,
+    2,
+    3
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 9,
+   "kind": "basket",
+   "numbers": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 18,
+   "kind": "high",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 5,
+   "kind": "odd",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 8,
+   "kind": "high",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 17,
+   "kind": "corner",
+   "numbers": [
+    25,
+    26,
+    28,
+    29
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 18,
+   "kind": "trio",
+   "numbers": [
+    0,
+    2,
+    3
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 1,
+   "index": 1,
+   "kind": "column",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 8,
+   "kind": "black",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 9,
+   "index": 2,
+   "kind": "dozen",
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 18,
+   "kind": "red",
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 12,
+   "kind": "straight",
+   "numbers": [
+    19
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 17,
+   "kind": "line",
+   "numbers": [
+    28,
+    29,
+    30,
+    31,
+    32,
+    33
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 20,
+   "index": 2,
+   "kind": "column",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 10,
+   "kind": "odd",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 18,
+   "kind": "low",
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 10,
+   "index": 2,
+   "kind": "dozen",
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 4,
+   "kind": "split",
+   "numbers": [
+    20,
+    21
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 6,
+   "kind": "split",
+   "numbers": [
+    29,
+    32
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 6,
+   "kind": "low",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 9,
+   "kind": "odd",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 7,
+   "kind": "street",
+   "numbers": [
+    1,
+    2,
+    3
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 9,
+   "kind": "line",
+   "numbers": [
+    25,
+    26,
+    27,
+    28,
+    29,
+    30
+   ],
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 12,
+   "index": 1,
+   "kind": "dozen",
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 10,
+   "kind": "basket",
+   "numbers": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 4,
+   "kind": "high",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 1,
+   "kind": "split",
+   "numbers": [
+    11,
+    14
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 16,
+   "kind": "split",
+   "numbers": [
+    27,
+    30
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 1,
+   "kind": "split",
+   "numbers": [
+    7,
+    8
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 12,
+   "kind": "trio",
+   "numbers": [
+    0,
+    2,
+    3
+   ],
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 1,
+   "kind": "basket",
+   "numbers": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 2,
+   "kind": "red",
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 20,
+   "kind": "corner",
+   "numbers": [
+    26,
+    27,
+    29,
+    30
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 2,
+   "index": 3,
+   "kind": "dozen",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 15,
+   "kind": "even",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 20,
+   "kind": "odd",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 19,
+   "kind": "basket",
+   "numbers": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 12,
+   "index": 3,
+   "kind": "dozen",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 17,
+   "kind": "straight",
+   "numbers": [
+    5
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 9,
+   "kind": "street",
+   "numbers": [
+    19,
+    20,
+    21
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 20,
+   "kind": "line",
+   "numbers": [
+    25,
+    26,
+    27,
+    28,
+    29,
+    30
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 1,
+   "kind": "high",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 19,
+   "kind": "even",
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 13,
+   "kind": "corner",
+   "numbers": [
+    23,
+    24,
+    26,
+    27
+   ],
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 2,
+   "kind": "corner",
+   "numbers": [
+    5,
+    6,
+    8,
+    9
+   ],
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 20,
+   "kind": "high",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 12,
+   "kind": "low",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 10,
+   "index": 1,
+   "kind": "column",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 12,
+   "kind": "black",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 11,
+   "kind": "high",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 13,
+   "kind": "high",
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 5,
+   "kind": "split",
+   "numbers": [
+    15,
+    18
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 15,
+   "kind": "red",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 19,
+   "kind": "trio",
+   "numbers": [
+    0,
+    2,
+    3
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 11,
+   "kind": "basket",
+   "numbers": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 7,
+   "kind": "black",
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 13,
+   "kind": "straight",
+   "numbers": [
+    19
+   ],
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 9,
+   "kind": "red",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 8,
+   "kind": "black",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 19,
+   "kind": "red",
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 6,
+   "kind": "corner",
+   "numbers": [
+    29,
+    30,
+    32,
+    33
+   ],
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 10,
+   "kind": "straight",
+   "numbers": [
+    19
+   ],
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 5,
+   "index": 2,
+   "kind": "dozen",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 16,
+   "kind": "street",
+   "numbers": [
+    31,
+    32,
+    33
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 6,
+   "index": 3,
+   "kind": "dozen",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 12,
+   "kind": "line",
+   "numbers": [
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 18,
+   "kind": "corner",
+   "numbers": [
+    31,
+    32,
+    34,
+    35
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 10,
+   "kind": "even",
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 1,
+   "kind": "low",
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 7,
+   "kind": "straight",
+   "numbers": [
+    4
+   ],
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 5,
+   "kind": "low",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 10,
+   "kind": "corner",
+   "numbers": [
+    20,
+    21,
+    23,
+    24
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 10,
+   "kind": "black",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 6,
+   "kind": "straight",
+   "numbers": [
+    3
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 10,
+   "kind": "split",
+   "numbers": [
+    33,
+    36
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 9,
+   "kind": "split",
+   "numbers": [
+    19,
+    22
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 14,
+   "kind": "line",
+   "numbers": [
+    13,
+    14,
+    15,
+    16,
+    17,
+    18
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 2,
+   "kind": "low",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 2,
+   "kind": "trio",
+   "numbers": [
+    0,
+    1,
+    2
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 5,
+   "kind": "split",
+   "numbers": [
+    35,
+    36
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 17,
+   "kind": "even",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 13,
+   "kind": "basket",
+   "numbers": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 6,
+   "kind": "line",
+   "numbers": [
+    25,
+    26,
+    27,
+    28,
+    29,
+    30
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 18,
+   "kind": "line",
+   "numbers": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 7,
+   "kind": "street",
+   "numbers": [
+    31,
+    32,
+    33
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 2,
+   "kind": "odd",
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 6,
+   "index": 1,
+   "kind": "dozen",
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 2,
+   "kind": "high",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 9,
+   "kind": "high",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 15,
+   "kind": "low",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 9,
+   "kind": "red",
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 17,
+   "kind": "corner",
+   "numbers": [
+    31,
+    32,
+    34,
+    35
+   ],
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 14,
+   "kind": "line",
+   "numbers": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 9,
+   "index": 1,
+   "kind": "dozen",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 7,
+   "kind": "split",
+   "numbers": [
+    29,
+    32
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 13,
+   "kind": "split",
+   "numbers": [
+    29,
+    32
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 5,
+   "kind": "line",
+   "numbers": [
+    31,
+    32,
+    33,
+    34,
+    35,
+    36
+   ],
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 20,
+   "kind": "straight",
+   "numbers": [
+    35
+   ],
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 3,
+   "kind": "basket",
+   "numbers": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 1,
+   "kind": "low",
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 10,
+   "index": 1,
+   "kind": "column",
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 9,
+   "kind": "trio",
+   "numbers": [
+    0,
+    2,
+    3
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 12,
+   "index": 1,
+   "kind": "dozen",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 4,
+   "kind": "corner",
+   "numbers": [
+    22,
+    23,
+    25,
+    26
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 3,
+   "kind": "straight",
+   "numbers": [
+    0
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 1,
+   "kind": "split",
+   "numbers": [
+    29,
+    30
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 16,
+   "kind": "trio",
+   "numbers": [
+    0,
+    1,
+    2
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 20,
+   "kind": "low",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 15,
+   "kind": "black",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 11,
+   "kind": "basket",
+   "numbers": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 2,
+   "kind": "trio",
+   "numbers": [
+    0,
+    1,
+    2
+   ],
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 19,
+   "kind": "basket",
+   "numbers": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 13,
+   "kind": "basket",
+   "numbers": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 9,
+   "kind": "black",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 7,
+   "kind": "low",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 12,
+   "kind": "street",
+   "numbers": [
+    16,
+    17,
+    18
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 19,
+   "kind": "trio",
+   "numbers": [
+    0,
+    1,
+    2
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 20,
+   "kind": "line",
+   "numbers": [
+    19,
+    20,
+    21,
+    22,
+    23,
+    24
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 4,
+   "kind": "straight",
+   "numbers": [
+    16
+   ],
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 11,
+   "index": 3,
+   "kind": "column",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 11,
+   "kind": "high",
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 12,
+   "kind": "trio",
+   "numbers": [
+    0,
+    2,
+    3
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 1,
+   "kind": "odd",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 10,
+   "kind": "even",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 8,
+   "kind": "even",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 2,
+   "kind": "low",
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 1,
+   "kind": "split",
+   "numbers": [
+    15,
+    18
+   ],
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 14,
+   "kind": "red",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 3,
+   "kind": "red",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 1,
+   "kind": "low",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 7,
+   "kind": "corner",
+   "numbers": [
+    5,
+    6,
+    8,
+    9
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 3,
+   "kind": "black",
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 4,
+   "kind": "red",
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 3,
+   "kind": "red",
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 19,
+   "kind": "street",
+   "numbers": [
+    19,
+    20,
+    21
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 7,
+   "kind": "odd",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 18,
+   "kind": "low",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 9,
+   "kind": "corner",
+   "numbers": [
+    19,
+    20,
+    22,
+    23
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 9,
+   "kind": "high",
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 10,
+   "kind": "street",
+   "numbers": [
+    1,
+    2,
+    3
+   ],
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 15,
+   "index": 1,
+   "kind": "column",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 13,
+   "index": 2,
+   "kind": "dozen",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 4,
+   "kind": "high",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 17,
+   "index": 2,
+   "kind": "column",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 17,
+   "kind": "even",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 7,
+   "index": 3,
+   "kind": "column",
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 11,
+   "kind": "line",
+   "numbers": [
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+   ],
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 6,
+   "kind": "corner",
+   "numbers": [
+    17,
+    18,
+    20,
+    21
+   ],
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 14,
+   "kind": "street",
+   "numbers": [
+    31,
+    32,
+    33
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 15,
+   "kind": "low",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 12,
+   "kind": "corner",
+   "numbers": [
+    8,
+    9,
+    11,
+    12
+   ],
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 15,
+   "kind": "even",
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 7,
+   "kind": "trio",
+   "numbers": [
+    0,
+    2,
+    3
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 6,
+   "kind": "high",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 10,
+   "index": 2,
+   "kind": "dozen",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 18,
+   "index": 1,
+   "kind": "column",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 13,
+   "kind": "trio",
+   "numbers": [
+    0,
+    1,
+    2
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 15,
+   "index": 3,
+   "kind": "dozen",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 11,
+   "kind": "high",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 6,
+   "index": 1,
+   "kind": "column",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 11,
+   "kind": "high",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 4,
+   "index": 2,
+   "kind": "column",
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 16,
+   "kind": "black",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 17,
+   "kind": "red",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 17,
+   "kind": "high",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 4,
+   "kind": "corner",
+   "numbers": [
+    16,
+    17,
+    19,
+    20
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 12,
+   "kind": "even",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 5,
+   "kind": "line",
+   "numbers": [
+    25,
+    26,
+    27,
+    28,
+    29,
+    30
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 4,
+   "kind": "corner",
+   "numbers": [
+    13,
+    14,
+    16,
+    17
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 2,
+   "kind": "even",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 17,
+   "kind": "straight",
+   "numbers": [
+    36
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 19,
+   "kind": "street",
+   "numbers": [
+    28,
+    29,
+    30
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 2,
+   "kind": "trio",
+   "numbers": [
+    0,
+    2,
+    3
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 15,
+   "kind": "even",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 20,
+   "kind": "black",
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 19,
+   "kind": "straight",
+   "numbers": [
+    15
+   ],
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 20,
+   "kind": "basket",
+   "numbers": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 5,
+   "kind": "straight",
+   "numbers": [
+    34
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 9,
+   "kind": "trio",
+   "numbers": [
+    0,
+    2,
+    3
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 16,
+   "kind": "red",
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 6,
+   "kind": "even",
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 5,
+   "kind": "black",
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 4,
+   "kind": "line",
+   "numbers": [
+    16,
+    17,
+    18,
+    19,
+    20,
+    21
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 12,
+   "kind": "split",
+   "numbers": [
+    4,
+    5
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 19,
+   "index": 2,
+   "kind": "dozen",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 19,
+   "kind": "high",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 8,
+   "kind": "high",
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 5,
+   "kind": "line",
+   "numbers": [
+    22,
+    23,
+    24,
+    25,
+    26,
+    27
+   ],
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 5,
+   "kind": "basket",
+   "numbers": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 6,
+   "kind": "odd",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 4,
+   "kind": "black",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 11,
+   "kind": "line",
+   "numbers": [
+    31,
+    32,
+    33,
+    34,
+    35,
+    36
+   ],
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 17,
+   "index": 2,
+   "kind": "column",
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 14,
+   "kind": "line",
+   "numbers": [
+    16,
+    17,
+    18,
+    19,
+    20,
+    21
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 13,
+   "index": 1,
+   "kind": "column",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 1,
+   "kind": "odd",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 7,
+   "kind": "high",
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 6,
+   "kind": "line",
+   "numbers": [
+    10,
+    11,
+    12,
+    13,
+    14,
+    15
+   ],
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 10,
+   "kind": "street",
+   "numbers": [
+    25,
+    26,
+    27
+   ],
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 15,
+   "kind": "odd",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 19,
+   "kind": "street",
+   "numbers": [
+    16,
+    17,
+    18
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 17,
+   "kind": "low",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 17,
+   "kind": "trio",
+   "numbers": [
+    0,
+    1,
+    2
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 17,
+   "kind": "high",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 20,
+   "kind": "straight",
+   "numbers": [
+    9
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 9,
+   "kind": "line",
+   "numbers": [
+    16,
+    17,
+    18,
+    19,
+    20,
+    21
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 13,
+   "index": 2,
+   "kind": "column",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 20,
+   "kind": "corner",
+   "numbers": [
+    13,
+    14,
+    16,
+    17
+   ],
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 9,
+   "index": 3,
+   "kind": "column",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 14,
+   "kind": "high",
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "amount": 12,
+   "kind": "straight",
+   "numbers": [
+    25
+   ],
+   "seat": 2,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 4,
+   "index": 3,
+   "kind": "column",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 7,
+   "kind": "red",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 6,
+   "kind": "red",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "amount": 1,
+   "kind": "high",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  },
+  {
+   "amount": 10,
+   "kind": "even",
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 11,
+   "kind": "split",
+   "numbers": [
+    28,
+    29
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 1,
+   "kind": "trio",
+   "numbers": [
+    0,
+    1,
+    2
+   ],
+   "seat": 0,
+   "type": "bet"
+  },
+  {
+   "amount": 4,
+   "index": 2,
+   "kind": "dozen",
+   "seat": 1,
+   "type": "bet"
+  },
+  {
+   "type": "spin"
+  }
+ ],
+ "canonical_form": "one JSON object per event, keys sorted, no whitespace, joined by \\n; SHA-256 of the UTF-8",
+ "config": {
+  "max_bet": 100,
+  "max_bets": 8,
+  "min_bet": 1,
+  "seats": 3,
+  "wheel": "european"
+ },
+ "event_count": 1345,
+ "event_log_sha256": "22226f429c651f5956617100c680b3db8b7f2c7b59d30fbc98a81ac19ef7c43b",
+ "final_balances": {
+  "house": -818,
+  "seat0": 4721,
+  "seat1": 5618,
+  "seat2": 5479,
+  "table": 0
+ },
+ "first_event": "{\"account\":\"house\",\"amount\":0,\"seq\":1,\"type\":\"open\"}",
+ "game": "roulette",
+ "seeds": [
+  "da6937627b38621db0ab344624fa597e",
+  "9ae666efb38936351e2089826623c286",
+  "aac02cb4d3a56efbedb756beacbcf343",
+  "b93ef4fc9f6b4e1c58e6aa551b692f53",
+  "d9a2736c40b3c82384dcc57582d24422",
+  "38e3b89963d14f431c68c1098ae7299e",
+  "c1c2c88ef9683d8ea307ae2e42dc493b",
+  "632b493a79f662896b6e18e153d13fcc",
+  "046bc93f7a2e5d8dc51d9f501be1f6a3",
+  "fdb316feca625defaa14186ea00f15c0",
+  "bf931e73963fa4dab7938d6b694e7dc9",
+  "300b897826263742cd7502541011971f",
+  "12e7203a8297d77ab234972fad751e32",
+  "ee2c1135c8fafbfc0ee0afbc17653cda",
+  "48fb4999a1fb74f5305fd4d101cddf7e",
+  "0425380ec91de4a0dfc099a17a3a73eb",
+  "7f082d887ee4bb8a4aec6feea461afb5",
+  "c69e0c01435c12eb9ecd69733fa2b0dd",
+  "1825e7a3e687750d6acb8f3fe79ff997",
+  "d9436dac4c2f5342f083fad10b730ddb",
+  "f697afdf377b2257374b87bc46e55a3d",
+  "45fe74a4893d35903b6c1de86d368f74",
+  "a5722b6c1034e4755c9bc848ac896c0c",
+  "42e7b93a65b84e0d8d945ec15bf1b625",
+  "5c65f01e343c92e5f80ce7bae0104db5",
+  "ca4c6f7660fdd65097d095133fa3ef5b",
+  "82317232988224ac022a4f3332bd23ef",
+  "7abe44658bc0a47f7583cc7b7a76f87f",
+  "48c996e145fe2afbca9a109573f4d3ef",
+  "0ff2668eadea47b134cc6a5abc8240ae",
+  "fa179b4f1b9e02514da509954723e6c7",
+  "22339a0fc516f63a5dfc0e319ec8ed78",
+  "12b6c87a1a2202511c965012d0dcd0a7",
+  "97f9c80db40adcfdeb445f20be944f21",
+  "3a1f743f5df3777269ce4399d2dcf40a",
+  "cab0696e3f03a9da365986e8c929ca0c",
+  "653355f4abc5b132e84fc6c0d42df5f3",
+  "a86fa22ce099496ab4fa08756c6b4f40",
+  "24c034c8d55773df57d0ef0b544cc75d",
+  "75b374c87edd1d6fc2b400cb0573c00e",
+  "cdb3ef8474c82a3dfed0f563c74701b3",
+  "7d6a277a7c6333fcab4e465143579b81",
+  "2f0c13619aa08683fcdb56aebf310b4a",
+  "8714f3496976a66a7a6c9b821558644b",
+  "22924a6acbcc1cacbda3fca1a6a3bb6a",
+  "6cd3c336a8789b8cb922437bd97abf64",
+  "5347be82fd19f7726f4569dbe6bf5398",
+  "bdcb46eb74ff656cabb3cedcad5b0cfc",
+  "3a14a28bf3dcb6167ab2bbd5e72cb666",
+  "27a0867330300d27f1011463057c6f14",
+  "44d92a47f14bcc4695e57b2ac2710542",
+  "64fc3482f18397b5bf0fab46d0c32fae",
+  "8fc32a40545679c532edee3078517983",
+  "0d30e70109708cddceb11e23a1a2f08e",
+  "02bfdfe70f9dfb8e65400c3e24854c38",
+  "9b6444848559b46778dbe0d3072beda1",
+  "d5666bb0f0f515f7cb7daf498af950de",
+  "66e6668441494498d628cfe877807287",
+  "f3a38f42910fe1747bc2d0036ea3cfa7",
+  "d90ed55c4a2c59d628d4e31f1ae1c143"
+ ]
+}

@@ -3,6 +3,8 @@ extends RefCounted
 
 const NAME := "roulette"
 const R := preload("res://scripts/casino/roulette.gd")
+const Rng := preload("res://scripts/casino/rng.gd")
+const Seq := preload("res://tests/seed_seq.gd")
 
 const REDS := [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]
 
@@ -50,7 +52,7 @@ static func _evens() -> Array:
 
 
 func _play(t, wheel: String, table: Array, spins: int) -> void:
-	var g = R.new({"wheel": wheel}, 77)
+	var g = R.new({"wheel": wheel}, Seq.new(77))
 	g.apply({"type": "sit", "seat": 0, "player": "p", "buy_in": 1000000})
 	var hits := {}
 	var seen := {}
@@ -64,7 +66,7 @@ func _play(t, wheel: String, table: Array, spins: int) -> void:
 		var res: Dictionary = g.apply({"type": "spin"})
 		var pocket := -1
 		var k := 0
-		for e in res["events"]:
+		for e in res["raw_events"]:
 			if e["type"] == "spin":
 				pocket = e["result"]
 			elif e["type"] == "result":
@@ -95,7 +97,7 @@ func run(t) -> void:
 	# House edge identity: over one of each pocket, every bet returns -1 unit
 	# (European), -2 (American), -3 for the American five-number bet.
 	for wheel in ["european", "american"]:
-		var g = R.new({"wheel": wheel})
+		var g = R.new({"wheel": wheel}, Seq.new(1))
 		var counts := {}
 		var bad := 0
 		var spots := []
@@ -126,7 +128,7 @@ func run(t) -> void:
 		else:
 			t.eq(counts, {"straight": 38, "split": 62, "street": 12, "trio": 3, "corner": 22, "line": 11, "basket": 1}, "American spot counts")
 	# Not table spots.
-	var g = R.new()
+	var g = R.new({}, Seq.new(2))
 	g.apply({"type": "sit", "seat": 0, "player": "p", "buy_in": 100})
 	for bad in [["split", [1, 5]], ["split", [3, 4]], ["split", [0, 37]], ["corner", [3, 4, 6, 7]],
 			["street", [2, 3, 4]], ["line", [1, 2, 3, 4, 5]], ["trio", [0, 37, 2]], ["straight", [37]],
@@ -143,12 +145,70 @@ func run(t) -> void:
 	g.apply({"type": "clear", "seat": 0})
 	t.eq(g.chips.balance("seat0"), 100, "clear returns bets")
 	# Fairness of the draw: chi-square over 37 pockets, 74k spins (df 36, p>0.001 < 67.98).
-	var w = R.new({}, 3)
+	# Each draw from a freshly seeded generator, exactly as _spin does it.
+	var src3 = Seq.new(3)
 	var bins := {}
 	for i in 74000:
-		var p: int = w.rng.next_below(37)
+		var p: int = Rng.from_seed(src3.next_seed()).next_below(37)
 		bins[p] = int(bins.get(p, 0)) + 1
 	var chi := 0.0
 	for p in 37:
 		chi += pow(int(bins.get(p, 0)) - 2000.0, 2) / 2000.0
 	t.check(chi < 67.98, "wheel uniform (chi2=%.1f)" % chi)
+	_per_seat_limit(t)
+	_spin_seeds(t)
+
+
+## max_bets is per seat: one seat filling its limit leaves the others free.
+func _per_seat_limit(t) -> void:
+	var g = R.new({"max_bets": 3}, Seq.new(4))
+	for i in 3:
+		g.apply({"type": "sit", "seat": i, "player": "p%d" % i, "buy_in": 100})
+	for k in 3:
+		t.check(g.apply({"type": "bet", "seat": 0, "kind": "red", "amount": 1})["ok"], "seat 0 bet %d" % k)
+	t.eq(g.apply({"type": "bet", "seat": 0, "kind": "red", "amount": 1}).get("error", ""), "too_many_bets",
+		"seat 0's fourth bet refused")
+	for i in [1, 2]:
+		for k in 3:
+			t.check(g.apply({"type": "bet", "seat": i, "kind": "black", "amount": 1})["ok"],
+				"seat %d still may bet (%d) after seat 0 hit its limit" % [i, k])
+		t.eq(g.apply({"type": "bet", "seat": i, "kind": "red", "amount": 1}).get("error", ""), "too_many_bets",
+			"seat %d limit is its own" % i)
+	g.apply({"type": "clear", "seat": 0})
+	t.check(g.apply({"type": "bet", "seat": 0, "kind": "red", "amount": 1})["ok"], "clearing frees the seat's slots")
+	g.apply({"type": "spin"})
+	t.check(g.apply({"type": "bet", "seat": 0, "kind": "red", "amount": 1})["ok"], "a spin frees the slots")
+
+
+## Every spin takes one fresh seed; the result depends on that seed alone.
+func _spin_seeds(t) -> void:
+	var src = Seq.new(8)
+	var g = R.new({}, src)
+	g.apply({"type": "sit", "seat": 0, "player": "p", "buy_in": 1000})
+	var ok := true
+	for i in 30:
+		var c0: int = src.calls
+		var r: Dictionary = g.apply({"type": "spin"})
+		if src.calls != c0 + 1:
+			ok = false
+		var sd: String = Rng.seed_hex(Rng.parse_seed(src.given[-1]))
+		for e in R.events_for(0, r["raw_events"]):
+			if e["type"] == "spin" and (e["seed"] != sd or e["result"] != Rng.from_seed(sd).next_below(37)):
+				ok = false
+	t.check(ok, "one seed per spin; result = from_seed(seed).next_below(37), published with the spin")
+	# Same seed every time: the same pocket every time (no state carried over).
+	var same = R.new({}, Seq.new("0123456789abcdef0123456789abcdef", true))
+	same.apply({"type": "sit", "seat": 0, "player": "p", "buy_in": 1000})
+	var results := {}
+	for i in 20:
+		for e in same.apply({"type": "spin"})["raw_events"]:
+			if e["type"] == "spin":
+				results[e["result"]] = true
+	t.eq(results.size(), 1, "a spin depends only on its own seed")
+	# No seed: refused, bets stay down.
+	var g2 = R.new({}, null)
+	g2.apply({"type": "sit", "seat": 0, "player": "p", "buy_in": 100})
+	g2.apply({"type": "bet", "seat": 0, "kind": "red", "amount": 10})
+	var before := JSON.stringify(g2.to_dict())
+	t.eq(g2.apply({"type": "spin"}).get("error", ""), "no_seed", "no seed source: spin refused")
+	t.eq(JSON.stringify(g2.to_dict()), before, "refused spin leaves state untouched")
