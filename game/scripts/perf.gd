@@ -20,6 +20,16 @@ const MARK_KEEP := 4
 const FONT_SIZE := 16
 
 var enabled := false
+## --perflog: print every mark and a stats line every few seconds to the console
+## (for measuring here, where there is no one to read the panel). --perfdump adds
+## a one-off breakdown of the scene by category, found by hiding each in turn.
+var logging := false
+var _dump := false
+var _world := false
+var _live := false
+var _seen := {}
+var _log_next := 0
+var _dump_next := 0
 
 var _last := 0
 var _next_refresh := 0
@@ -40,8 +50,17 @@ func _ready() -> void:
 	if not on and OS.has_feature("web"):
 		var q: Variant = JavaScriptBridge.eval("new URLSearchParams(location.search).get('perf') || ''", true)
 		on = q is String and q != "" and q != "0"
+	var args := OS.get_cmdline_user_args()
+	_dump = "--perfdump" in args
+	_world = "--worlddump" in args
+	_live = "--worldlive" in args
+	logging = "--perflog" in args or _dump or _world or _live
 	if on:
 		_enable()
+	elif logging:
+		set_process(true)
+		_last = Time.get_ticks_usec()
+		_dump_next = _last + 14_000_000
 
 
 func _enable() -> void:
@@ -82,6 +101,8 @@ func _enable() -> void:
 
 ## Report a costly event. Ignored while the readout is off.
 func mark(label: String, usec: int) -> void:
+	if logging:
+		print("MARK %s %.2f ms" % [label, usec / 1000.0])
 	if not enabled or usec < MARK_MIN_USEC:
 		return
 	_marks.append("%s %.1f ms" % [label, usec / 1000.0])
@@ -93,14 +114,25 @@ func _process(_delta: float) -> void:
 	var now := Time.get_ticks_usec()
 	var dt := now - _last
 	_last = now
-	if dt < IGNORE_USEC:
+	if enabled and dt < IGNORE_USEC:
 		_times.append(now)
 		_durs.append(dt)
 		if dt > BAD_STUTTER_USEC:
 			_bad.append(now)
 		elif dt > STUTTER_USEC:
 			_stutters.append(now)
-	if now >= _next_refresh:
+	if logging and now >= _log_next:
+		_log_next = now + 3_000_000
+		print(_stats_line())
+	if _live:
+		_world_live()
+	if (_dump or _world) and now >= _dump_next:
+		_dump_next = now + 1_000_000_000_000
+		if _world:
+			_world_dump()
+		else:
+			_breakdown()
+	if enabled and now >= _next_refresh:
 		_next_refresh = now + REFRESH_USEC
 		_refresh(now)
 
@@ -151,3 +183,165 @@ func _trim(a: PackedInt64Array, now: int) -> PackedInt64Array:
 	while i < a.size() and a[i] < now - STUTTER_WINDOW_USEC:
 		i += 1
 	return a.slice(i) if i > 0 else a
+
+
+func _monitors() -> Array:
+	return [int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)),
+		int(Performance.get_monitor(Performance.RENDER_TOTAL_OBJECTS_IN_FRAME)),
+		int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME)),
+		int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT))]
+
+
+func _stats_line() -> String:
+	var m := _monitors()
+	var sc := get_tree().current_scene
+	var pos: Variant = sc.get("hero_pos") if sc else null
+	var chunks: Variant = sc.get("_chunks") if sc else null
+	return "PERFLOG pos=%s chunks=%s draw=%d obj=%d prim=%d nodes=%d" % [
+		"%d,%d" % [pos.x, pos.z] if pos is Vector3 else "-", chunks.size() if chunks is Dictionary else "-", m[0], m[1], m[2], m[3]]
+
+
+## Which part of the scene a mesh node belongs to, for the breakdown.
+func _category(n: Node, owned: Dictionary, roots: Dictionary, scene: Node) -> String:
+	var up: Node = n
+	while up != null and up != scene:
+		if owned.has(up):
+			return owned[up]
+		if roots.has(up.get_parent()):
+			if up == n:
+				if n is MultiMeshInstance3D:
+					return "scatter"
+				if (n as MeshInstance3D).mesh is PlaneMesh:
+					return "water"
+				if (n as MeshInstance3D).mesh is ArrayMesh:
+					return "ground"
+				return "bridge"
+			return "places"
+		up = up.get_parent()
+	if scene.get("hero") != null and scene.hero.is_ancestor_of(n):
+		return "hero"
+	return "other"
+
+
+func _breakdown() -> void:
+	var scene := get_tree().current_scene
+	if scene == null or scene.get("ents") == null:
+		return
+	var owned := {}
+	for e in scene.ents:
+		if e.get("node") != null and is_instance_valid(e.node):
+			owned[e.node] = _ent_category(e.type)
+	var roots := {}
+	for k in scene._chunks:
+		roots[scene._chunks[k].root] = true
+	var groups := {}
+	var stack: Array = [scene]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		stack.append_array(n.get_children())
+		if not (n is MeshInstance3D or n is MultiMeshInstance3D):
+			continue
+		if not (n as Node3D).is_visible_in_tree():
+			continue
+		var c := _category(n, owned, roots, scene)
+		if not groups.has(c):
+			groups[c] = {"nodes": [], "meshes": 0, "inst": 0}
+		var g: Dictionary = groups[c]
+		g.nodes.append(n)
+		if n is MultiMeshInstance3D:
+			var mm: MultiMesh = n.multimesh
+			g.meshes += 1
+			g.inst += mm.instance_count
+		else:
+			g.meshes += 1
+			g.inst += 1
+	var base: Array = await _sample()
+	print("BREAKDOWN base mean of 6 frames: draw %.0f obj %.0f prim %.0f nodes %.0f (shadow passes included); each row below is what hiding that category removes" % base)
+	for c in groups:
+		var g: Dictionary = groups[c]
+		for n in g.nodes:
+			n.visible = false
+		var m: Array = await _sample()
+		for n in g.nodes:
+			if is_instance_valid(n):
+				n.visible = true
+		# The counts drift as things move, so compare with the visible scene sampled just before and after.
+		var after: Array = await _sample()
+		var ref: Array = [(base[0] + after[0]) * 0.5, (base[1] + after[1]) * 0.5, (base[2] + after[2]) * 0.5]
+		base = after
+		print("BREAKDOWN %-10s meshnodes=%4d instances=%6d | draw %5.0f  obj %5.0f  prim %7.0f" % [c, g.meshes, g.inst, ref[0] - m[0], ref[1] - m[1], ref[2] - m[2]])
+	var sun: Variant = scene.sky._sun if scene.get("sky") != null else null
+	if sun is DirectionalLight3D:
+		sun.shadow_enabled = false
+		var m2: Array = await _sample()
+		sun.shadow_enabled = true
+		var after2: Array = await _sample()
+		print("BREAKDOWN %-10s (sun shadows off)                     | draw %5.0f  obj %5.0f  prim %7.0f" % ["shadows", (base[0] + after2[0]) * 0.5 - m2[0], (base[1] + after2[1]) * 0.5 - m2[1], (base[2] + after2[2]) * 0.5 - m2[2]])
+	print("BREAKDOWN done")
+
+
+func _ent_category(t: String) -> String:
+	match t:
+		"foe", "beast", "node", "chest":
+			return t
+		"npc", "player", "smith", "store", "task":
+			return "figures"
+	return "places"
+
+
+## Mean of the monitors over several frames: draw counts wobble from frame to frame.
+func _sample() -> Array:
+	await _settle()
+	var sum := [0, 0, 0, 0]
+	for i in 6:
+		await get_tree().process_frame
+		var m := _monitors()
+		for j in 4:
+			sum[j] += m[j]
+	return [sum[0] / 6.0, sum[1] / 6.0, sum[2] / 6.0, sum[3] / 6.0]
+
+
+func _settle() -> void:
+	for i in 4:
+		await get_tree().process_frame
+
+
+## One line describing a chunk's entities and obstacles, for comparing builds.
+func _chunk_line(k: Vector2i, chunk: Dictionary) -> String:
+	var text := ""
+	for e in chunk.ents:
+		text += "%s|%s|%.3f,%.3f,%.3f|%s|%s|%s|%s|%s|%s|%s;" % [e.id, e.type, e.pos.x, e.pos.y, e.pos.z, e.get("wild", ""), e.get("node_id", ""), e.get("beast", ""), e.get("gold", ""), e.get("label", ""), e.get("height", ""), e.get("charges", "")]
+	var otext := ""
+	for o in chunk.obstacles:
+		otext += "%.3f,%.3f,%.3f;" % [o.x, o.y, o.z]
+	return "%d,%d ents=%d obstacles=%d ents_hash=%d obst_hash=%d" % [k.x, k.y, chunk.ents.size(), chunk.obstacles.size(), text.hash(), otext.hash()]
+
+
+## --worlddump: build every chunk of the land in turn and print one line per chunk.
+## --worldlive: print a line for each chunk the running game loads (walk with a bot).
+## Debug only.
+func _world_dump() -> void:
+	var scene := get_tree().current_scene
+	if scene == null or scene.get("terrain") == null:
+		return
+	var total := 0
+	for kz in range(-7, 5):
+		for kx in range(-6, 6):
+			var k := Vector2i(kx, kz)
+			scene.terrain._build_chunk(k)
+			var chunk: Dictionary = scene._chunks[k]
+			print("WORLD " + _chunk_line(k, chunk))
+			total += chunk.ents.size()
+			chunk.root.queue_free()
+			scene._chunks.erase(k)
+	print("WORLD done ents=%d" % total)
+
+
+func _world_live() -> void:
+	var scene := get_tree().current_scene
+	if scene == null or scene.get("_chunks") == null:
+		return
+	for k in scene._chunks:
+		if not _seen.has(k):
+			_seen[k] = true
+			print("WORLD " + _chunk_line(k, scene._chunks[k]))
