@@ -34,3 +34,9 @@ The orchestrator owns this file.
 | 12 Nov 2026 | Server details | Gold carried over capped at 5,000; 20 s to resume a staked duel; strictly free hosting | All three accepted. |
 | 12 Nov 2026 | DP5 casino house rules | European wheel, no resplitting aces, no rake, 6 decks, 20-250 big-blind buy-in | All accepted. Poker is Texas Hold'em (owner's note). |
 | 12 Nov 2026 | Casino table, chips and wheel models | Built in code / keep looking for a pack | Built in code. |
+| 12 Nov 2026 | Release Build 11 | Release now / push dev only / not yet | Release now. dev pushed and main fast-forwarded to 51b9f59. |
+| 12 Nov 2026 | Start Phase 1 and combat step S1 | Both / Art Bible only / wait | Both. |
+| 12 Nov 2026 | The owner's two texture packs (Knight RPG, Wildlands; AI-generated) | Both, look test first / ground and water only / hold off | Both, applied only after the owner approves look-test screenshots. Files to be copied by the owner into assets_src/. |
+| 12 Nov 2026 | Which tool generated the two texture packs? | (open question from the paperwork lane) | ChatGPT. Recorded in docs/ASSETS.md with the OpenAI terms link. Packs delivered to assets_src/_packs/. |
+| 12 Nov 2026 | Who does the texture work? | Orchestrator lanes / the owner's separate texture chat | The texture chat. The orchestrator runs everything else; file ownership is in the claude.ai project doc claude/orchestrator-status.md. |
+| 12 Nov 2026 | Release world agility (S1) with the stuck-in-walls fix? | Together as Build 12 / stuck fix first | Together, once both pass review and checks. |

@@ -1,0 +1,11 @@
+Number,Asset label,Type,Suggested use,Original size,Original file,Godot 1024 file
+1,01 lush grassland,Grassland,Green meadow ground for open plains and fields,1254x1254,Original_1254/01_lush_grassland.png,Godot_1024/01_lush_grassland.png
+2,02 wild meadow,Grassland,Varied wild meadow with seed grasses and small flowers,1254x1254,Original_1254/02_wild_meadow.png,Godot_1024/02_wild_meadow.png
+3,03 grassy dirt trail,Grassland,Worn walking routes and grass-to-earth transitions,1254x1254,Original_1254/03_grassy_dirt_trail.png,Godot_1024/03_grassy_dirt_trail.png
+4,04 muddy wetland,Shoreline,Wet banks and marshy edges near rivers and lakes,1254x1254,Original_1254/04_muddy_wetland.png,Godot_1024/04_muddy_wetland.png
+5,05 shallow riverbed,Water,Appearance reference for shallow clear water over pebbles,1254x1254,Original_1254/05_shallow_riverbed.png,Godot_1024/05_shallow_riverbed.png
+6,06 deep lake ripples,Water,Appearance reference for deep lake surfaces,1254x1254,Original_1254/06_deep_lake_ripples.png,Godot_1024/06_deep_lake_ripples.png
+7,07 mossy deciduous bark,Trees,Trunks and branches of broadleaf trees,1254x1254,Original_1254/07_mossy_deciduous_bark.png,Godot_1024/07_mossy_deciduous_bark.png
+8,08 reddish pine bark,Trees,Trunks and branches of conifers,1254x1254,Original_1254/08_reddish_pine_bark.png,Godot_1024/08_reddish_pine_bark.png
+9,09 green broadleaf card,Foliage,Alpha PNG for broadleaf cards on tree canopy geometry,1254x1254,Original_1254/09_green_broadleaf_card.png,Godot_1024/09_green_broadleaf_card.png
+10,10 evergreen branch card,Foliage,Alpha PNG for evergreen canopy cards,1254x1254,Original_1254/10_evergreen_branch_card.png,Godot_1024/10_evergreen_branch_card.png
