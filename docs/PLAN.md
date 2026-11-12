@@ -79,8 +79,24 @@ answers to its five questions.
 
 ## Wave 1: parallel tracks
 
-Starts after 0.3 and the owner's first phone readings. File ownership is set
-once the split in 0.3 decides the new file names.
+File ownership follows `docs/CODE_MAP.md`. The owner has asked for all of Wave 1
+to be built, and accepted all five recommendations in `docs/COMBAT_SPEC.md`.
+
+| Task | Model | Status |
+|------|-------|--------|
+| Combat Build 1: feel and posture | Sonnet, high | started |
+| Fast travel from the map | Sonnet, medium | started |
+| Smoothness A: terrain draw cost and loading stutter | Sonnet, high | started |
+| Combat Build 2: range, footwork, attack any time | Sonnet | after Build 1 |
+| Combat Build 3: weapon identities, guard stances | Sonnet | after Build 2 |
+| Sprint and road speed bonus | Sonnet | after Smoothness A |
+| Smoothness B: character mesh count, HUD redraw, other players' easing | Sonnet | after Build 1 and fast travel (shared files) |
+| Quest system, then questlines | Sonnet, then Haiku | after the orchestrator's story outline |
+| Visual polish and a mount | Sonnet | after Smoothness |
+
+Smoothness started from readings taken in the sandbox (draw calls and
+primitive counts do not depend on the device). Phone readings from the owner
+will reorder what comes after.
 
 ### Smoothness (Sonnet; Opus for terrain streaming if needed)
 
