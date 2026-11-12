@@ -1,5 +1,7 @@
 extends Node
 
+const Tune := preload("res://scripts/combat_tune.gd")
+
 var d: Duel
 var _feinted := false
 
@@ -19,7 +21,8 @@ func _tick_others(delta: float) -> void:
 		o.timer = float(o.timer) - delta
 		if float(o.timer) > 0.0:
 			continue
-		if d.e_state == Duel.EState.WINDUP or d.e_state in [Duel.EState.INTRO, Duel.EState.FINISHER, Duel.EState.DEAD]:
+		if d.e_state == Duel.EState.WINDUP or d.e_state in [Duel.EState.INTRO, Duel.EState.FINISHER, Duel.EState.DEAD] \
+				or (d.e_state == Duel.EState.OPEN and d.open_reason == "posture"):
 			o.timer = 0.6
 			continue
 		o.tell = 1.25
@@ -43,12 +46,13 @@ func _side_strike(o: Dictionary) -> void:
 		return
 	if d.blocking and d.p_state == Duel.PState.READY:
 		d.stats.blocks += 1
-		d.sfx.play("block")
-		d.shield -= dmg
+		d.sfx.layer("L6")
+		d.posture.p_block(dmg)
 		if d.shield <= 0.0:
-			d.shield = 0.0
 			d.blocking = false
+			d.posture.p_check_break(true)
 			d._hurt(dmg * 0.6, AttackDef.Dir.THRUST)
+			d.posture.p_check_break()
 		return
 	d._hurt(dmg, AttackDef.Dir.RIGHT if float(o.side) > 0.0 else AttackDef.Dir.LEFT)
 
@@ -109,6 +113,8 @@ func _tick_enemy(delta: float) -> void:
 		Duel.EState.OPEN:
 			d.e_timer -= delta
 			if d.e_timer <= 0.0:
+				if d.open_reason == "posture":
+					d.posture.execution_missed()
 				d.hit_combo = 0
 				_to_idle(d.def.idle_gap / d.e_speed)
 		Duel.EState.FINISHER:
@@ -139,7 +145,7 @@ func _to_idle(gap: float) -> void:
 	d.e_state = Duel.EState.IDLE
 	d.e_timer = gap
 	d.open_reason = ""
-	if d.tutorial_hint == "strike":
+	if d.tutorial_hint == "strike" or d.tutorial_hint == "execute":
 		d.tutorial_hint = ""
 	d.enemy.play(&"idle")
 
@@ -158,13 +164,16 @@ func _begin_attack() -> void:
 
 
 func _open(duration: float, reason: String) -> void:
+	# A foe whose posture is broken stays open for the execution; nothing shortens that.
+	if d.e_state == Duel.EState.OPEN and d.open_reason == "posture" and reason != "posture":
+		return
 	d.e_state = Duel.EState.OPEN
 	d.e_timer = duration
 	d.open_reason = reason
 	d.slash_seq.clear()
 	d.enemy.set_tell(Color.BLACK, 0.1)
-	d.enemy.play(&"broken" if reason == "broken" else &"stagger")
-	if d.tutorial:
+	d.enemy.play(&"broken" if reason in ["broken", "posture"] else &"stagger")
+	if d.tutorial and reason != "posture":
 		d.tutorial_hint = "strike"
 		d.e_timer = maxf(duration, 2.6)
 
@@ -191,6 +200,7 @@ func _resolve_strike() -> void:
 		d.stats.dodges += 1
 		if d.dodge_elapsed <= Duel.PERFECT_DODGE:
 			d._add_surge(10.0)
+			d.posture.e_gain(float(Tune.B1.gain_perfect_dodge))
 			d.dodge_charges = minf(d.dodge_charges + 1.0, d.dodge_max)
 			d.hud.banner("PERFECT DODGE", Color(0.6, 0.9, 1.0), 0.6)
 			d.fx._slow(0.35, 0.18)
@@ -202,26 +212,26 @@ func _resolve_strike() -> void:
 	if d.blocking and d.p_state == Duel.PState.READY:
 		d.stats.blocks += 1
 		d.pvp_net._pvp_report.call_deferred("blocked")
-		d._shake = maxf(d._shake, 0.5)
-		d.sfx.play("block")
+		d._shake = maxf(d._shake, float(Tune.B1.block_shake))
+		d.sfx.layer("L6")
 		d.fx._burst(d.player.get_clash_point() + Vector3(0, 0, -0.5), 10)
 		d.fx._buzz(25)
 		if a.heavy:
-			d.shield = maxf(d.shield - a.damage, 0.0)
+			d.posture.p_block(a.damage)
 			d.hud.banner("GUARD CRUSHED", Color(0.8, 0.45, 1.0), 0.8)
 			d._hurt(a.damage, a.dir)
+			d.posture.p_check_break()
 		elif d.stats.time - d._block_time <= d.perfect_block:
 			d._add_surge(8.0)
+			d.posture.e_gain(float(Tune.B1.gain_perfect_block))
 			d.hud.banner("PERFECT BLOCK", Color(0.6, 0.8, 1.0), 0.6)
 		else:
-			d.shield -= a.damage
+			d.posture.p_block(a.damage)
 			if d.shield <= 0.0:
-				d.shield = 0.0
 				d.blocking = false
-				d.hud.banner("GUARD BROKEN", Color(1.0, 0.5, 0.3), 0.8)
-				if Run.set_bonus("warden"):
-					d.shield = d.shield_max * 0.5
+				d.posture.p_check_break(true)
 				d._hurt(a.damage * 0.6, a.dir)
+				d.posture.p_check_break()
 		return
 	d._hurt(a.damage, a.dir)
 	d.pvp_net._pvp_report("hit")

@@ -26,7 +26,7 @@ NODE = {"create_tween", "get_tree", "to_global", "to_local", "global_position", 
         "get_viewport", "position", "rotation", "has_method", "get", "set", "queue_free", "get_parent", "name",
         "visible", "is_inside_tree", "call_deferred"}
 
-DUEL_PARTS = {"fx": "duel_fx.gd", "ai": "duel_enemy.gd", "stage": "duel_stage.gd", "pvp_net": "duel_pvp.gd", "bots": "duel_bot.gd"}
+DUEL_PARTS = {"fx": "duel_fx.gd", "posture": "duel_posture.gd", "ai": "duel_enemy.gd", "stage": "duel_stage.gd", "pvp_net": "duel_pvp.gd", "bots": "duel_bot.gd"}
 OW_PARTS = {"terrain": "overworld_terrain.gd", "places": "overworld_places.gd", "sky": "overworld_sky.gd",
             "mover": "overworld_hero.gd", "interaction": "overworld_interact.gd", "remotes": "overworld_remote.gd",
             "duels": "overworld_duels.gd", "bots": "overworld_bot.gd"}

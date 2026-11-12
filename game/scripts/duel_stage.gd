@@ -1,5 +1,7 @@
 extends Node
 
+const Tune := preload("res://scripts/combat_tune.gd")
+
 var d: Duel
 
 
@@ -35,6 +37,8 @@ func _adopt(f: Node3D) -> void:
 
 
 func _stand(f: Node3D, local: Vector3, yaw: float, glide := 0.0) -> void:
+	if f == d.enemy:
+		d.fx._recoil_cancel()
 	var world := d.to_global(local)
 	local.y = _ground(world) - d.global_position.y
 	if glide > 0.0:
@@ -74,7 +78,7 @@ func switch_target(i: int) -> void:
 	var next: Dictionary = d.others[i]
 	if float(next.tell) > 0.0:
 		(next.node as FighterVisual).set_tell(Color.BLACK, 0.1)
-	var prev := {"node": d.enemy, "def": d.def, "enc": d._enc, "hp": d.e_hp, "brk": d.e_break, "enr": d.enraged, "spd": d.e_speed,
+	var prev := {"node": d.enemy, "def": d.def, "enc": d._enc, "hp": d.e_hp, "pst": d.e_posture, "enr": d.enraged, "spd": d.e_speed,
 		"side": next.side, "timer": 5.0, "tell": 0.0}
 	d.others[i] = prev
 	d.enemy.set_tell(Color.BLACK, 0.1)
@@ -89,7 +93,11 @@ func _face(rec: Dictionary, glide: float) -> void:
 	d._enc = rec.enc
 	Run.encounter = d._enc
 	d.e_hp = rec.get("hp", d.def.max_hp)
-	d.e_break = rec.get("brk", 0.0)
+	d.e_posture = rec.get("pst", 0.0)
+	if d.e_posture >= d.def.break_max:
+		d.e_posture = d.def.break_max * float(Tune.B1.exec_miss_posture)
+	d.posture.reset_foe()
+	d.fx._cam_release(glide)
 	d.enraged = rec.get("enr", false)
 	d.e_speed = rec.get("spd", d.def.speed)
 	d.burn = 0.0
