@@ -85,8 +85,8 @@ to be built, and accepted all five recommendations in `docs/COMBAT_SPEC.md`.
 | Task | Model | Status |
 |------|-------|--------|
 | Combat Build 1: feel and posture | Sonnet, high | started |
-| Fast travel from the map | Sonnet, medium | started |
-| Smoothness A: terrain draw cost and loading stutter | Sonnet, high | started |
+| Fast travel from the map | Sonnet, medium | done, on `dev`, awaiting release |
+| Smoothness A: terrain draw cost and loading stutter | Sonnet, high | done, on `dev`, awaiting release |
 | Combat Build 2: range, footwork, attack any time | Sonnet | after Build 1 |
 | Combat Build 3: weapon identities, guard stances | Sonnet | after Build 2 |
 | Sprint and road speed bonus | Sonnet | after Smoothness A |
@@ -97,6 +97,18 @@ to be built, and accepted all five recommendations in `docs/COMBAT_SPEC.md`.
 Smoothness started from readings taken in the sandbox (draw calls and
 primitive counts do not depend on the device). Phone readings from the owner
 will reorder what comes after.
+
+What Smoothness A measured, which sets the priority for B: in the village,
+characters are about 60% of draw calls and 75% of primitives, and sun shadows
+account for 40-55% on their own because each shadow pass redraws every
+character. Terrain was about 19% of draw calls. Creating one character costs
+16-23 ms here, paid on the frame a village figure or a foe comes into range.
+So B starts with merging the character model into fewer meshes, creating
+characters off the critical frame, and shadow settings.
+
+Open from fast travel: the tower gate lies in the Ashlands and is not offered
+as a destination (owner to decide). The fisher's fire and Old Tam stand in the
+lake and cannot be walked up to (a bug to fix in `land.gd`).
 
 ### Smoothness (Sonnet; Opus for terrain streaming if needed)
 
