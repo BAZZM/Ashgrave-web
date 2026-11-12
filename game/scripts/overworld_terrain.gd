@@ -110,23 +110,51 @@ func _warm() -> void:
 		Kit.mesh(key)
 
 
-func _ground_mesh(origin: Vector2) -> ArrayMesh:
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	st.set_smooth_group(0)
-	var n := 10
+const GROUND_N := 10
+## Triangle indices of a ground chunk: the same for every chunk, so made once.
+static var _ground_index := PackedInt32Array()
+
+
+## Heights and colours of a chunk's (GROUND_N + 1) squared ground vertices. Each point's
+## biome is worked out once, and only the roads near the chunk are looked at.
+func _ground_arrays(origin: Vector2) -> Array:
+	var n := GROUND_N
 	var step := Land.CHUNK / n
+	var segs := Land.road_segments_near(Rect2(origin, Vector2(Land.CHUNK, Land.CHUNK)), 3.2)
+	var verts := PackedVector3Array()
+	var cols := PackedColorArray()
+	verts.resize((n + 1) * (n + 1))
+	cols.resize((n + 1) * (n + 1))
+	var i := 0
 	for iz in n + 1:
 		for ix in n + 1:
 			var x := origin.x + ix * step
 			var z := origin.y + iz * step
-			st.set_color(Land.ground_color(x, z))
-			st.add_vertex(Vector3(x, Land.height(x, z), z))
-	for iz in n:
-		for ix in n:
-			var a := iz * (n + 1) + ix
-			for idx in [a, a + 1, a + n + 1, a + 1, a + n + 2, a + n + 1]:
-				st.add_index(idx)
+			var b := Land.biome(x, z)
+			cols[i] = Land.ground_color_with(x, z, b, segs)
+			verts[i] = Vector3(x, Land.height_in(x, z, b), z)
+			i += 1
+	return [verts, cols]
+
+
+func _ground_mesh(origin: Vector2) -> ArrayMesh:
+	var n := GROUND_N
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	st.set_smooth_group(0)
+	var arrays := _ground_arrays(origin)
+	var verts: PackedVector3Array = arrays[0]
+	var cols: PackedColorArray = arrays[1]
+	for i in verts.size():
+		st.set_color(cols[i])
+		st.add_vertex(verts[i])
+	if _ground_index.is_empty():
+		for iz in n:
+			for ix in n:
+				var a := iz * (n + 1) + ix
+				_ground_index.append_array(PackedInt32Array([a, a + 1, a + n + 1, a + 1, a + n + 2, a + n + 1]))
+	for idx in _ground_index:
+		st.add_index(idx)
 	st.generate_normals()
 	return st.commit()
 

@@ -27,6 +27,7 @@ var logging := false
 var _dump := false
 var _world := false
 var _live := false
+var _bench := false
 var _seen := {}
 var _log_next := 0
 var _dump_next := 0
@@ -54,7 +55,8 @@ func _ready() -> void:
 	_dump = "--perfdump" in args
 	_world = "--worlddump" in args
 	_live = "--worldlive" in args
-	logging = "--perflog" in args or _dump or _world or _live
+	_bench = "--terrainbench" in args
+	logging = "--perflog" in args or _dump or _world or _live or _bench
 	if on:
 		_enable()
 	elif logging:
@@ -126,9 +128,11 @@ func _process(_delta: float) -> void:
 		print(_stats_line())
 	if _live:
 		_world_live()
-	if (_dump or _world) and now >= _dump_next:
+	if (_dump or _world or _bench) and now >= _dump_next:
 		_dump_next = now + 1_000_000_000_000
-		if _world:
+		if _bench:
+			_terrain_bench()
+		elif _world:
 			_world_dump()
 		else:
 			_breakdown()
@@ -330,11 +334,32 @@ func _world_dump() -> void:
 			var k := Vector2i(kx, kz)
 			scene.terrain._build_chunk(k)
 			var chunk: Dictionary = scene._chunks[k]
-			print("WORLD " + _chunk_line(k, chunk))
+			print("WORLD " + _chunk_line(k, chunk) + " ground_hash=%d" % _ground_hash(scene, k))
 			total += chunk.ents.size()
 			chunk.root.queue_free()
 			scene._chunks.erase(k)
 	print("WORLD done ents=%d" % total)
+
+
+## Hash of the ground heights and colours of a chunk: from the terrain's own function if
+## it has one, else computed from Land directly (the reference).
+func _ground_hash(scene: Node, k: Vector2i) -> int:
+	var origin := Vector2(k.x * Land.CHUNK, k.y * Land.CHUNK)
+	var verts := PackedVector3Array()
+	var cols := PackedColorArray()
+	if scene.terrain.has_method("_ground_arrays"):
+		var a: Array = scene.terrain._ground_arrays(origin)
+		verts = a[0]
+		cols = a[1]
+	else:
+		var step := Land.CHUNK / 10
+		for iz in 11:
+			for ix in 11:
+				var x := origin.x + ix * step
+				var z := origin.y + iz * step
+				cols.append(Land.ground_color(x, z))
+				verts.append(Vector3(x, Land.height(x, z), z))
+	return hash(verts) * 31 + hash(cols)
 
 
 func _world_live() -> void:
@@ -345,3 +370,36 @@ func _world_live() -> void:
 		if not _seen.has(k):
 			_seen[k] = true
 			print("WORLD " + _chunk_line(k, scene._chunks[k]))
+
+
+## --terrainbench: time building every chunk of the land whole, three passes (the first
+## includes one-off costs, the later ones are the typical). Debug only.
+func _terrain_bench() -> void:
+	var scene := get_tree().current_scene
+	if scene == null or scene.get("terrain") == null:
+		return
+	for pass_no in 3:
+		var times: Array = []
+		var worst := ""
+		var worst_t := 0
+		for kz in range(-7, 5):
+			for kx in range(-6, 6):
+				var k := Vector2i(kx, kz)
+				var t := Time.get_ticks_usec()
+				scene.terrain._build_chunk(k)
+				var dt := Time.get_ticks_usec() - t
+				times.append(dt)
+				if dt > worst_t:
+					worst_t = dt
+					worst = str(k)
+				scene._chunks[k].root.queue_free()
+				scene._chunks.erase(k)
+		var sorted := times.duplicate()
+		sorted.sort()
+		var sum := 0
+		for v in times:
+			sum += v
+		print("BENCH pass %d chunks=%d mean %.2f ms  median %.2f  p90 %.2f  max %.2f (chunk %s)" % [pass_no, times.size(), sum / 1000.0 / times.size(),
+			sorted[sorted.size() / 2] / 1000.0, sorted[int(sorted.size() * 0.9)] / 1000.0, sorted[-1] / 1000.0, worst])
+		await get_tree().process_frame
+	print("BENCH done")
