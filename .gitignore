@@ -2,3 +2,5 @@ tools/node_modules/
 tools/__pycache__/
 .claude/
 __pycache__/
+.superpowers/
+assets_src/
