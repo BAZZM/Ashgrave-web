@@ -65,6 +65,20 @@ def main() -> int:
             dst = stage / "assets" / s.relative_to(SRC)
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(s, dst)
+        # Re-import the sources from scratch. Leaving their old .import files (and uids) in the stage makes
+        # Godot log "Invalid UID"/"Unrecognized UID" and sometimes fail to open the old output, so a second
+        # run after a source change failed. Other assets (e.g. assets/test) are left alone.
+        stems = {(s.parent, s.stem) for s in sources}
+        gone = set()
+        for imp in list((stage / "assets").rglob("*.import")):
+            name = imp.name[:-len(".import")]
+            own = (SRC / imp.relative_to(stage / "assets").parent / name).is_file()
+            ext = any(name.startswith(stem + "_") and imp.parent == (stage / "assets" / par.relative_to(SRC)) for par, stem in stems)
+            if own or ext:
+                gone.add("res://" + imp.relative_to(stage).as_posix()[:-len(".import")])
+                imp.unlink()
+        stage_cache = stage / ".godot" / "uid_cache.bin"
+        write_uids(stage_cache, [e for e in read_uids(stage_cache) if e[1] not in gone])
         r = subprocess.run([args.godot, "--headless", "--path", str(stage), "--import"],
                            capture_output=True, text=True, timeout=600)
         log = r.stdout + r.stderr
