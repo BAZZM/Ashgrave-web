@@ -2,7 +2,9 @@
 // Golden Shots: a fixed, repeatable set of screenshots at iPhone sizes, so a visual
 // change can be judged before/after from the same camera spots.
 //
-//   node tools/shots.js [outdir] [name...]    capture the named shots (all by default)
+//   node tools/shots.js [outdir] [name...]    capture the named shots (all by default), landscape
+//   node tools/shots.js --portrait [...]      capture portrait instead (the game is played landscape-only;
+//                                              portrait shows the game's own framing, not what players see)
 //   node tools/shots.js --list                print the shot names
 //
 // Uses the current build (run `python3 tools/build.py` first). Serves the repo like
@@ -13,7 +15,7 @@
 // duel_bot.gd). Each client is a fresh browser profile (empty save) and points at a dead
 // relay, so nothing reaches the public shared world.
 //
-// Writes <nn>-<slug>-portrait.png, <nn>-<slug>-landscape.png and index.html (a contact
+// Writes <nn>-<slug>-landscape.png (or -portrait.png with --portrait) and index.html (a contact
 // sheet) into outdir, which must be outside the repo. Exit 1 if any shot fails or the
 // page logs a script error. Options: --scale=N (device scale factor, default 2),
 // --timeout=SECONDS (per shot, default 300).
@@ -32,19 +34,22 @@ const SHOTS = [
   ['wall-close', 'close-up of a house wall'],
   ['duel-hud', 'the HUD during a fight'],
 ].map(([slug, about], i) => ({ slug, about, id: `${String(i + 1).padStart(2, '0')}-${slug}` }));
-const ORIENTATIONS = [['portrait', 390, 844], ['landscape', 844, 390]];
+const ALL_ORIENTATIONS = [['portrait', 390, 844], ['landscape', 844, 390]];
 
 let scale = 2;
 let timeout = 300;
 let list = false;
+let portrait = false;
 const pos = [];
 for (const a of process.argv.slice(2)) {
   if (a === '--list') list = true;
+  else if (a === '--portrait') portrait = true;
   else if (a.startsWith('--scale=')) scale = Number(a.slice(8));
   else if (a.startsWith('--timeout=')) timeout = Number(a.slice(10));
   else if (a.startsWith('-')) { console.error(`unknown option ${a}`); process.exit(2); }
   else pos.push(a);
 }
+const ORIENTATIONS = ALL_ORIENTATIONS.filter(([o]) => o === (portrait ? 'portrait' : 'landscape'));
 if (list) {
   for (const s of SHOTS) console.log(`${s.id}  ${s.about}`);
   process.exit(0);
