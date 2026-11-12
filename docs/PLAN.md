@@ -64,11 +64,18 @@ attempt rather than retrying at the same tier.
 |---|------|------|-------|--------|
 | 0.1 | On-screen performance readout, off unless `?perf=1` | `game/scripts/perf.gd` (new), autoload line in `project.godot` | Sonnet, medium | done |
 | 0.2 | Automated checks: bot runs as pass/fail (`node tools/check.js`) | `tools/` | Sonnet, high | done |
-| 0.3 | Split `overworld.gd` and `duel.gd` along their seams, no behaviour change | those two files and the new files they become | Opus | started |
+| 0.3 | Split `overworld.gd` and `duel.gd` along their seams, no behaviour change | those two files and the new files they become | Opus | done, on `dev`, awaiting release |
 
-0.3 waits for 0.2 because the checks are what make a 3,000-line restructure of
-commentless code safe. Opus is justified here: every later track builds on
-these files and a subtly wrong split costs all of them.
+The split is described in `docs/CODE_MAP.md`, which also says which track owns
+each file. Run `python3 tools/members.py` after moving or renaming a field: the
+engine only reports a misspelt member on a part reference when that line runs.
+
+Known weakness: the `tour` check is timing-sensitive and can fail on a busy
+machine with unchanged code (the bot meets a strong foe on the road and loses).
+Re-run it alone before treating a failure as real; it is due to be hardened.
+
+The combat design (`docs/COMBAT_SPEC.md`) is drafted and waits for the owner's
+answers to its five questions.
 
 ## Wave 1: parallel tracks
 
