@@ -84,13 +84,14 @@ to be built, and accepted all five recommendations in `docs/COMBAT_SPEC.md`.
 
 | Task | Model | Status |
 |------|-------|--------|
-| Combat Build 1: feel and posture | Sonnet, high | started |
+| Combat Build 1: feel and posture | Sonnet, high | done, on `dev`, awaiting release and the owner's playtest |
 | Fast travel from the map | Sonnet, medium | done, on `dev`, awaiting release |
 | Smoothness A: terrain draw cost and loading stutter | Sonnet, high | done, on `dev`, awaiting release |
-| Combat Build 2: range, footwork, attack any time | Sonnet | after Build 1 |
+| Combat Build 2: range, footwork, attack any time | Sonnet | after Smoothness B (shared character script) and the Build 1 playtest |
 | Combat Build 3: weapon identities, guard stances | Sonnet | after Build 2 |
-| Sprint and road speed bonus | Sonnet | after Smoothness A |
-| Smoothness B: character mesh count, HUD redraw, other players' easing | Sonnet | after Build 1 and fast travel (shared files) |
+| Sprint and road speed bonus | Sonnet, medium | started |
+| Smoothness B: character draw cost, creation hitch, shadows | Sonnet, high | started |
+| Smoothness C: HUD redraw, other players' easing | Sonnet | after B |
 | Quest system, then questlines | Sonnet, then Haiku | after the orchestrator's story outline |
 | Visual polish and a mount | Sonnet | after Smoothness |
 
