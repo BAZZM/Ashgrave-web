@@ -14,6 +14,7 @@ var _opp_q := -1
 var _my_q := 0
 var _my_pst_until := 0
 var _last_letter := "L"
+var _atk_queue: Array = []
 
 
 func _init(owner_duel: Duel) -> void:
@@ -50,6 +51,8 @@ func _pvp_tick(delta: float) -> void:
 				_pvp_their_turn(false)
 		return
 	_pvp_cool -= delta
+	if d.e_state == Duel.EState.IDLE and not _atk_queue.is_empty() and d.p_state != Duel.PState.DEAD:
+		_begin_defence(_atk_queue.pop_front())
 	_pvp_quiet += real
 	_pvp_ping += real
 	if _pvp_ping > 3.0:
@@ -77,6 +80,13 @@ func _pvp_tick(delta: float) -> void:
 		d.bots._pvp_bot()
 
 
+func _begin_defence(incoming: AttackDef) -> void:
+	d.cur_attack = incoming
+	d.combo = [d.cur_attack]
+	d.combo_i = 0
+	d.ai._begin_attack()
+
+
 func _pvp_attack(letter: String) -> void:
 	# While the other player's posture is broken, the next swing is an execution,
 	# even out of turn and with no swings left.
@@ -97,6 +107,7 @@ func _pvp_attack(letter: String) -> void:
 	var atk := {"k": "atk", "dir": dir, "dmg": d.slash_damage * (2.6 if dir == AttackDef.Dir.OVER else 2.0)}
 	if exec:
 		atk["x"] = 1
+		print("PVP exec sent")
 	Online.send_to(d.pvp.id, atk)
 	d.p_state = Duel.PState.SWING
 	d.p_timer = 0.5
@@ -125,6 +136,7 @@ func send_pst() -> void:
 ## An execution lands on me: unavoidable, a share of my own health.
 func _exec_hit(dir: int) -> void:
 	_my_pst_until = 0
+	print("PVP exec taken dir=%d hp=%.0f" % [dir, d.p_hp])
 	d.enemy.play(&"strike", dir, 0.1)
 	d.hud.banner("EXECUTED", Color(1.0, 0.5, 0.3), 0.8)
 	d._hurt(d.player_max_hp * float(Tune.B1.pvp_exec_share), dir)
@@ -140,7 +152,12 @@ static func _swipe_vec(letter: String) -> Vector2:
 
 
 func _pvp_message(from: String, m: Dictionary) -> void:
-	if from != String(d.pvp.id) or d.result != "":
+	if from != String(d.pvp.id):
+		return
+	if d.result != "":
+		# The duel is over here, but the attacker still gets one answer per attack.
+		if String(m.get("k", "")) == "atk":
+			_pvp_report("dodged")
 		return
 	_pvp_quiet = 0.0
 	if m.has("hp"):
@@ -152,12 +169,13 @@ func _pvp_message(from: String, m: Dictionary) -> void:
 			var q := int(m.get("q", 0))
 			if d.posture.pvp_new() and q > _opp_q:
 				_opp_q = q
+				print("PVP pst heard q=%d" % q)
 				d.e_posture = d.def.break_max
 				d.pvp_exec_until = Time.get_ticks_msec() + int(clampf(float(m.get("pb", 2.5)), 0.0, 3.0) * 1000.0)
 				d.hud.banner("POSTURE BROKEN", Color(1.0, 0.85, 0.3), 0.9)
 				d.fx.posture_broken()
 		"atk":
-			if int(m.get("x", 0)) == 1 and d.posture.pvp_new() and Time.get_ticks_msec() < _my_pst_until:
+			if int(m.get("x", 0)) == 1 and d.posture.pvp_new() and Time.get_ticks_msec() < _my_pst_until + int(float(Tune.B1.pvp_grace) * 1000.0):
 				_exec_hit(int(m.dir))
 				return
 			if d.e_state == Duel.EState.INTRO:
@@ -165,10 +183,13 @@ func _pvp_message(from: String, m: Dictionary) -> void:
 			d.pvp_turn = "defend"
 			_pvp_wait = 0.0
 			_pvp_turn_due = false
-			d.cur_attack = AttackDef.make(int(m.dir), 0.9, float(m.dmg))
-			d.combo = [d.cur_attack]
-			d.combo_i = 0
-			d.ai._begin_attack()
+			var incoming := AttackDef.make(int(m.dir), 0.9, float(m.dmg))
+			if d.e_state == Duel.EState.WINDUP:
+				# An attack is already being defended (an execution that came too late, say):
+				# this one waits its turn, so every attack still gets its own answer.
+				_atk_queue.append(incoming)
+				return
+			_begin_defence(incoming)
 		"res":
 			var at := d.enemy.get_clash_point() + Vector3(randf_range(-0.3, 0.3), 0.4, 0)
 			match String(m.o):

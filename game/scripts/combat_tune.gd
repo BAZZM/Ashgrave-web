@@ -113,6 +113,7 @@ const B1 := {
 	# ---- Posture in player-vs-player (both sides at version 2 or more) ----
 	pvp_parried_base = 34.0,    # percent; x 0.5 (parry) or x 1.6 (perfect) to the parried player
 	pvp_broken_time = 2.5,      # real seconds the broken player can be executed (`pb`)
+	pvp_grace = 0.5,            # extra real seconds the broken player still accepts an execution (message delay)
 	pvp_exec_share = 0.3,       # of the broken player's own max HP
 }
 

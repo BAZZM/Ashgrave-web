@@ -9,7 +9,10 @@ func _init(owner_duel: Duel) -> void:
 
 
 func _pvp_bot() -> void:
-	if d.pvp_turn == "attack" and d.pvp_net._pvp_cool <= 0.0 and d.pvp_left > 0 and d.p_state == Duel.PState.READY and d.e_state != Duel.EState.WINDUP:
+	if Time.get_ticks_msec() < d.pvp_exec_until and d.pvp_net._pvp_cool <= 0.0 and d.p_state == Duel.PState.READY:
+		# The other player's posture is broken: execute, whatever the turn.
+		d.pvp_net._pvp_attack(["L", "R", "D", "U"].pick_random())
+	elif d.pvp_turn == "attack" and d.pvp_net._pvp_cool <= 0.0 and d.pvp_left > 0 and d.p_state == Duel.PState.READY and d.e_state != Duel.EState.WINDUP:
 		d.pvp_net._pvp_attack(["L", "R", "D", "U"].pick_random())
 	elif d.e_state == Duel.EState.WINDUP and d.e_timer <= d.parry_window * 0.6 and d.p_state == Duel.PState.READY and not _bot_decided:
 		_bot_decided = true
