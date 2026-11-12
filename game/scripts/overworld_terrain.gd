@@ -105,7 +105,8 @@ func _build_chunk(k: Vector2i) -> void:
 ## or the first boar does not cost a hitch.
 func _warm() -> void:
 	_warmed = true
-	for key in ["trunk", "oak", "pine", "dead", "stump", "rock", "ore", "reed", "herb", "wall"]:
+	for key in ["trunk", "oak", "pine", "dead", "stump", "rock", "ore", "reed", "herb", "wall", "node_oak", "node_pine",
+			"node_copper", "node_iron", "node_ember", "node_herb", "beast_deer", "beast_boar"]:
 		Kit.mesh(key)
 
 
@@ -391,26 +392,20 @@ func _add_node(chunk: Dictionary, eid: String, node_id: String, pos: Vector3, si
 				Kit._part(full, Kit.mesh("dead"), Vector3.ZERO, Kit.mat("ashbark", Color(0.2, 0.12, 0.1)), Vector3.ZERO, Vector3.ONE * size * 1.2)
 				Kit._part(full, Kit.mesh("ore"), Vector3(0, 2.2 * size, 0), Kit.mat("ashglow", Color(1.0, 0.4, 0.1), 0.5, 3.0), Vector3.ZERO, Vector3(2, 3, 2))
 			else:
-				Kit._part(full, Kit.mesh("trunk"), Vector3.ZERO, bark, Vector3.ZERO, Vector3.ONE * size)
-				var pine := node_id == "pine"
-				Kit._part(full, Kit.mesh("pine" if pine else "oak"), Vector3.ZERO, Kit.mat("leaf_" + node_id, Color(0.1, 0.3, 0.2) if pine else Color(0.3, 0.5, 0.14)), Vector3.ZERO, Vector3.ONE * size)
+				# Trunk and crown are one mesh (one draw instead of two).
+				Kit._part(full, Kit.mesh("node_pine" if node_id == "pine" else "node_oak"), Vector3.ZERO, Kit.baked_mat(), Vector3.ZERO, Vector3.ONE * size)
 			Kit._part(empty, Kit.mesh("stump"), Vector3.ZERO, bark)
 		"mining":
 			radius = 1.1
-			var stone := Kit.mat("stone_solo", Color(0.4, 0.38, 0.36))
-			Kit._part(full, Kit.mesh("rock"), Vector3.ZERO, stone, Vector3.ZERO, Vector3(1.1, 1.2, 1.1))
-			var ore_col: Color = {"copper": Color(0.9, 0.5, 0.25), "iron": Color(0.6, 0.68, 0.8), "ember": Color(1.0, 0.3, 0.08)} [node_id]
-			var om := Kit.mat("ore_" + node_id, ore_col, 0.3, 3.0 if node_id == "ember" else 0.6)
-			for i in 5:
-				var a := TAU * i / 5.0
-				Kit._part(full, Kit.mesh("ore"), Vector3(cos(a) * 0.7, 0.5 + (i % 2) * 0.35, sin(a) * 0.7), om, Vector3(30 * cos(a), 0, 30 * sin(a)), Vector3.ONE * 1.3)
-			Kit._part(empty, Kit.mesh("rock"), Vector3.ZERO, stone, Vector3.ZERO, Vector3(1.1, 1.2, 1.1))
+			# Rock and ore crystals are one mesh with two surfaces (two draws instead of six).
+			Kit._part(full, Kit.mesh("node_" + node_id), Vector3.ZERO, null)
+			Kit._part(empty, Kit.mesh("rock"), Vector3.ZERO, Kit.mat("stone_solo", Color(0.4, 0.38, 0.36)), Vector3.ZERO, Vector3(1.1, 1.2, 1.1))
 		"foraging":
 			radius = 0.0
 			var hc: Color = {"marigold": Color(1.0, 0.8, 0.15), "bogroot": Color(0.6, 0.35, 0.8), "ashbloom": Color(1.0, 0.45, 0.15)} [node_id]
 			var hm := Kit.mat("herb_" + node_id, hc, 0.6, 2.5 if node_id == "ashbloom" else 0.4)
-			for i in 3:
-				Kit._part(full, Kit.mesh("herb"), Vector3(cos(i * 2.1) * 0.25, 0, sin(i * 2.1) * 0.25), hm, Vector3.ZERO, Vector3.ONE * 1.5)
+			# Three sprigs in one mesh. Too small to cast a shadow anyone would see.
+			Kit._part(full, Kit.mesh("node_herb"), Vector3.ZERO, hm).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var e := {"id": eid, "type": "node", "node_id": node_id, "pos": pos, "label": def.label, "height": 1.2 if def.skill == "foraging" else 3.2,
 		"node": n, "full": full, "empty": empty, "charges": int(def.charges), "depleted": false}
 	if not Run.respawn_due(eid):
@@ -424,21 +419,7 @@ func _add_node(chunk: Dictionary, eid: String, node_id: String, pos: Vector3, si
 
 func _build_beast(kind: String) -> Node3D:
 	var n := Node3D.new()
-	var deer := kind == "deer"
-	var hide := Kit.mat("hide_" + kind, Color(0.5, 0.36, 0.22) if deer else Color(0.24, 0.2, 0.18))
-	var h := 0.85 if deer else 0.55
-	Kit._part(n, MeshKit.tube(PackedVector3Array([Vector3(0, h, 0.65), Vector3(0, h + 0.05, 0.35), Vector3(0, h + 0.05, -0.3), Vector3(0, h, -0.6)]),
-		PackedFloat32Array([0.1, 0.27, 0.29, 0.15]) if deer else PackedFloat32Array([0.14, 0.32, 0.36, 0.2]), 8), Vector3.ZERO, hide)
-	for sx in [-1.0, 1.0]:
-		for sz in [-0.42, 0.45]:
-			Kit._part(n, MeshKit.lathe([[0.03, 0.0], [0.05, h * 0.5], [0.07, h]], 5), Vector3(0.15 * sx, 0, sz), hide)
-	var head_at := Vector3(0, h + (0.55 if deer else 0.1), -0.85)
-	Kit._part(n, MeshKit.tube(PackedVector3Array([Vector3(0, h, -0.5), head_at]), PackedFloat32Array([0.14, 0.09]), 6), Vector3.ZERO, hide)
-	Kit._part(n, MeshKit.tube(PackedVector3Array([head_at + Vector3(0, 0.02, 0.1), head_at + Vector3(0, 0, -0.1), head_at + Vector3(0, -0.06, -0.32)]),
-		PackedFloat32Array([0.09, 0.11, 0.05]), 6), Vector3.ZERO, hide)
-	if deer:
-		for sx in [-1.0, 1.0]:
-			Kit._part(n, MeshKit.horn(Vector3.ZERO, Vector3(0.28 * sx, 0.5, 0.05), Vector3(0.1 * sx, 0, 0.12), 0.025, 5), head_at + Vector3(0.06 * sx, 0.08, 0.05), Kit.mat("antler", Color(0.8, 0.75, 0.62)))
+	Kit._part(n, Kit.mesh("beast_" + kind), Vector3.ZERO, null)
 	return n
 
 
