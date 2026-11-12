@@ -185,6 +185,8 @@ func _ready() -> void:
 			Run.data.loop = int(a.trim_prefix("--loop="))
 		elif a.begins_with("--hold="):
 			_hold_for = a.trim_prefix("--hold=").split(",")
+		elif a.begins_with("--golden="):
+			bots.golden_begin(a.trim_prefix("--golden="))
 		elif a.begins_with("--shot="):
 			_shot_path = a.trim_prefix("--shot=")
 			Run.no_save = true

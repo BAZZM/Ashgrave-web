@@ -3,6 +3,14 @@ extends Node
 var d: Duel
 var _bot_decided := false
 
+## Golden Shots (tools/shots.js): `--golden=duel-mid` / `duel-hud` play a fixed fresh-save duel at a
+## slowed pace (fine time steps on a slow machine), then stop time at the same moment of the
+## enemy's first attack and print "GOLDEN ready <name>". duel-mid hides the HUD, duel-hud shows it
+## with the bars part way down.
+var golden := ""
+var _gname := ""
+var _g_set := false
+
 
 func _init(owner_duel: Duel) -> void:
 	d = owner_duel
@@ -22,7 +30,41 @@ func _pvp_bot() -> void:
 		_bot_decided = false
 
 
+func golden_begin(shot_name: String) -> void:
+	golden = shot_name
+	_gname = shot_name
+	Run.no_save = true
+	Run.title_seen = true
+	Run.data = Run.defaults()
+	Run.data.tutorial_done = true
+	Run.encounter = {"id": "test", "wild": "thrall"}
+	d._base_time = 0.5
+	seed(7)
+
+
+func _golden_tick() -> void:
+	if not d.started or d.cinematic > 0.0:
+		return
+	if not _g_set:
+		_g_set = true
+		if golden == "duel-hud":
+			d.p_hp = d.player_max_hp * 0.7
+			d.shield = d.shield_max * 0.8
+			d.e_hp = d.def.max_hp * 0.55
+			d.e_posture = 30.0
+	if d.e_state == Duel.EState.WINDUP and d.e_timer <= d.windup_total * 0.4:
+		d.hud.visible = _gname == "duel-hud"
+		Engine.time_scale = 0.0
+		golden = ""
+		for i in 8:
+			await RenderingServer.frame_post_draw
+		print("GOLDEN ready ", _gname)
+
+
 func _take_shot_if_due() -> void:
+	if golden != "":
+		_golden_tick()
+		return
 	if d._shot_path == "":
 		return
 	var due := false
