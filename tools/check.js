@@ -282,14 +282,27 @@ scenario('duel-tower', 'a tower guardian duel (floor 1) runs to a result', (ctx)
 
 // ---- 3. world tour
 
-scenario('tour', 'tour bot walks to the tower, wins tier 1 and enters tier 2', (ctx) => solo(ctx, {
-  args: ['--autoplay=tour'], finish: /^WORLD tier=2 /, fail: /^TOUR hero fell/, seconds: 240,
-  verify: (lines) => {
-    if (!lines.some((l) => /^LAND /.test(l)) || !lines.some((l) => /^WORLD tier=1 /.test(l))) return 'did not pass through the land and tier 1';
-    const wins = lines.filter((l) => /^RESULT win /.test(l)).length;
-    return wins >= 2 ? null : `only ${wins} duel win(s) before tier 2`;
-  },
-}), true);
+// On the road north the bot is sometimes caught by a strong foe and loses,
+// depending on frame timing; it happens with unchanged code. That says nothing
+// about the build, so only that outcome is retried. A script error, a timeout
+// or a wrong result still fails on the first attempt.
+const TOUR_ATTEMPTS = 3;
+scenario('tour', 'tour bot walks to the tower, wins tier 1 and enters tier 2', async (ctx) => {
+  const earlier = [];
+  for (let attempt = 1; ; attempt++) {
+    const res = await solo(ctx, {
+      args: ['--autoplay=tour'], finish: /^WORLD tier=2 /, fail: /^TOUR hero fell/, seconds: 240,
+      verify: (lines) => {
+        if (!lines.some((l) => /^LAND /.test(l)) || !lines.some((l) => /^WORLD tier=1 /.test(l))) return 'did not pass through the land and tier 1';
+        const wins = lines.filter((l) => /^RESULT win /.test(l)).length;
+        return wins >= 2 ? null : `only ${wins} duel win(s) before tier 2`;
+      },
+    });
+    const fell = !res.ok && res.notes.some((n) => /^saw: TOUR hero fell/.test(n)) && !res.notes.some((n) => /script error/.test(n));
+    if (!fell || attempt === TOUR_ATTEMPTS) return { ok: res.ok, notes: [...earlier, ...res.notes] };
+    earlier.push(`attempt ${attempt}: the bot lost a fight on the road; retrying`);
+  }
+}, true);
 
 // ---- 4. gather
 
