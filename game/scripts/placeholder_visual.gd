@@ -512,6 +512,7 @@ func play(action: StringName, dir: int = 0, duration: float = 0.3) -> void:
 		return
 	match action:
 		&"idle", &"recover":
+			_rise()
 			_glow(Color.BLACK, 0.15)
 			_pose(IDLE_ROT, HAND, Vector3.ZERO, maxf(duration, 0.25), Vector3.ZERO, Tween.EASE_IN_OUT)
 		&"taunt":
@@ -590,6 +591,16 @@ func play(action: StringName, dir: int = 0, duration: float = 0.3) -> void:
 			_fall_tw.tween_property(_body, "rotation_degrees:x", 82.0, 1.0)
 		&"victory":
 			_pose(Vector3(5, 0, -8), HAND + Vector3(0, 0.6, 0), Vector3(6, 0, 0), 0.5)
+
+
+## Undo the death fall. Without this a fighter that went down stays tipped
+## over for good, since no other pose touches the body's rotation.
+func _rise() -> void:
+	if _fall_tw:
+		_fall_tw.kill()
+		_fall_tw = null
+	_body.rotation_degrees.x = 0.0
+	_feet_follow = false
 
 
 func set_walk(amount: float) -> void:
