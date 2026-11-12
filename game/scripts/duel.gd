@@ -24,13 +24,16 @@ const COMBOS := [
 	{"name": "FLURRY", "seq": ["R", "L", "R"], "mult": 1.35},
 ]
 
+const Tune := preload("res://scripts/combat_tune.gd")
 const DuelFx := preload("res://scripts/duel_fx.gd")
+const DuelPosture := preload("res://scripts/duel_posture.gd")
 const DuelEnemy := preload("res://scripts/duel_enemy.gd")
 const DuelStage := preload("res://scripts/duel_stage.gd")
 const DuelPvp := preload("res://scripts/duel_pvp.gd")
 const DuelBot := preload("res://scripts/duel_bot.gd")
 
 var fx: DuelFx
+var posture: DuelPosture
 var ai: DuelEnemy
 var stage: DuelStage
 var pvp_net: DuelPvp
@@ -46,6 +49,7 @@ var slain: Array = []
 var pvp := {}
 var pvp_turn := ""
 var pvp_left := 0
+var pvp_exec_until := 0
 var _enc := {}
 
 var def: EnemyDef
@@ -53,6 +57,7 @@ var hud: Hud
 var sfx: Sfx
 var cam: Camera3D
 var sparks: CPUParticles3D
+var sparks2: CPUParticles3D
 
 var player_max_hp := 100.0
 var shield_max := 60.0
@@ -89,7 +94,7 @@ var paused := false
 var e_state := EState.INTRO
 var e_timer := 1.4
 var e_hp := 0.0
-var e_break := 0.0
+var e_posture := 0.0
 var e_speed := 1.0
 var enraged := false
 var open_reason := ""
@@ -115,7 +120,7 @@ var slash_seq: Array = []
 
 var hit_combo := 0
 var stats := {"time": 0.0, "parries": 0, "perfect": 0, "dodges": 0, "best_combo": 0, "hits_taken": 0,
-	"sword_dmg": 0.0, "blocks": 0, "shots": 0, "casts": 0, "dmg_taken": 0.0}
+	"sword_dmg": 0.0, "blocks": 0, "shots": 0, "casts": 0, "dmg_taken": 0.0, "execs": 0}
 var result := ""
 var reward := {}
 
@@ -132,6 +137,8 @@ var _time_token := 0
 var _base_time := 1.0
 var _bot := ""
 var _move_tw: Tween
+var _hold_for: PackedStringArray = []
+var _hold_until := 0
 var _shot_path := ""
 var _shot_when := "windup"
 var _buf := {"kind": "", "v": Vector2.ZERO, "dir": 0, "ms": 0}
@@ -141,11 +148,12 @@ var _met_before := false
 
 func _ready() -> void:
 	fx = DuelFx.new(self)
+	posture = DuelPosture.new(self)
 	ai = DuelEnemy.new(self)
 	stage = DuelStage.new(self)
 	pvp_net = DuelPvp.new(self)
 	bots = DuelBot.new(self)
-	for part in [fx, ai, stage, pvp_net, bots]:
+	for part in [fx, posture, ai, stage, pvp_net, bots]:
 		add_child(part)
 	randomize()
 	Run.ensure_loaded()
@@ -175,6 +183,8 @@ func _ready() -> void:
 				Run.equip(id)
 		elif a.begins_with("--loop="):
 			Run.data.loop = int(a.trim_prefix("--loop="))
+		elif a.begins_with("--hold="):
+			_hold_for = a.trim_prefix("--hold=").split(",")
 		elif a.begins_with("--shot="):
 			_shot_path = a.trim_prefix("--shot=")
 			Run.no_save = true
@@ -224,7 +234,7 @@ func _ready() -> void:
 	Run.encounter = _enc
 	for i in range(1, foes.size()):
 		var o: Dictionary = foes[i]
-		o.merge({"hp": o.def.max_hp, "brk": 0.0, "enr": false, "spd": o.def.speed, "side": -1.0 if i % 2 == 1 else 1.0,
+		o.merge({"hp": o.def.max_hp, "pst": 0.0, "enr": false, "spd": o.def.speed, "side": -1.0 if i % 2 == 1 else 1.0,
 			"timer": 4.0 + i * 2.5, "tell": 0.0})
 		others.append(o)
 		stage._seat(o)
@@ -289,6 +299,8 @@ func _ready() -> void:
 	add_child(sfx)
 	sparks = fx._make_sparks()
 	add_child(sparks)
+	sparks2 = fx._make_sparks(Color(1.0, 0.95, 0.75), 0.07, 28)
+	add_child(sparks2)
 
 	var layer := CanvasLayer.new()
 	add_child(layer)
@@ -317,6 +329,8 @@ func begin() -> void:
 	enemy.play(&"taunt")
 	sfx.play("break", -8.0, 0.0)
 	hud.banner(def.display_name if pvp.is_empty() else "DUEL: " + def.display_name, Color(1.0, 0.8, 0.5), 2.0)
+	if posture.classic():
+		hud.caption("Classic duel: their game is older.")
 	fx._cam_to(CAM_POS, CAM_LOOK, 1.6)
 	var tw := create_tween()
 	tw.tween_interval(1.5)
@@ -327,10 +341,14 @@ func _process(delta: float) -> void:
 	_t += delta
 	fx._update_camera(delta)
 	bots._take_shot_if_due()
+	bots._hold_check()
 	if not started or result != "":
+		return
+	if Time.get_ticks_msec() < _hold_until:
 		return
 	stats.time += delta
 	_tick_player(delta)
+	posture.tick(delta)
 	ai._tick_enemy(delta)
 	ai._tick_others(delta)
 	if _bot != "":
@@ -342,8 +360,6 @@ func _tick_player(delta: float) -> void:
 		mana = minf(mana + delta * mana_rate, 100.0)
 	if p_state != PState.DODGE:
 		dodge_charges = minf(dodge_charges + delta * dodge_regen, dodge_max)
-	if not blocking:
-		shield = minf(shield + delta * 2.0, shield_max)
 	match p_state:
 		PState.DODGE:
 			dodge_elapsed += delta
@@ -356,6 +372,8 @@ func _tick_player(delta: float) -> void:
 
 
 func _player_ready() -> void:
+	if posture.p_stunned:
+		posture.stun_end()
 	p_state = PState.READY
 	blocking = _block_wanted and shield > 0.0
 	player.play(&"block" if blocking else &"idle")
@@ -394,14 +412,19 @@ func _hurt(dmg: float, dir: int) -> void:
 	stats.hits_taken += 1
 	stats.dmg_taken += dmg
 	_add_surge(6.0)
-	_shake = 1.0
-	sfx.play("hurt")
+	if dmg >= player_max_hp * float(Tune.B1.hurt_big_frac):
+		_shake = float(Tune.B1.hurt_big_shake)
+		sfx.layer("L5")
+	else:
+		_shake = float(Tune.B1.hurt_shake)
+		sfx.play("hurt")
 	hud.hurt_flash()
 	hud.enemy_streak(dir)
 	player.flash(Color(1, 0.2, 0.15))
 	player.play(&"hit", [-1, 1].pick_random(), 0.15)
 	fx._hitstop(0.07)
 	fx._buzz(60)
+	posture.p_gain(float(Tune.B1.p_gain_hit) * dmg)
 	if p_hp <= 0.0 and tutorial:
 		p_hp = 1.0
 	if p_hp <= 0.0:
@@ -419,8 +442,9 @@ func _hurt(dmg: float, dir: int) -> void:
 			Online.send_to(pvp.id, {"k": "dead", "gold": stake})
 		_end("lose")
 	else:
+		p_timer = maxf(p_timer, 0.36) if p_state == PState.HIT and posture.p_stunned else 0.36
 		p_state = PState.HIT
-		p_timer = 0.36
+		posture.p_check_break()
 
 
 func _buffer(kind: String, v := Vector2.ZERO, dir := 0) -> void:
@@ -462,7 +486,10 @@ func input_swipe(v: Vector2) -> void:
 		EState.FINISHER:
 			_finish()
 		EState.OPEN:
-			_slash_hit(v, letter, anim_dir)
+			if open_reason == "posture":
+				posture.execute(v, letter, anim_dir)
+			else:
+				_slash_hit(v, letter, anim_dir)
 		EState.WINDUP:
 			if cur_attack.dir != AttackDef.Dir.THRUST and e_timer <= parry_window and _parry_matches(letter):
 				_parry(-1 if letter == "L" else 1)
@@ -496,6 +523,9 @@ func _whiff(anim_dir: int) -> void:
 	sfx.play("whoosh", -8.0)
 	if _tutorial_slowed:
 		fx._restore_time()
+	if not tutorial:
+		posture.p_gain(float(Tune.B1.p_gain_whiff))
+		posture.p_check_break()
 
 
 func _parry(side: int) -> void:
@@ -504,27 +534,21 @@ func _parry(side: int) -> void:
 	p_state = PState.SWING
 	p_timer = 0.1
 	player.play(&"parry", side)
-	sfx.play("clang")
-	_shake = maxf(_shake, 0.7)
-	cam.fov = 49.0
 	var mid := player.get_clash_point().lerp(enemy.get_clash_point(), 0.6)
-	fx._burst(mid, 28)
-	fx._slow(0.25, 0.22)
-	fx._buzz(40)
+	fx.parried(perfect, mid)
 	if not pvp.is_empty():
-		hud.banner("PARRY", Color(1.0, 0.95, 0.75), 0.5)
+		hud.banner("PERFECT PARRY" if perfect else "PARRY", Color(1.0, 0.95, 0.75), 0.5)
 		e_state = EState.IDLE
 		enemy.set_tell(Color.BLACK, 0.1)
 		enemy.play(&"stagger")
 		player.play(&"slash", -side, 0.12)
-		pvp_net._pvp_report("parried", slash_damage * 2.0)
+		pvp_net._pvp_report("parried", slash_damage * 2.0, perfect)
 		pvp_net._pvp_my_turn()
 		return
 	_add_surge(15.0)
 	mana = minf(mana + 10.0, 100.0)
 	if leech > 0.0:
 		p_hp = minf(p_hp + leech, player_max_hp)
-	e_break += def.break_per_parry * break_mult * (1.6 if perfect else 1.0)
 	if def.title == "caster" and cur_attack.heavy:
 		var back := cur_attack.damage * 1.5
 		hud.float_text("REFLECTED %d" % int(back), enemy.get_clash_point() + Vector3(0, 0.6, 0), Color(0.8, 0.6, 1.0), true)
@@ -535,12 +559,8 @@ func _parry(side: int) -> void:
 			var sd := slash_damage * 2.5 * _element_mult()
 			hud.float_text(str(int(round(sd))), enemy.get_clash_point() + Vector3(0, 0.5, 0), Items.ELEMENT_COLORS.storm, true)
 			e_hp = maxf(e_hp - sd, 1.0)
-	if e_break >= def.break_max:
-		e_break = 0.0
-		sfx.play("break", 0.0, 0.0)
-		hud.banner("BREAK!", Color(1.0, 0.85, 0.3), 0.9)
-		ai._open(def.break_time, "broken")
-	else:
+	var gain := def.break_per_parry * float(Tune.B1.gain_perfect if perfect else Tune.B1.gain_parry)
+	if not posture.e_gain(gain):
 		hud.banner("PERFECT PARRY" if perfect else "PARRY", Color(1.0, 0.95, 0.75), 0.5)
 		ai._open(def.stagger_time + (0.5 if perfect else 0.0) + (0.35 if Run.perk("b2") else 0.0), "parry")
 	if perfect and Run.perk("g3"):
@@ -585,28 +605,20 @@ func _slash_hit(v: Vector2, letter: String, anim_dir: int) -> void:
 	var side := -1 if letter == "L" else 1
 	enemy.play(&"hit", side, 0.12)
 	enemy.flash(Color(1.0, 0.9, 0.7))
-	sfx.play("hit", 0.0, 0.15)
-	fx._burst(enemy.get_clash_point(), 8)
-	hud.slash_streak(v, bonus != "")
+	fx.cut_landed(v, letter, bonus != "")
 	var pos := enemy.get_clash_point() + Vector3(randf_range(-0.4, 0.4), 0.3, 0)
 	if bonus != "":
-		_shake = maxf(_shake, 0.9)
-		cam.fov = 50.0
-		sfx.play("clang", -4.0, 0.2)
 		hud.banner(bonus, Color(1.0, 0.75, 0.3), 0.6)
 		hud.float_text(str(int(round(dmg))), pos, Color(1.0, 0.7, 0.2), true)
-		fx._hitstop(0.09)
-		fx._buzz(45)
 	else:
-		_shake = maxf(_shake, 0.35)
 		hud.float_text(str(int(round(dmg))), pos, Color(1, 0.95, 0.8))
-		fx._hitstop(0.045)
-		fx._buzz(15)
 	stats.sword_dmg += minf(dmg, e_hp)
 	_damage_enemy(dmg)
+	posture.e_gain(float(Tune.B1.gain_ender if bonus != "" else Tune.B1.gain_cut))
 
 
-func _damage_enemy(dmg: float) -> void:
+## `by_execution`: the caller finishes the foe at once, so no killing-blow shot.
+func _damage_enemy(dmg: float, by_execution := false) -> void:
 	e_hp -= dmg
 	if e_hp <= 0.0:
 		e_hp = 0.0
@@ -614,10 +626,8 @@ func _damage_enemy(dmg: float) -> void:
 		e_timer = 3.0
 		tutorial_hint = ""
 		enemy.play(&"broken")
-		fx._slow(0.25, 3.2)
-		cinematic = 1.0
-		# _look is in this node's space; the clash point is in world space.
-		fx._cam_to(Vector3(1.9, 1.5, 1.6), to_local(enemy.get_clash_point()), 0.5)
+		if not by_execution:
+			fx.killing_blow()
 	elif not enraged and e_hp <= def.max_hp * 0.5:
 		enraged = true
 		e_speed *= 1.15
@@ -689,6 +699,7 @@ func input_super() -> void:
 	fx._buzz(80)
 	ai._open(def.break_time, "broken")
 	_damage_enemy(22.0 + slash_damage * 2.0)
+	posture.e_gain(float(Tune.B1.gain_surge))
 
 
 func input_ranged() -> void:
@@ -713,6 +724,7 @@ func input_ranged() -> void:
 		hud.banner("INTERRUPTED", Color(0.9, 0.95, 1.0), 0.6)
 		sfx.play("hit")
 		ai._open(0.9, "parry")
+		posture.e_gain(float(Tune.B1.gain_ranged))
 	else:
 		var dmg := 7.0 * float(Items.info(ranged_id).power) * ranged_mult
 		hud.float_text(str(int(round(dmg))), enemy.get_clash_point() + Vector3(0, 0.4, 0), Color(0.9, 0.95, 1.0), true)
@@ -746,6 +758,7 @@ func input_spell() -> void:
 			if _tutorial_slowed:
 				fx._restore_time()
 			ai._open(1.8, "parry")
+			posture.e_gain(float(Tune.B1.gain_frost))
 		"ward":
 			hud.banner("WARD", Color(0.6, 0.75, 1.0), 0.8)
 			player.flash(Color(0.5, 0.65, 1.0))
@@ -806,24 +819,29 @@ func _finish() -> void:
 	enemy.play(&"death")
 	enemy.flash(Color.WHITE)
 	enemy.set_tell(Color.BLACK, 0.1)
-	sfx.play("finish", 2.0, 0.0)
-	sfx.play("hit")
+	sfx.layer("L7")
 	_shake = 1.6
 	fx._buzz(120)
 	fx._burst(enemy.get_clash_point(), 28)
+	fx._burst2(enemy.get_clash_point(), 28)
 	hud.slash_streak(Vector2(1, -0.3), true)
 	hud.caption(Story.bark(def.display_name, "death"))
 	_bank_kill()
+	fx.deciding_blow()
+	# The push-in, freeze and slow motion take about 1.1 s of real time; then the camera eases back.
+	var shot := float(Tune.B1.push_time) + float(Tune.B1.push_freeze) + float(Tune.B1.push_slow_time) + 0.05
 	if not others.is_empty():
 		var next: Dictionary = others.pop_front()
-		get_tree().create_timer(0.9).timeout.connect(func():
+		get_tree().create_timer(shot, true, false, true).timeout.connect(func():
 			if result == "":
 				cinematic = 0.0
-				fx._cam_to(CAM_POS, CAM_LOOK, 0.5)
 				stage._face(next, 0.5)
 				hud.banner(def.display_name, Color(1.0, 0.8, 0.5), 0.9))
 		return
-	get_tree().create_timer(0.5).timeout.connect(func(): player.play(&"victory"))
+	get_tree().create_timer(shot, true, false, true).timeout.connect(func():
+		if result == "pending":
+			fx._cam_release()
+			player.play(&"victory"))
 	_end("win")
 
 
@@ -867,14 +885,13 @@ func _end(outcome: String) -> void:
 	Run.save()
 	var wait := get_tree().create_timer(1.6, true, false, true)
 	wait.timeout.connect(func():
-		Engine.time_scale = _base_time
-		_time_token += 1
+		fx._restore_time()
 		result = outcome
 		hud.show_result(outcome == "win")
 		if _bot != "":
-			print("RESULT %s %s time=%.1f parries=%d perfect=%d dodges=%d best_combo=%d hits_taken=%d hp=%.0f gold=%d foes=%d" % [
+			print("RESULT %s %s time=%.1f parries=%d perfect=%d dodges=%d best_combo=%d hits_taken=%d hp=%.0f gold=%d execs=%d foes=%d" % [
 				outcome, def.display_name, stats.time, stats.parries,
-				stats.perfect, stats.dodges, stats.best_combo, stats.hits_taken, p_hp, int(reward.get("gold", 0)), slain.size()])
+				stats.perfect, stats.dodges, stats.best_combo, stats.hits_taken, p_hp, int(reward.get("gold", 0)), stats.execs, slain.size()])
 			if _bot == "tour" or host != null:
 				proceed("")
 			else:

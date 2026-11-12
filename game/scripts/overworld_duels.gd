@@ -1,5 +1,7 @@
 extends Node
 
+const Tune := preload("res://scripts/combat_tune.gd")
+
 var ow: Overworld
 var _duel_ents: Array = []
 var _pvp_pending := ""
@@ -106,7 +108,7 @@ func _pvp_done(won: bool, d: Duel) -> void:
 
 func _my_card() -> Dictionary:
 	var st := Run.stats()
-	return {"hp": st.max_hp, "cl": Run.combat_level()}
+	return {"hp": st.max_hp, "cl": Run.combat_level(), "cv": Tune.CV}
 
 
 func _challenge(e: Dictionary) -> void:
@@ -193,7 +195,8 @@ func _start_pvp(id: String, who: String, card: Dictionary, i_go_first: bool, zon
 	ow.duel.host = ow
 	ow.duel.player = ow.hero
 	ow.duel.foes = [{"node": e.node, "def": null, "enc": {}}]
-	ow.duel.pvp = {"id": id, "name": who, "first": i_go_first, "zone": zone, "max_hp": float(card.get("hp", 100.0))}
+	ow.duel.pvp = {"id": id, "name": who, "first": i_go_first, "zone": zone, "max_hp": float(card.get("hp", 100.0)),
+		"cv": mini(Tune.CV, int(card.get("cv", 1)))}
 	ow.hud.screen = ""
 	ow.hud.visible = false
 	ow.add_child(ow.duel)

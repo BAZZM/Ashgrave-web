@@ -20,6 +20,10 @@ var _result_win := false
 var _result_age := 0.0
 var _font: Font
 var _vignette: GradientTexture2D
+var _edge_tex: GradientTexture2D
+var _edge := 0.0
+var _edge_col := Color.WHITE
+var _pulse := 0.0
 var _e_hp_lag := 1.0
 var _p_hp_lag := 1.0
 var _clock := 0.0
@@ -44,6 +48,18 @@ func _ready() -> void:
 	_vignette.fill_to = Vector2(1.0, 1.0)
 	_vignette.width = 128
 	_vignette.height = 128
+	# White at the screen edge and clear in the middle; tinted when drawn (edge flashes).
+	var ge := Gradient.new()
+	ge.set_color(0, Color(1, 1, 1, 0))
+	ge.set_color(1, Color(1, 1, 1, 0.85))
+	ge.set_offset(0, 0.5)
+	_edge_tex = GradientTexture2D.new()
+	_edge_tex.gradient = ge
+	_edge_tex.fill = GradientTexture2D.FILL_RADIAL
+	_edge_tex.fill_from = Vector2(0.5, 0.5)
+	_edge_tex.fill_to = Vector2(1.0, 1.0)
+	_edge_tex.width = 64
+	_edge_tex.height = 64
 
 
 func _rects() -> Dictionary:
@@ -222,6 +238,17 @@ func hurt_flash() -> void:
 	_hurt = 1.0
 
 
+## A coloured flash round the screen edge: gold for a perfect parry, blue when the player's posture breaks.
+func edge_flash(color: Color) -> void:
+	_edge = 1.0
+	_edge_col = color
+
+
+## The foe's posture bar swells for a moment (perfect parry, posture broken).
+func posture_pulse() -> void:
+	_pulse = 1.0
+
+
 func show_result(win: bool) -> void:
 	_result_shown = true
 	_result_win = win
@@ -244,6 +271,8 @@ func _process(delta: float) -> void:
 		s.age += real
 	_streaks = _streaks.filter(func(s): return s.age < 0.18)
 	_hurt = move_toward(_hurt, 0.0, real * 2.5)
+	_edge = move_toward(_edge, 0.0, real * 2.8)
+	_pulse = move_toward(_pulse, 0.0, real * 2.0)
 	_caption_age += real
 	if _result_shown:
 		_result_age += real
@@ -307,6 +336,8 @@ func _draw() -> void:
 	draw_texture_rect(_vignette, Rect2(Vector2.ZERO, s), false)
 	if _hurt > 0.0:
 		draw_rect(Rect2(Vector2.ZERO, s), Color(0.8, 0.05, 0.05, _hurt * 0.35))
+	if _edge > 0.0:
+		draw_texture_rect(_edge_tex, Rect2(Vector2.ZERO, s), false, Color(_edge_col.r, _edge_col.g, _edge_col.b, _edge))
 	var bars: float = duel.cinematic * s.y * 0.1
 	if bars > 0.5:
 		draw_rect(Rect2(0, 0, s.x, bars), Color.BLACK)
@@ -342,7 +373,12 @@ func _draw() -> void:
 		_text(b.text, Vector2(s.x * 0.5, by), 52, bc, true, 0.96 + 0.35 * (1.0 - minf(b.age * 8.0, 1.0)))
 		by += 62.0
 
-	if duel.e_state == Duel.EState.FINISHER:
+	var exec_ready: bool = (duel.e_state == Duel.EState.OPEN and duel.open_reason == "posture" and duel.result == "") \
+		or (not duel.pvp.is_empty() and Time.get_ticks_msec() < duel.pvp_exec_until and duel.result == "")
+	if exec_ready:
+		var xp := 0.65 + 0.35 * sin(_clock * 14.0)
+		_text("SWIPE TO EXECUTE", Vector2(s.x * 0.5, s.y * 0.52), 60, Color(1.0, 0.72, 0.3, xp))
+	elif duel.e_state == Duel.EState.FINISHER:
 		var pulse := 0.6 + 0.4 * sin(_clock * 12.0)
 		_text("SWIPE TO FINISH", Vector2(s.x * 0.5, s.y * 0.52), 60, Color(1, 0.9, 0.6, pulse))
 		if duel.can_spare:
@@ -385,14 +421,25 @@ func _draw_meters(s: Vector2) -> void:
 	_text(duel.def.display_name, Vector2(s.x * 0.5, 42), 26, Color(1.0, 0.86, 0.7))
 	_bar(Rect2(ex, 54, ew, 18), duel.e_hp / duel.def.max_hp, _e_hp_lag,
 		Color(0.98, 0.35, 0.12) if duel.enraged else Color(0.82, 0.16, 0.16))
-	_bar(Rect2(ex + ew * 0.15, 80, ew * 0.7, 6), duel.e_break / duel.def.break_max, 0.0, Color(1.0, 0.8, 0.25), false)
+	var pr := Rect2(ex + ew * 0.15, 79, ew * 0.7, 8)
+	var pfrac: float = duel.e_posture / duel.def.break_max
+	var full: bool = pfrac >= 0.999
+	if _pulse > 0.0 or full:
+		var sw: float = _pulse * 5.0 + (3.0 + 2.0 * sin(_clock * 14.0) if full else 0.0)
+		draw_rect(pr.grow(3.0 + sw), Color(1.0, 0.85, 0.3, 0.25 + 0.3 * maxf(_pulse, 1.0 if full else 0.0)))
+	_bar(pr, pfrac, 0.0, Color(1.0, 0.95, 0.6) if full else Color(1.0, 0.8, 0.25), false)
+	draw_rect(pr.grow(1.0), Color(1.0, 0.8, 0.25, 0.3), false, 1.0)
+	_diamond(Vector2(pr.position.x - 14.0, pr.position.y + 4.0), 6.0 + 3.0 * _pulse, Color(1.0, 0.8, 0.25))
 	_diamond(Vector2(ex - 16, 63), 9.0, GOLD)
 	_diamond(Vector2(ex + ew + 16, 63), 9.0, GOLD)
 
 	draw_set_transform(Vector2(30, 12))
 	_text("LV %d" % Run.combat_level(), Vector2(28, 40), 20, GOLD, false)
 	_bar(Rect2(92, 24, 250, 16), duel.p_hp / duel.player_max_hp, _p_hp_lag, Color(0.3, 0.8, 0.4))
-	_bar(Rect2(92, 48, 170, 7), duel.shield / duel.shield_max, 0.0, Color(0.45, 0.65, 1.0), false)
+	var ppost: float = 1.0 - duel.shield / maxf(duel.shield_max, 1.0)
+	_bar(Rect2(92, 48, 170, 7), ppost, 0.0, Color(0.45, 0.65, 1.0).lerp(Color(1.0, 0.55, 0.35), clampf((ppost - 0.7) / 0.3, 0.0, 1.0)), false)
+	draw_rect(Rect2(92, 48, 170, 7).grow(1.0), Color(0.45, 0.65, 1.0, 0.35), false, 1.0)
+	_diamond(Vector2(78, 52), 6.0, Color(0.45, 0.65, 1.0))
 	for i in (Run.FLOORS if Run.data.in_tower else 0):
 		var here: bool = i + 1 == int(Run.data.floor)
 		var done: bool = i + 1 < int(Run.data.floor)
@@ -534,6 +581,8 @@ func _draw_tutorial(s: Vector2) -> void:
 			msg = "RED BLADE CANNOT BE PARRIED: TAP DODGE"
 		"strike":
 			msg = "SWIPE BACK AND FORTH TO STRIKE"
+		"execute":
+			msg = "THE GOLD BAR IS FULL: ONE SWIPE EXECUTES"
 	var w := _font.get_string_size(msg, HORIZONTAL_ALIGNMENT_LEFT, -1, 28).x + 60.0
 	draw_rect(Rect2(c.x - w * 0.5, c.y - 38, w, 56), Color(0, 0, 0, 0.6))
 	draw_rect(Rect2(c.x - w * 0.5, c.y - 38, w, 56), Color(GOLD.r, GOLD.g, GOLD.b, 0.7), false, 2.0)
@@ -569,6 +618,8 @@ func _draw_result(s: Vector2) -> void:
 	var rw: Dictionary = duel.reward
 	var stat_line := "Time %d:%02d     Parries %d (%d perfect)     Best combo %d     Hits taken %d" % [
 		int(st.time) / 60, int(st.time) % 60, st.parries, st.perfect, st.best_combo, st.hits_taken]
+	if int(st.execs) > 0:
+		stat_line += "     Executions %d" % st.execs
 	var y := s.y * 0.18
 	if not duel.pvp.is_empty():
 		var pt := "VICTORY" if _result_win else "DEFEATED"
