@@ -64,7 +64,7 @@ attempt rather than retrying at the same tier.
 |---|------|------|-------|--------|
 | 0.1 | On-screen performance readout, off unless `?perf=1` | `game/scripts/perf.gd` (new), autoload line in `project.godot` | Sonnet, medium | done |
 | 0.2 | Automated checks: bot runs as pass/fail (`node tools/check.js`) | `tools/` | Sonnet, high | done |
-| 0.3 | Split `overworld.gd` and `duel.gd` along their seams, no behaviour change | those two files and the new files they become | Opus | after 0.2 |
+| 0.3 | Split `overworld.gd` and `duel.gd` along their seams, no behaviour change | those two files and the new files they become | Opus | started |
 
 0.3 waits for 0.2 because the checks are what make a 3,000-line restructure of
 commentless code safe. Opus is justified here: every later track builds on
