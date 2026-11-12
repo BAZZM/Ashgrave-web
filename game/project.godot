@@ -13,6 +13,7 @@ run/flush_stdout_on_print=true
 [autoload]
 
 Online="*res://scripts/online.gd"
+Perf="*res://scripts/perf.gd"
 
 [display]
 
