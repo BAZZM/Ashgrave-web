@@ -5,6 +5,9 @@ the built files sit at the repo root, so whatever is on `main` is what players
 load (the `.nojekyll` file and root layout point to GitHub Pages from `main`;
 the Pages settings themselves have not been checked from here).
 
+Development is planned in `docs/PLAN.md`: `main` is the live game, `dev` is
+where work is integrated, and that file says who owns which files.
+
 ## Layout
 
 - `game/` — the game's source, laid out exactly as the engine sees `res://`.
