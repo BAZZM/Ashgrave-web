@@ -137,6 +137,8 @@ var _time_token := 0
 var _base_time := 1.0
 var _bot := ""
 var _move_tw: Tween
+var _hold_for: PackedStringArray = []
+var _hold_until := 0
 var _shot_path := ""
 var _shot_when := "windup"
 var _buf := {"kind": "", "v": Vector2.ZERO, "dir": 0, "ms": 0}
@@ -181,6 +183,8 @@ func _ready() -> void:
 				Run.equip(id)
 		elif a.begins_with("--loop="):
 			Run.data.loop = int(a.trim_prefix("--loop="))
+		elif a.begins_with("--hold="):
+			_hold_for = a.trim_prefix("--hold=").split(",")
 		elif a.begins_with("--shot="):
 			_shot_path = a.trim_prefix("--shot=")
 			Run.no_save = true
@@ -337,7 +341,10 @@ func _process(delta: float) -> void:
 	_t += delta
 	fx._update_camera(delta)
 	bots._take_shot_if_due()
+	bots._hold_check()
 	if not started or result != "":
+		return
+	if Time.get_ticks_msec() < _hold_until:
 		return
 	stats.time += delta
 	_tick_player(delta)
@@ -691,8 +698,8 @@ func input_super() -> void:
 	fx._slow(0.3, 0.35)
 	fx._buzz(80)
 	ai._open(def.break_time, "broken")
-	posture.e_gain(float(Tune.B1.gain_surge))
 	_damage_enemy(22.0 + slash_damage * 2.0)
+	posture.e_gain(float(Tune.B1.gain_surge))
 
 
 func input_ranged() -> void:

@@ -428,6 +428,7 @@ func _draw_meters(s: Vector2) -> void:
 		var sw: float = _pulse * 5.0 + (3.0 + 2.0 * sin(_clock * 14.0) if full else 0.0)
 		draw_rect(pr.grow(3.0 + sw), Color(1.0, 0.85, 0.3, 0.25 + 0.3 * maxf(_pulse, 1.0 if full else 0.0)))
 	_bar(pr, pfrac, 0.0, Color(1.0, 0.95, 0.6) if full else Color(1.0, 0.8, 0.25), false)
+	draw_rect(pr.grow(1.0), Color(1.0, 0.8, 0.25, 0.3), false, 1.0)
 	_diamond(Vector2(pr.position.x - 14.0, pr.position.y + 4.0), 6.0 + 3.0 * _pulse, Color(1.0, 0.8, 0.25))
 	_diamond(Vector2(ex - 16, 63), 9.0, GOLD)
 	_diamond(Vector2(ex + ew + 16, 63), 9.0, GOLD)
@@ -437,6 +438,7 @@ func _draw_meters(s: Vector2) -> void:
 	_bar(Rect2(92, 24, 250, 16), duel.p_hp / duel.player_max_hp, _p_hp_lag, Color(0.3, 0.8, 0.4))
 	var ppost: float = 1.0 - duel.shield / maxf(duel.shield_max, 1.0)
 	_bar(Rect2(92, 48, 170, 7), ppost, 0.0, Color(0.45, 0.65, 1.0).lerp(Color(1.0, 0.55, 0.35), clampf((ppost - 0.7) / 0.3, 0.0, 1.0)), false)
+	draw_rect(Rect2(92, 48, 170, 7).grow(1.0), Color(0.45, 0.65, 1.0, 0.35), false, 1.0)
 	_diamond(Vector2(78, 52), 6.0, Color(0.45, 0.65, 1.0))
 	for i in (Run.FLOORS if Run.data.in_tower else 0):
 		var here: bool = i + 1 == int(Run.data.floor)

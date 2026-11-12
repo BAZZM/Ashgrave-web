@@ -45,6 +45,37 @@ func _take_shot_if_due() -> void:
 		d.get_tree().quit()
 
 
+## Test aid for looking at a moment in screenshots: `--hold=exec,fin,stun,push` stops the
+## game's logic for 5 s of real time when the posture bar fills, when the killing blow
+## lands and (push) freezes everything just after the deciding swipe. Prints DUELHOLD <what>.
+func _hold_check() -> void:
+	if d._hold_for.is_empty():
+		return
+	var now := Time.get_ticks_msec()
+	if "exec" in d._hold_for and d.e_state == Duel.EState.OPEN and d.open_reason == "posture":
+		d._hold_for.remove_at(d._hold_for.find("exec"))
+		d._hold_until = now + 9000
+		print("DUELHOLD exec")
+	elif "fin" in d._hold_for and d.e_state == Duel.EState.FINISHER:
+		d._hold_for.remove_at(d._hold_for.find("fin"))
+		d._hold_until = now + 9000
+		print("DUELHOLD fin")
+	elif "push" in d._hold_for and d.e_state == Duel.EState.DEAD:
+		d._hold_for.remove_at(d._hold_for.find("push"))
+		d.get_tree().create_timer(0.7, true, false, true).timeout.connect(func():
+			d.fx._restore_time()
+			Engine.time_scale = 0.0
+			print("DUELHOLD push"))
+
+
+## Called at the moment something happens that a test may want to look at.
+func hold_now(what: String) -> void:
+	if what in d._hold_for:
+		d._hold_for.remove_at(d._hold_for.find(what))
+		d._hold_until = Time.get_ticks_msec() + 9000
+		print("DUELHOLD ", what)
+
+
 func _tick_bot() -> void:
 	if d._bot == "idle" or not d.pvp.is_empty():
 		return
@@ -70,7 +101,11 @@ func _tick_bot() -> void:
 			if d._bot == "dodge" or dd == AttackDef.Dir.THRUST:
 				if d.e_timer <= 0.12 and d._feint_hold <= 0.0:
 					d.input_dodge(1 if dd == AttackDef.Dir.LEFT else -1)
-			elif d.e_timer <= d.parry_window * 0.6 and d._feint_hold <= 0.0 and d.p_state == Duel.PState.READY:
+			elif d._bot == "perfect" and d.e_timer <= d.parry_window and d._feint_hold <= 0.0 and d.p_state == Duel.PState.READY:
+				# Test bot: lands every parry inside the perfect window (the plain bot almost never does).
+				d.e_timer = minf(d.e_timer, Duel.PERFECT_PARRY * 0.5)
+				d.input_swipe([Vector2(-1, 0), Vector2(1, 0), Vector2(0, -1)][dd])
+			elif d._bot != "perfect" and d.e_timer <= d.parry_window * 0.6 and d._feint_hold <= 0.0 and d.p_state == Duel.PState.READY:
 				d.input_swipe([Vector2(-1, 0), Vector2(1, 0), Vector2(0, -1)][dd])
 		Duel.EState.OPEN, Duel.EState.FINISHER:
 			if d.p_state == Duel.PState.READY:

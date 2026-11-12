@@ -181,6 +181,7 @@ func p_check_break(from_block := false) -> void:
 	d.fx._buzz(80)
 	if pvp_new():
 		d.pvp_net.send_pst()
+	d.bots.hold_now("stun")
 
 
 ## The stun is over: posture resets to half.
