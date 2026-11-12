@@ -38,3 +38,5 @@ The orchestrator owns this file.
 | 12 Nov 2026 | Start Phase 1 and combat step S1 | Both / Art Bible only / wait | Both. |
 | 12 Nov 2026 | The owner's two texture packs (Knight RPG, Wildlands; AI-generated) | Both, look test first / ground and water only / hold off | Both, applied only after the owner approves look-test screenshots. Files to be copied by the owner into assets_src/. |
 | 12 Nov 2026 | Which tool generated the two texture packs? | (open question from the paperwork lane) | ChatGPT. Recorded in docs/ASSETS.md with the OpenAI terms link. Packs delivered to assets_src/_packs/. |
+| 12 Nov 2026 | Who does the texture work? | Orchestrator lanes / the owner's separate texture chat | The texture chat. The orchestrator runs everything else; file ownership is in the claude.ai project doc claude/orchestrator-status.md. |
+| 12 Nov 2026 | Release world agility (S1) with the stuck-in-walls fix? | Together as Build 12 / stuck fix first | Together, once both pass review and checks. |
