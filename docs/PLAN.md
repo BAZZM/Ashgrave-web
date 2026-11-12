@@ -88,9 +88,52 @@ Order of work follows the phone readings from 0.1, worst first.
 
 ### Battle (Opus designs, Sonnet builds)
 
-Keep the directional duel. Direction for deepening it is the owner's choice
-from the options the orchestrator has put forward; this section is filled in
-once that is decided.
+The directional duel stays and gains, as chosen by the owner:
+
+1. Feel pass: heavier impacts, a finisher camera, layered hit sounds.
+2. Posture as the way to win: perfect parries fill the foe's posture bar, a
+   full bar means an execution. The player has a posture bar too.
+3. Player-led offence: attack at any time; enemies parry and counter by
+   direction.
+4. Weapon identities: each weapon family gets its own direction chains and a
+   signature move.
+5. Guard stances: hold a guard direction; attacks from that side are blocked.
+6. Melee range and footwork: stepping in and out, with distance deciding what
+   can hit.
+
+Range changes what every other item means (who can reach whom, when a parry is
+even possible), so it is designed in from the start even though it is built
+late. Order:
+
+- Design (Opus): one short spec covering all six and how PvP carries them over
+  the relay, written against the existing duel code. The owner approves it
+  before anything is built.
+- Build 1 (Sonnet): feel pass and posture. Smallest change, felt in every fight.
+- Build 2: range and footwork, with player-led offence, since both change who
+  acts when.
+- Build 3: weapon identities and guard stances.
+
+Each build is playable on its own and goes to the owner for a playtest.
+
+### Traversal (Sonnet)
+
+Today: walking speed is 5 units a second (plus 0.35% per agility level) and the
+land is about 440 by 460 units, so village to tower gate is roughly 45 seconds
+of holding the stick. There is no sprint, mount or fast travel. The map screen
+is view-only.
+
+- Fast travel: tap a discovered place on the map to go there (hearth, fisher's
+  fire, quarry anvil, shrine, altar, standing stones, watchtower, tower gate).
+  Not while a foe is close or in a duel, and not out of the Ashlands, so it is
+  no escape from PvP. Cheapest and carries no performance risk, so it goes first.
+- Sprint, and a speed bonus on roads (the road paths already exist as data).
+  Faster movement crosses terrain chunks more often and makes other players'
+  movement harder to smooth, so this ships with or after the terrain-loading
+  fix in Smoothness, in the same files.
+- A mount, later: needs a model and animation built in code, so it sits with
+  Visual polish.
+
+Fast travel runs as its own task in Wave 1. Sprint joins the Smoothness queue.
 
 ### World and quests (orchestrator outlines, Sonnet builds, Haiku fills)
 
@@ -111,4 +154,4 @@ Merge the tracks, balance, and fix what playtests turn up.
 | Bug | Status |
 |-----|--------|
 | Two players online never saw each other (split across relays) | fixed, live |
-| A fighter who died stayed tipped over until reload; later falls looked wrong | fixed on `dev`, awaiting release |
+| A fighter who died stayed tipped over until reload; later falls looked wrong | fixed, live |
