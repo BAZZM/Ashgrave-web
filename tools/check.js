@@ -396,7 +396,7 @@ scenario('agility', 'world movement: run, sprint, turns, dash and its limits mat
   num('  ... distance covered (u)', '< 2.0', 'dash_wall', 'dist', 0.1, 2.0);
   flag('  ... hero not left inside it', 'false', 'dash_wall', 'hero_blocked', false);
   flag('dash toward water 2 u ahead stops', 'stops', 'dash_water', 'stopped', true);
-  num('  ... distance covered (u)', '< 2.0', 'dash_water', 'dist', 0.1, 2.0);
+  num('  ... distance covered (u; the shore is found in 0.5 u steps, so up to 2.5)', '<= 2.5', 'dash_water', 'dist', 0.1, 2.5);
   flag('  ... hero not left in water', 'false', 'dash_water', 'in_water', false);
   num('road run (u/s)', '11.4', 'road', 'run', 11.3, 11.5);
   num('road sprint (u/s)', '15.0', 'road', 'sprint', 14.8, 15.3);
@@ -406,6 +406,103 @@ scenario('agility', 'world movement: run, sprint, turns, dash and its limits mat
   for (const [label, spec, got, good] of rows) {
     if (!good) ok = false;
     notes.push(`${good ? 'ok ' : 'BAD'} ${label}: ${got}  (spec ${spec})`);
+  }
+  return { ok: ok && c.errors.length === 0, notes };
+}, true);
+
+// ---- 4c. world agility on the real paths: `--autoplay=gather --agility-real`. Nothing is cleared;
+// the hero is put in a tree, a rock, a house and the tower base, slid along a house wall, dashed at
+// obstacles, run through a duel next to an obstacle, and the manual Unstuck is tried. Slices of
+// 1/60, 1/30 and 1/20 s of game time (see overworld_bot.gd, "Real-path movement test").
+function parseAgReal(lines) {
+  const out = {};
+  for (const l of lines) {
+    const m = /^AGREAL (\w+) (.*)$/.exec(l);
+    if (!m) continue;
+    const kv = {};
+    for (const part of m[2].split(' ')) {
+      const e = part.indexOf('=');
+      if (e > 0) kv[part.slice(0, e)] = part.slice(e + 1);
+    }
+    (out[m[1]] = out[m[1]] || []).push(kv);
+  }
+  return out;
+}
+
+scenario('agility-real', 'world movement on the real paths: stuck in obstacles, slide, dash at obstacles, duel stand points, i-frames, manual Unstuck', async (ctx) => {
+  const relay = await ctx.newRelay();
+  const c = await ctx.client('bot');
+  c.stopRe = /^AGREAL (done|fail)/;
+  await c.start(ctx.base, ['--autoplay=gather', '--agility-real'], [relay.url]);
+  const r = await waitUntil([c], () => c.find(/^AGREAL (done|fail)/), 900);
+  const notes = errorNotes([c]);
+  if (r !== 'ok') { notes.push(`no AGREAL done within 900s (${r})`); return { ok: false, notes }; }
+  if (c.find(/^AGREAL fail/)) return { ok: false, notes: [...notes, c.find(/^AGREAL fail/)] };
+  const a = parseAgReal(c.lines);
+  const rows = [];
+  const row = (label, spec, got, good) => rows.push([label, spec, String(got), !!good]);
+  const n = (v) => Number(v);
+  for (const t of a.trap || []) {
+    const tag = `${t.kind} at ${t.fps} fps`;
+    if (t.missing) { row(`stuck in ${tag}`, 'case exists', 'missing', false); continue; }
+    row(`stuck in ${tag}: starts blocked, free within 1 s, one UNSTUCK`, 'free, t <= 1.0, 1',
+      `blocked=${t.start_blocked} free=${t.free} t=${t.t} unstuck=${t.unstuck}`,
+      t.start_blocked === 'true' && t.free === 'true' && n(t.t) <= 1.0 && n(t.unstuck) === 1);
+  }
+  const unstuckLines = c.lines.filter((l) => /^UNSTUCK land from=/.test(l)).length;
+  const expectLines = (a.trap || []).length + (a.duel || []).reduce((s2, d) => s2 + n(d.unstuck || 0), 0) + (a.manual || []).reduce((s2, d) => s2 + n(d.count || 0), 0) + 1;
+  row('console UNSTUCK land lines (traps + duel + manual)', `${expectLines - 1} to ${expectLines + 1}`, unstuckLines, unstuckLines >= expectLines - 1 && unstuckLines <= expectLines + 1);
+  for (const s2 of a.slide || []) {
+    const min = n(s2.deg) === 45 ? 0.6 : 0.4;
+    row(`slide along a house wall at ${s2.deg} deg, ${s2.fps} fps: share of open-ground speed`, `>= ${min}`, `${s2.ratio} (wall ${s2.wall}, open ${s2.open})`, n(s2.open) > 2 && n(s2.ratio) >= min);
+  }
+  row('slide rows present', '6', (a.slide || []).length, (a.slide || []).length === 6);
+  for (const d of a.dash_obstacle || []) {
+    const L = n(d.dist);
+    const tag = `dash at an obstacle ${d.dist} u ahead, ${d.fps} fps`;
+    if (d.missing) { row(tag, 'case exists', 'missing', false); continue; }
+    const moved = n(d.moved);
+    const spent = n(d.pips_before) - n(d.pips_after);
+    const refund = L < 0.5;
+    row(`${tag}: distance moved`, refund ? '< 0.5' : `${(L - 0.15).toFixed(2)} to ${L.toFixed(2)}`,
+      d.moved, refund ? (moved >= 0 && moved < 0.5) : (moved >= L - 0.15 && moved <= L + 0.02));
+    row(`${tag}: pip`, refund ? 'refunded' : 'spent (about 1 less regen)',
+      `before ${d.pips_before} after ${d.pips_after}`, refund ? spent < 0.3 : (spent > 0.6 && spent < 1.1));
+    row(`${tag}: not left inside it`, 'false', d.inside, d.inside === 'false');
+  }
+  const xp = (a.xp || [])[0] || {};
+  const x = (k) => n(xp[k]);
+  row('agility XP per second: walk / run / sprint on road / dash-spam (run is the cap, 1.7)', 'sprint, dash <= run <= 1.7',
+    `${xp.walk} / ${xp.run} / ${xp.sprint_road} / ${xp.dash_spam}`,
+    x('run') > 0 && x('run') <= 1.71 && x('walk') <= x('run') && x('sprint_road') <= x('run') + 0.01 && x('dash_spam') <= x('run') + 0.01 && x('dash_spam') < 0.05);
+  for (const d of a.duel || []) {
+    if (d.missing) { row(`duel next to a ${d.kind}`, 'case exists', 'missing', false); continue; }
+    row(`duel next to a ${d.kind}: hero free afterwards`, 'false', d.hero_blocked, d.hero_blocked === 'false');
+    row(`duel next to a ${d.kind}: saved position free`, 'false', d.saved_blocked, d.saved_blocked === 'false');
+  }
+  const won = (a.duel || []).filter((d) => d.at_start === 'false' && n(d.unstuck) === 1).length;
+  row('duels that ended on a blocked stand point and were moved out', '>= 1', won, won >= 1);
+  for (const d of a.iframes || []) {
+    const at = n(d.duel_at);
+    const dt = 1 / n(d.fps);
+    row(`dash through a foe at ${d.fps} fps: no duel before 0.18 s, one right after`, `0.18 to ${(0.18 + dt + 0.005).toFixed(3)}`, d.duel_at, d.dash_ok === 'true' && at >= 0.18 - 1e-6 && at <= 0.18 + dt + 0.005);
+  }
+  const m = (a.manual || [])[0] || {};
+  if (m.missing) row('manual Unstuck exists', 'yes', 'missing', false);
+  else {
+    row('manual Unstuck refused with a challenge pending', 'true', m.refuse_pvp, m.refuse_pvp === 'true');
+    row('manual Unstuck refused right after a fight', 'true', m.refuse_fight, m.refuse_fight === 'true');
+    row('manual Unstuck refused with a foe close', 'true', m.refuse_foe, m.refuse_foe === 'true');
+    row('manual Unstuck moves the hero (u), to a free spot', '>= 2', `${m.moved} free=${m.free}`, m.first_ok === 'true' && n(m.moved) >= 2 && m.free === 'true');
+    row('manual Unstuck on cooldown at 0.5 s and 9.5 s', 'refused', `${m.second_ok} / ${m.at_9_5}`, m.second_ok === 'false' && m.at_9_5 === 'false');
+    row('manual Unstuck allowed again at 10.1 s and moves (u)', '>= 2', `${m.at_10_1} ${m.moved_again} free=${m.free_again}`, m.at_10_1 === 'true' && n(m.moved_again) >= 2 && m.free_again === 'true');
+  }
+  const kinds = Object.keys(relay.counts);
+  row('relay message kinds seen', 'none', kinds.length ? kinds.join(',') : 'none', kinds.length === 0);
+  let ok = true;
+  for (const [label, spec, got, good] of rows) {
+    if (!good) ok = false;
+    notes.push(`${good ? 'ok ' : 'BAD'} ${label}: ${got}  (want ${spec})`);
   }
   return { ok: ok && c.errors.length === 0, notes };
 }, true);

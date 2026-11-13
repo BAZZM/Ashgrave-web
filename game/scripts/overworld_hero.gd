@@ -42,6 +42,12 @@ const DASH_COST := 1.0
 const DASH_LOCK := 0.35
 const DASH_IFRAMES := 0.18
 const DASH_STOP_FRAC := 0.98
+## Agility XP: AGILITY_XP for every AGILITY_XP_DIST units walked, but no more distance than
+## XP_SPEED_CAP units per second counts (the old build's run speed off-road), whatever the sprint or
+## the road bonus. A dash earns nothing.
+const AGILITY_XP := 8
+const AGILITY_XP_DIST := 40.0
+const XP_SPEED_CAP := 8.5
 ## Camera: look-ahead (seconds of velocity, max units, ease per second), follow rate (per second)
 ## at a walk and extra added at a full run, distance and field of view (walking, sprinting, and the
 ## dash kick with seconds in and seconds out).
@@ -59,6 +65,30 @@ const FOV_DASH_IN := 0.15
 const FOV_DASH_OUT := 0.4
 ## Movement is stepped in slices no longer than this, so a slow frame cannot jump an obstacle.
 const MAX_STEP := 1.0 / 30.0
+## A frame longer than this (seconds) is cut to it before slicing.
+const MAX_FRAME := 0.25
+## Every move is made in pieces no longer than this (units), so no speed or frame rate can pass
+## through a thin obstacle. A dash that moved less than DASH_MIN_MOVE gives its pip back.
+const SUBSTEP := 0.25
+const DASH_MIN_MOVE := 0.5
+## When a step is mostly blocked (moved under this fraction of it) the speed bleeds away at
+## BLOCK_DECEL (u/s squared). A step that slides along a wall keeps its speed.
+const SLIDE_BLOCK_FRAC := 0.3
+const BLOCK_DECEL := 120.0
+## Getting out of blocked space: search rings of FREE_STEP out to FREE_MAX units, FREE_DIRS points
+## per ring. A saved last safe spot is used first if it is no further than LAST_SAFE_MAX.
+const FREE_MAX := 8.0
+const FREE_STEP := 0.5
+const FREE_DIRS := 16
+const LAST_SAFE_MAX := 20.0
+## The manual Unstuck: shortest move, cooldown, and how long after a fight or with a foe closer
+## than UNSTUCK_CHASE it is refused (seconds, seconds, units).
+const UNSTUCK_MIN := 2.0
+const UNSTUCK_COOL := 10.0
+const UNSTUCK_FIGHT := 10.0
+const UNSTUCK_CHASE := 11.0
+## How fast the camera's sprint widening (field of view, distance) follows, per second.
+const CAM_SPRINT_EASE := 8.0
 
 ## Walking speed of the old bots (tour, gather), which still move the old way.
 const SPEED := 5.0
@@ -96,6 +126,13 @@ var _regen := 0.6
 var _stat_t := 0.0
 var dash_count := 0
 var dash_stopped := false
+var dash_refunded := false
+var unstuck_count := 0
+var _dash_moved := 0.0
+## Distance that has counted toward Agility XP (for tests).
+var xp_dist := 0.0
+var _cam_sprint := 0.0
+var _unstuck_at := -99.0
 
 
 func _init(owner_world: Overworld) -> void:
@@ -150,6 +187,123 @@ func reset_motion() -> void:
 	_look = Vector2.ZERO
 	_amount = 0.0
 	_pace = 1.0
+	_dash_moved = 0.0
+
+
+## ---- Blocked space. The land builds its obstacles chunk by chunk, so a test against a chunk that
+## is not built yet would see nothing there. Every test below first asks whether the chunks the
+## point depends on exist (_blocked looks one chunk around), and does nothing if they do not.
+func chunks_ready(p: Vector3) -> bool:
+	var c: Vector2i = ow.terrain._chunk_of(p)
+	for dx in [-1, 0, 1]:
+		for dz in [-1, 0, 1]:
+			if not ow._chunks.has(c + Vector2i(dx, dz)):
+				return false
+	return true
+
+
+func is_free(p: Vector3) -> bool:
+	return chunks_ready(p) and not ow.terrain._blocked(p)
+
+
+## The nearest free point from min_r out to FREE_MAX, or null.
+func find_free(from: Vector3, min_r := 0.0) -> Variant:
+	var r := maxf(min_r, 0.0)
+	while r <= FREE_MAX + 0.001:
+		for i in FREE_DIRS:
+			var a := TAU * float(i) / FREE_DIRS + r * 0.7
+			var q := Vector3(from.x + cos(a) * r, 0, from.z + sin(a) * r)
+			if is_free(q):
+				return q
+		r += FREE_STEP
+	return null
+
+
+## Move the hero to q (clearing motion). why is for the console line.
+func _relocate(q: Vector3, why: String) -> void:
+	var from := ow.hero_pos
+	q.y = Land.walk_height(q.x, q.z)
+	ow.hero_pos = q
+	ow.hero.position = q
+	ow._last_safe = q
+	ow._stuck = 0.0
+	ow._gather = {}
+	ow.gather_progress = -1.0
+	reset_motion()
+	_end_xz = Vector2(q.x, q.z)
+	unstuck_count += 1
+	_camera(1.0)
+	print("UNSTUCK land from=%.1f,%.1f to=%.1f,%.1f why=%s" % [from.x, from.z, q.x, q.z, why])
+
+
+## Where to put a hero that is in blocked space: the last safe spot if near and free, else the
+## nearest free point on the rings, else that spot at any distance, else the start.
+func _free_target(here: Vector3, min_r := 0.0) -> Vector3:
+	var ls: Vector3 = ow._last_safe
+	if is_free(ls) and Vector2(ls.x - here.x, ls.z - here.z).length() <= LAST_SAFE_MAX and Vector2(ls.x - here.x, ls.z - here.z).length() >= min_r:
+		return ls
+	var q: Variant = find_free(here, min_r)
+	if q != null:
+		return q
+	if is_free(ls):
+		return ls
+	return Land.START
+
+
+## Per frame: a hero in blocked space (or water, or out of bounds) is moved out.
+func _safety_net() -> void:
+	if ow.duel != null or not chunks_ready(ow.hero_pos):
+		return
+	if ow.terrain._blocked(ow.hero_pos):
+		_relocate(_free_target(ow.hero_pos), "auto")
+
+
+## For entry points that place the hero (a duel's end, a load, a jump): builds the land there if
+## it is not yet built, then moves the hero out of blocked space. Returns whether it moved.
+func settle_position(why: String) -> bool:
+	if not chunks_ready(ow.hero_pos):
+		ow.terrain._update_chunks(true)
+	if not chunks_ready(ow.hero_pos) or not ow.terrain._blocked(ow.hero_pos):
+		return false
+	var q := _free_target(ow.hero_pos)
+	if not chunks_ready(q):
+		ow.hero_pos = q
+		ow.terrain._update_chunks(true)
+		ow.hero_pos = q
+	_relocate(q, why)
+	return true
+
+
+## A free point near p for a position that is about to be saved (null-safe: returns p when unknown).
+func free_near(p: Vector3) -> Vector3:
+	if not chunks_ready(p) or not ow.terrain._blocked(p):
+		return p
+	var q: Variant = find_free(p)
+	return q if q != null else Land.START
+
+
+## The Unstuck entry of the map screen. Returns {"ok": bool, "msg": String}. Always moves the hero
+## when it is allowed: to the last safe spot, else the nearest free point at least UNSTUCK_MIN away.
+func manual_unstuck() -> Dictionary:
+	if ow.duel != null:
+		return {"ok": false, "msg": ""}
+	if ow._t - _unstuck_at < UNSTUCK_COOL:
+		return {"ok": false, "msg": "Unstuck again in %d seconds." % ceili(UNSTUCK_COOL - (ow._t - _unstuck_at))}
+	if ow.duels._pvp_pending != "":
+		return {"ok": false, "msg": "Not with a challenge pending."}
+	if ow._t - float(ow.duels.last_fight_t) < UNSTUCK_FIGHT:
+		return {"ok": false, "msg": "Not so soon after a fight."}
+	for e in ow.ents:
+		if e.type == "foe" and e.node != null and Vector2(e.pos.x - ow.hero_pos.x, e.pos.z - ow.hero_pos.z).length() < UNSTUCK_CHASE:
+			return {"ok": false, "msg": "Not with an enemy this close."}
+	if not chunks_ready(ow.hero_pos):
+		ow.terrain._update_chunks(true)
+	var q := _free_target(ow.hero_pos, UNSTUCK_MIN)
+	if Vector2(q.x - ow.hero_pos.x, q.z - ow.hero_pos.z).length() < 0.5:
+		q = Land.START
+	_unstuck_at = ow._t
+	_relocate(q, "manual")
+	return {"ok": true, "msg": "You free yourself."}
 
 
 ## Start a dash along the stick (or the way the hero faces). Returns whether it started.
@@ -162,6 +316,8 @@ func try_dash() -> bool:
 	_dash_age = 0.0
 	dash_count += 1
 	dash_stopped = false
+	dash_refunded = false
+	_dash_moved = 0.0
 	_dash_dir = _in_dir if _amount > 0.05 else Vector3(-sin(ow.hero_yaw), 0, -cos(ow.hero_yaw))
 	ow.hero_yaw = atan2(-_dash_dir.x, -_dash_dir.z)
 	ow._gather = {}
@@ -184,11 +340,16 @@ func _refresh_stats(delta: float) -> void:
 
 
 func _move_hero(delta: float) -> void:
+	if ow.bots.agreal_intercept(delta):
+		return
+	var raw := delta
+	_safety_net()
 	var scripted: bool = ow.bots.agility_active()
 	if ow._bot != "" and not scripted:
-		_move_bot(delta)
+		_move_bot(delta)  # the old bots keep the whole frame, as they always did
 		return
-	if ow._t - _last_t > delta * 1.5 + 0.05 or Vector2(ow.hero_pos.x, ow.hero_pos.z).distance_to(_end_xz) > 0.5:
+	delta = minf(delta, MAX_FRAME)
+	if ow._t - _last_t > raw * 1.5 + 0.05 or Vector2(ow.hero_pos.x, ow.hero_pos.z).distance_to(_end_xz) > 0.5:
 		reset_motion()
 	_refresh_stats(delta)
 	var keys := Vector2.ZERO
@@ -300,28 +461,52 @@ func _step(dt: float, stick: Vector2) -> void:
 	var moved := _try_move(step)
 	_f_want += target * dt
 	_f_moved += moved
-	if step.length() > 0.0001 and moved < step.length() * 0.98:
-		_spd = minf(_spd, moved / dt)
-		if _sprinting and moved < step.length() * 0.3:
+	if step.length() > 0.0001 and moved < step.length() * SLIDE_BLOCK_FRAC:
+		# Mostly blocked: bleed the speed (by time, not by frame), and lose a sprint.
+		_spd = move_toward(_spd, moved / dt, BLOCK_DECEL * dt)
+		if _sprinting:
 			_sprinting = false
 			_run_t = 0.0
 	_vel = Vector2(fwd.x, fwd.z) * _spd
 	var rel := _spd / WALK_SPEED / _agi
 	_pace = clampf(rel, 1.0, 2.5)
-	_walked += moved
-	if _walked >= 40.0:
+	var counted := minf(moved, XP_SPEED_CAP * dt)
+	_walked += counted
+	xp_dist += counted
+	if _walked >= AGILITY_XP_DIST:
 		_walked = 0.0
-		Run.train("agility", 8)
+		Run.train("agility", AGILITY_XP)
 
 
 ## Move by step with the obstacle test on each axis. Returns the distance moved.
-func _try_move(step: Vector3) -> float:
+## It goes in pieces of at most SUBSTEP units, whatever the speed or the frame rate. A piece that
+## is blocked is tried again at a half, a quarter and an eighth, so the hero ends up at the
+## obstacle and not up to a piece short of it.
+func _try_move(step: Vector3, stop_on_block := false) -> float:
 	var before := ow.hero_pos
-	if not ow.terrain._blocked(ow.hero_pos + Vector3(step.x, 0, 0)):
-		ow.hero_pos.x += step.x
-	if not ow.terrain._blocked(ow.hero_pos + Vector3(0, 0, step.z)):
-		ow.hero_pos.z += step.z
+	var n := clampi(ceili(Vector2(step.x, step.z).length() / SUBSTEP), 1, 64)
+	var piece := step / n
+	for i in n:
+		var a := _advance(Vector3(piece.x, 0, 0))
+		var b := _advance(Vector3(0, 0, piece.z))
+		if (not a and not b) or (stop_on_block and (not a or not b)):
+			break
 	return Vector2(ow.hero_pos.x - before.x, ow.hero_pos.z - before.z).length()
+
+
+## Move along one axis by v, or as far as halving gets. Returns whether the whole of v was made.
+func _advance(v: Vector3) -> bool:
+	if v == Vector3.ZERO:
+		return true
+	if not ow.terrain._blocked(ow.hero_pos + v):
+		ow.hero_pos += v
+		return true
+	var h := v * 0.5
+	for k in 3:
+		if not ow.terrain._blocked(ow.hero_pos + h):
+			ow.hero_pos += h
+		h *= 0.5
+	return false
 
 
 func _dash_ease(u: float) -> float:
@@ -333,8 +518,8 @@ func _step_dash(dt: float) -> void:
 	_dash_t += dt
 	var u1 := clampf(_dash_t / DASH_TIME, 0.0, 1.0)
 	var dist := DASH_DIST * (_dash_ease(u1) - _dash_ease(u0))
-	var moved := _try_move(_dash_dir * dist)
-	_walked += moved
+	var moved := _try_move(_dash_dir * dist, true)
+	_dash_moved += moved
 	_vel = Vector2(_dash_dir.x, _dash_dir.z) * (dist / dt)
 	_pace = 2.5
 	if dist > 0.0001 and moved < dist * DASH_STOP_FRAC:
@@ -343,6 +528,11 @@ func _step_dash(dt: float) -> void:
 	elif _dash_t >= DASH_TIME:
 		_dash_t = -1.0
 	if _dash_t < 0.0:
+		if _dash_moved < DASH_MIN_MOVE:
+			# A dash that could not go anywhere costs nothing.
+			_pips = minf(_pips + DASH_COST, _pip_max)
+			_lock = 0.0
+			dash_refunded = true
 		# Carry on in the dash direction at the speed held before it.
 		_vel = Vector2(_dash_dir.x, _dash_dir.z) * _spd
 
@@ -402,9 +592,17 @@ func _camera(delta: float) -> void:
 	else:
 		_look = _look.lerp(ahead, clampf(delta * LOOK_EASE, 0.0, 1.0))
 	var lean := Vector3(_look.x, 0, _look.y)
-	var sprint := 0.0 if showcase else _sprint
+	# The widening follows the sprint only while the view is live: with a screen open or the stick
+	# idle it eases back to the base, and a reset (delta of 1 or more) puts it there at once.
+	var live: bool = moving and not showcase and _amount > 0.05
+	var sprint_want := _sprint if live else 0.0
+	if delta >= 1.0:
+		_cam_sprint = sprint_want
+	else:
+		_cam_sprint = lerpf(_cam_sprint, sprint_want, clampf(delta * CAM_SPRINT_EASE, 0.0, 1.0))
+	var sprint := _cam_sprint
 	var kick := 0.0
-	if not showcase and _dash_age < FOV_DASH_IN + FOV_DASH_OUT:
+	if moving and not showcase and _dash_age < FOV_DASH_IN + FOV_DASH_OUT:
 		kick = _dash_age / FOV_DASH_IN if _dash_age < FOV_DASH_IN else 1.0 - (_dash_age - FOV_DASH_IN) / FOV_DASH_OUT
 	var d := 3.3 if showcase else lerpf(CAM_DIST, CAM_DIST_SPRINT, sprint)
 	var want := ow.hero_pos + lean + back * d + Vector3(0, 1.35 if showcase else 3.3, 0)

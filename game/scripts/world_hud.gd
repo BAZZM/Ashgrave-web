@@ -25,6 +25,9 @@ var _talk := {}
 var sell_mode := false
 var _banner := ""
 var _banner_age := 9.0
+## Tower only: seconds until the Unstuck entry may be used again (the land keeps its own in the mover).
+var _unstuck_wait := 0.0
+const UNSTUCK_WAIT := 10.0
 
 
 func _ready() -> void:
@@ -82,6 +85,30 @@ func _buttons() -> Dictionary:
 		"quests": Rect2(s.x - 536, 26, 130, 60),
 		"online": Rect2(s.x - 716, 26, 168, 60),
 	}
+
+
+## The Unstuck entry: top right of the map screen, so it is two taps (MAP, then UNSTUCK) and never
+## on the main HUD.
+func _unstuck_rect() -> Rect2:
+	var p := _panel()
+	return Rect2(p.end.x - 190, p.position.y + 12, 170, 48)
+
+
+func _do_unstuck() -> void:
+	var msg := ""
+	if world.is_land:
+		var r: Dictionary = world.mover.manual_unstuck()
+		msg = String(r.msg)
+	elif world.has_method("unstuck"):
+		if _unstuck_wait > 0.0:
+			msg = "Unstuck again in %d seconds." % ceili(_unstuck_wait)
+		else:
+			_unstuck_wait = UNSTUCK_WAIT
+			Callable(world, &"unstuck").call()
+			msg = "You free yourself."
+	_close()
+	if msg != "":
+		Run.captions.append(msg)
 
 
 func _panel() -> Rect2:
@@ -183,6 +210,9 @@ func _press(index: int, pos: Vector2) -> void:
 		return
 	if screen == "players":
 		_press_players(pos)
+		return
+	if screen == "map" and _unstuck_rect().has_point(pos):
+		_do_unstuck()
 		return
 	if screen == "map" and world.is_land and _press_map(pos):
 		return
@@ -455,6 +485,7 @@ func _say(text: String) -> void:
 
 func _process(delta: float) -> void:
 	_clock += delta
+	_unstuck_wait = maxf(_unstuck_wait - delta, 0.0)
 	_note_age += delta
 	_banner_age += delta
 	while not Run.xp_log.is_empty():
@@ -622,9 +653,27 @@ func _draw_explore(s: Vector2) -> void:
 
 	if _caption != "":
 		var a := clampf(_caption_age * 3.0, 0.0, 1.0)
-		_wrapped(_caption, Vector2(s.x * 0.5, s.y * 0.84), 22, Color(1, 0.95, 0.85, a), minf(s.x * 0.56, 760.0))
+		var cap := _caption_place(s, b)
+		_wrapped(_caption, cap.pos, 22, Color(1, 0.95, 0.85, a), cap.width)
 	if world.is_land:
 		_draw_dash(b.dash)
+
+
+## Where the caption goes: the bottom centre, but never over the DASH button (land). It takes the
+## space between the stick and DASH if that is wide enough, else it sits above DASH and its pips.
+func _caption_place(s: Vector2, b: Dictionary) -> Dictionary:
+	var width := minf(s.x * 0.56, 760.0)
+	var pos := Vector2(s.x * 0.5, s.y * 0.84)
+	if not world.is_land:
+		return {"pos": pos, "width": width}
+	var dash: Rect2 = b.dash
+	var left := 270.0
+	var right := dash.position.x - 16.0
+	if absf(pos.x - dash.get_center().x) - width * 0.5 - 24.0 >= dash.size.x * 0.5:
+		return {"pos": pos, "width": width}
+	if right - left >= 360.0:
+		return {"pos": Vector2((left + right) * 0.5 + 12.0, pos.y), "width": minf(width, right - left - 48.0)}
+	return {"pos": Vector2(pos.x, dash.position.y - 70.0), "width": width}
 
 
 ## The dash button and its pips (one diamond per pip, the next one filling as it recharges).
@@ -947,12 +996,19 @@ func _press_map(pos: Vector2) -> bool:
 	return true
 
 
+func _draw_unstuck() -> void:
+	var r := _unstuck_rect()
+	_box(r)
+	_text("UNSTUCK", r.get_center() + Vector2(0, 8), 22, Color.WHITE)
+
+
 func _draw_land_map(s: Vector2) -> void:
 	draw_rect(Rect2(Vector2.ZERO, s), Color(0, 0, 0, 0.78))
 	var p := _panel()
 	_box(p)
 	_text("THE LAND", p.position + Vector2(28, 60), 38, GOLD, false)
-	_text("Tap a place to travel. Tap elsewhere to close.", Vector2(p.end.x - 210, p.position.y + 54), 18, Color(1, 1, 1, 0.6), true, 380.0)
+	_text("Tap a place to travel. Tap elsewhere to close.", Vector2((p.position.x + 250 + p.end.x - 205) * 0.5, p.position.y + 54), 18, Color(1, 1, 1, 0.6), true, p.end.x - 205 - p.position.x - 260)
+	_draw_unstuck()
 	var tex: ImageTexture = Overworld.build_map()
 	var xf := _map_xform()
 	var k: float = xf.k
@@ -984,7 +1040,8 @@ func _draw_map(s: Vector2) -> void:
 	var p := _panel()
 	_box(p)
 	_text("THE TOWER", p.position + Vector2(28, 60), 38, GOLD, false)
-	_text("Tap to close", Vector2(p.end.x - 110, p.position.y + 54), 18, Color(1, 1, 1, 0.6))
+	_text("Tap to close", Vector2(p.end.x - 290, p.position.y + 54), 18, Color(1, 1, 1, 0.6))
+	_draw_unstuck()
 
 	for t in range(1, Run.FLOORS + 1):
 		var r := Rect2(p.position.x + 28, p.end.y - 40 - t * 92.0, 250, 80)

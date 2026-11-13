@@ -225,4 +225,5 @@ func _jump() -> void:
 	Run.data.ow_z = ow.hero_pos.z
 	Run.save()
 	ow.cam.position = ow.hero_pos + Vector3(sin(ow.cam_yaw), 0, cos(ow.cam_yaw)) * 6.6 + Vector3(0, 3.3, 0)
+	ow.mover.reset_motion()
 	ow.mover._update_camera(1.0)
