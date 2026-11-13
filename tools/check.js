@@ -286,13 +286,15 @@ scenario('duel-tower', 'a tower guardian duel (floor 1) runs to a result', (ctx)
 const towerDone = (lines) => lineOf(lines, /^TOWERBOT DONE /) || '';
 const towerNum = (l, k) => { const m = new RegExp(`\\b${k}=(\\d+)`).exec(l); return m ? Number(m[1]) : NaN; };
 
-scenario('tower-walls', 'wall bot stress-walks every tier layout and duel spot: nobody ends inside or stuck', (ctx) => solo(ctx, {
+scenario('tower-walls', 'wall bot: walls drawn where blocked, duels stand fighters on floor, stress walks never inside or stuck', (ctx) => solo(ctx, {
   args: ['--shot-when=towermap', '--towerbot=walls'], finish: /^TOWERBOT DONE /, seconds: 900,
   verify: (lines) => {
     const l = towerDone(lines);
-    const bad = ['inside', 'stuck', 'clip', 'spawn_bad', 'duel_stuck', 'real_duel_stuck'].filter((k) => towerNum(l, k) !== 0);
+    const bad = ['inside', 'stuck', 'clip', 'spawn_bad', 'wall_mismatch', 'duel_inside', 'duel_stuck', 'thin_cross',
+      'real_duel_stuck', 'real_mismatch', 'frame_inside', 'frame_stuck', 'frame_unstuck'].filter((k) => towerNum(l, k) !== 0);
     if (bad.length) return `nonzero ${bad.join(', ')}: ${l}`;
     if (!/ real=ok\b/.test(l)) return `the real duel did not run: ${l}`;
+    if (!lines.some((x) => /^TOWERBOT frames /.test(x))) return 'the per-frame pass did not run';
     if (lines.some((x) => /^UNSTUCK /.test(x))) return `the safety net fired during the sweep: ${lineOf(lines, /^UNSTUCK /)}`;
     return null;
   },
