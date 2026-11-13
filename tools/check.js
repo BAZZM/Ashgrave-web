@@ -280,6 +280,36 @@ scenario('duel-tower', 'a tower guardian duel (floor 1) runs to a result', (ctx)
   verify: expectResult(/^RESULT \w+ The Cinder Warden /),
 }));
 
+// ---- 2b. tower walls (world_bot.gd): the tower opens directly (--shot-when=towermap
+// with no --shot only routes the land to the tower) and the bot works in logic steps.
+
+const towerDone = (lines) => lineOf(lines, /^TOWERBOT DONE /) || '';
+const towerNum = (l, k) => { const m = new RegExp(`\\b${k}=(\\d+)`).exec(l); return m ? Number(m[1]) : NaN; };
+
+scenario('tower-walls', 'wall bot: walls drawn where blocked, duels stand fighters on floor, stress walks never inside or stuck', (ctx) => solo(ctx, {
+  args: ['--shot-when=towermap', '--towerbot=walls'], finish: /^TOWERBOT DONE /, seconds: 900,
+  verify: (lines) => {
+    const l = towerDone(lines);
+    const bad = ['inside', 'stuck', 'clip', 'spawn_bad', 'wall_mismatch', 'duel_inside', 'duel_stuck', 'thin_cross',
+      'real_duel_stuck', 'real_mismatch', 'frame_inside', 'frame_stuck', 'frame_unstuck'].filter((k) => towerNum(l, k) !== 0);
+    if (bad.length) return `nonzero ${bad.join(', ')}: ${l}`;
+    if (!/ real=ok\b/.test(l)) return `the real duel did not run: ${l}`;
+    if (!lines.some((x) => /^TOWERBOT frames /.test(x))) return 'the per-frame pass did not run';
+    if (lines.some((x) => /^UNSTUCK /.test(x))) return `the safety net fired during the sweep: ${lineOf(lines, /^UNSTUCK /)}`;
+    return null;
+  },
+}));
+
+scenario('tower-unstuck', 'hero put inside walls is freed within 1s (UNSTUCK line), and unstuck() steps back', (ctx) => solo(ctx, {
+  args: ['--shot-when=towermap', '--towerbot=net'], finish: /^TOWERBOT DONE /, seconds: 300,
+  verify: (lines) => {
+    const l = towerDone(lines);
+    if (towerNum(l, 'net_bad') !== 0 || !(towerNum(l, 'net_ok') >= 4) || !/ manual=ok\b/.test(l)) return `safety net failed: ${l}`;
+    const n = lines.filter((x) => /^UNSTUCK tier=\d+ from=.* why=inside/.test(x)).length;
+    return n >= 4 ? null : `expected 4 UNSTUCK lines, saw ${n}`;
+  },
+}));
+
 // ---- 3. world tour
 
 // On the road north the bot is sometimes caught by a strong foe and loses,

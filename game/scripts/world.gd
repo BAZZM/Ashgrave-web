@@ -3,6 +3,16 @@ extends Node3D
 
 const SPEED := 4.6
 const GoldenBot := preload("res://scripts/overworld_bot.gd")
+const WallBot := preload("res://scripts/world_bot.gd")
+## Longest single move test (units): about one 60 fps walking step (4.6 / 60), so a long
+## frame moves the hero as that many short frames would. That is well under the thinnest
+## blocked strip between walkable areas (0.5, on tier 2), so a long frame cannot carry the
+## hero across a wall or stop them a whole long step short of one. At 60 fps it is one test.
+const SUB_STEP := 0.08
+## Spacing (units) at which room edges are sampled to lay the walls.
+const WALL_RES := 0.05
+## Game seconds pushed without moving before the safety net checks for a way out.
+const STUCK_AFTER := 0.5
 const PROMPTS := {"chest": "OPEN", "smith": "TRADE", "brazier": "REST", "relic": "TAKE", "exit": "ASCEND", "entry": "DESCEND"}
 
 var is_land := false
@@ -34,6 +44,15 @@ var _last_safe := Vector3.ZERO
 var _leaving := false
 var _stone: StandardMaterial3D
 var _show_light: OmniLight3D
+## Tower wall test bot (`--towerbot=walls`, see world_bot.gd); null in normal play.
+var _wbot: RefCounted
+var _stuck_t := 0.0
+## Recent safe spots the hero walked through on this tier (oldest first), for unstuck().
+var _trail: Array = []
+## Where the hero stood when the current duel began (walkable), for putting them back after.
+var _pre_duel := Vector3.ZERO
+## Times the safety net or unstuck() moved the hero (the test bot reads it).
+var unstuck_count := 0
 
 
 func _ready() -> void:
@@ -66,6 +85,8 @@ func _ready() -> void:
 			_shot_when = a.trim_prefix("--shot-when=")
 		elif a.begins_with("--golden="):
 			GoldenBot.golden_world(self, a.trim_prefix("--golden="))
+		elif a.begins_with("--towerbot="):
+			_wbot = WallBot.new(self, a.trim_prefix("--towerbot="))
 	if direct_duel or _shot_when in ["windup", "open", "result", "tutorial"]:
 		get_tree().change_scene_to_file.call_deferred("res://scenes/duel.tscn")
 		return
@@ -88,7 +109,7 @@ func _ready() -> void:
 	add_child(hero)
 	hero.configure(Run.look())
 	if Run.spawn is Vector3:
-		hero_pos = Run.spawn
+		hero_pos = _settle(Run.spawn)
 	elif Run.spawn == "exit":
 		hero_pos = Tiers.EXIT + Vector3(0, 0, 4.0)
 		hero_yaw = PI
@@ -231,35 +252,12 @@ func _build_geometry() -> void:
 		slab.size = Vector3(r.size.x, 0.5, r.size.y)
 		_mesh(slab, Vector3(r.get_center().x, -0.25 - i * 0.003, r.get_center().y), floor_mat)
 
-		for edge in 4:
-			var horizontal := edge < 2
-			var length := r.size.x if horizontal else r.size.y
-			var n := int(ceil(length / 2.0))
-			var seg := length / n
-			for k in n:
-				var along := (k + 0.5) * seg
-				var c: Vector2
-				var normal: Vector2
-				match edge:
-					0:
-						c = Vector2(r.position.x + along, r.position.y)
-						normal = Vector2(0, -1)
-					1:
-						c = Vector2(r.position.x + along, r.end.y)
-						normal = Vector2(0, 1)
-					2:
-						c = Vector2(r.position.x, r.position.y + along)
-						normal = Vector2(-1, 0)
-					_:
-						c = Vector2(r.end.x, r.position.y + along)
-						normal = Vector2(1, 0)
-				if _inside(c + normal * 0.6):
-					continue
-				var basis := Basis.IDENTITY if horizontal else Basis(Vector3.UP, PI * 0.5)
-				basis = basis * Basis.from_scale(Vector3(seg / 2.0, 1, 1))
-				wall_xf.append(Transform3D(basis, Vector3(c.x + normal.x * 0.35, wall_h * 0.5, c.y + normal.y * 0.35)))
+	for piece in _wall_layout():
+		var fp: Rect2 = piece
+		var c := fp.get_center()
+		wall_xf.append(Transform3D(Basis.from_scale(Vector3(fp.size.x, 1, fp.size.y)), Vector3(c.x, wall_h * 0.5, c.y)))
 	var wall := BoxMesh.new()
-	wall.size = Vector3(2.02, wall_h, 0.7)
+	wall.size = Vector3(1.0, wall_h, 1.0)
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.mesh = wall
@@ -317,6 +315,50 @@ func _build_geometry() -> void:
 			fl.light_energy = 5.0
 			fl.omni_range = 16.0
 			add_child(fl)
+
+
+## Point on edge `edge` (0 top, 1 bottom, 2 left, 3 right) of r, `along` from its start,
+## moved `out` along the edge's outward normal.
+func _edge_point(r: Rect2, edge: int, along: float, out: float) -> Vector2:
+	match edge:
+		0: return Vector2(r.position.x + along, r.position.y - out)
+		1: return Vector2(r.position.x + along, r.end.y + out)
+		2: return Vector2(r.position.x - out, r.position.y + along)
+	return Vector2(r.end.x + out, r.position.y + along)
+
+
+## Footprints (x, z) of the wall pieces: along every room edge, a wall covers exactly the
+## stretches the hero cannot walk across (sampled every WALL_RES), so what is drawn is what
+## blocks; it stands outside the edge, up to 0.7 thick, thinner where another room is near.
+func _wall_layout() -> Array:
+	var out: Array = []
+	for r: Rect2 in rects:
+		for edge in 4:
+			var length := r.size.x if edge < 2 else r.size.y
+			var n := int(ceil(length / WALL_RES))
+			var h := length / n
+			var run := -1
+			for k in n + 1:
+				var p := _edge_point(r, edge, (k + 0.5) * h, -0.01) if k < n else Vector2.ZERO
+				var closed := k < n and not _walkable(Vector3(p.x, 0, p.y))
+				if closed and run < 0:
+					run = k
+				elif not closed and run >= 0:
+					out.append(_wall_piece(r, edge, run * h, k * h))
+					run = -1
+	return out
+
+
+func _wall_piece(r: Rect2, edge: int, a0: float, a1: float) -> Rect2:
+	var thick := 0.7
+	for i in range(1, 8):
+		var s := i * 0.1
+		for a in [a0 + 0.02, (a0 + a1) * 0.5, a1 - 0.02]:
+			if _inside(_edge_point(r, edge, a, s)):
+				thick = minf(thick, maxf(s - 0.05, 0.05))
+	var p0 := _edge_point(r, edge, a0, 0.0)
+	var p1 := _edge_point(r, edge, a1, thick)
+	return Rect2(Vector2(minf(p0.x, p1.x), minf(p0.y, p1.y)), (p1 - p0).abs())
 
 
 func _gate(pos: Vector3, sealed: bool) -> Node3D:
@@ -456,6 +498,8 @@ func _walkable(p: Vector3) -> bool:
 func _process(delta: float) -> void:
 	if hero == null:
 		return
+	if _wbot != null:
+		_wbot.tick(delta)
 	_pub_t -= delta
 	if _pub_t <= 0.0:
 		_pub_t = 3.0
@@ -485,21 +529,133 @@ func _process(delta: float) -> void:
 		var r := Vector3(cos(cam_yaw), 0, -sin(cam_yaw))
 		dir = r * input.x - f * input.y
 	var amount := minf(dir.length(), 1.0)
+	var was := hero_pos
 	if amount > 0.05:
-		var step := dir.limit_length(1.0) * SPEED * delta
-		if _walkable(hero_pos + Vector3(step.x, 0, 0)):
-			hero_pos.x += step.x
-		if _walkable(hero_pos + Vector3(0, 0, step.z)):
-			hero_pos.z += step.z
+		_move_hero(dir, delta)
 		hero_yaw = lerp_angle(hero_yaw, atan2(-dir.x, -dir.z), minf(delta * 10.0, 1.0))
 		look_cool -= delta
 		if look_cool <= 0.0:
 			cam_yaw = lerp_angle(cam_yaw, hero_yaw, minf(delta * 1.1, 1.0))
+	_guard(delta, amount > 0.05, was)
 	hero.set_walk(amount)
 	hero.position = hero_pos
 	hero.rotation.y = hero_yaw
 	_update_camera(delta)
 	_check_surroundings()
+
+
+## One frame of walking: each axis separately (so the hero slides along a wall), in
+## sub-steps of at most SUB_STEP so a long frame behaves like several short ones.
+func _move_hero(dir: Vector3, delta: float, speed := SPEED) -> void:
+	var step := dir.limit_length(1.0) * speed * delta
+	var n := maxi(1, int(ceil(step.length() / SUB_STEP)))
+	var part := step / n
+	for i in n:
+		if _walkable(hero_pos + Vector3(part.x, 0, 0)):
+			hero_pos.x += part.x
+		if _walkable(hero_pos + Vector3(0, 0, part.z)):
+			hero_pos.z += part.z
+
+
+## The nearest walkable point to p (p itself if it is walkable), searched outward in rings
+## up to 3 units; failing that the last safe spot, failing that p.
+func _settle(p: Vector3) -> Vector3:
+	p.y = 0.0
+	if _walkable(p):
+		return p
+	var r := 0.1
+	while r <= 3.0:
+		for k in 32:
+			var q := p + Vector3(sin(TAU * k / 32.0), 0, cos(TAU * k / 32.0)) * r
+			if _walkable(q):
+				return q
+		r += 0.1
+	return _last_safe if _walkable(_last_safe) else p
+
+
+## Where to put a hero who stood at `from` (walkable) and was moved to `to` (a duel's stand
+## point): the last walkable point on the straight line from `from` toward `to`, so they
+## never end up across a wall or in another room. Only if `from` is not walkable, the
+## nearest walkable point to `to`.
+func _settle_from(from: Vector3, to: Vector3) -> Vector3:
+	from.y = 0.0
+	to.y = 0.0
+	if not _walkable(from):
+		return _settle(to)
+	var n := int(ceil(from.distance_to(to) / 0.05))
+	var last := from
+	for i in range(1, n + 1):
+		var q := from.lerp(to, float(i) / n)
+		if not _walkable(q):
+			break
+		last = q
+	return last
+
+
+func _can_move() -> bool:
+	for k in 8:
+		var d := Vector3(sin(TAU * k / 8.0), 0, cos(TAU * k / 8.0)) * 0.1
+		if _walkable(hero_pos + Vector3(d.x, 0, 0)) or _walkable(hero_pos + Vector3(0, 0, d.z)):
+			return true
+	return false
+
+
+## Safety net, every walking frame: a hero standing in blocked space is moved to the nearest
+## free spot at once; one pushed for STUCK_AFTER seconds without moving, with no direction
+## open, is walked back along the trail. Neither can pass a sealed gate or an unbeaten
+## guardian: the gate only opens by interaction, and the trail holds only places already
+## walked, away from foes. Not reached during a duel (_process returns before this).
+func _guard(delta: float, pushed: bool, was: Vector3) -> void:
+	if not _walkable(hero_pos):
+		_free("inside")
+		return
+	if not pushed or hero_pos.distance_squared_to(was) > 1e-8:
+		_stuck_t = 0.0
+		return
+	_stuck_t += delta
+	if _stuck_t >= STUCK_AFTER:
+		_stuck_t = 0.0
+		if not _can_move():
+			_free("boxed")
+
+
+func _trail_back(from: Vector3) -> Vector3:
+	for i in range(_trail.size() - 1, -1, -1):
+		var p: Vector3 = _trail[i]
+		if p.distance_to(from) >= 1.0 and _walkable(p):
+			return p
+	if _last_safe.distance_to(from) >= 1.0 and _walkable(_last_safe):
+		return _last_safe
+	return from
+
+
+func _free(why: String) -> bool:
+	var from := hero_pos
+	var to := _settle(from)
+	if to.distance_to(from) < 0.001:
+		to = _trail_back(from)
+	if to.distance_to(from) < 0.001:
+		return false
+	hero_pos = to
+	hero.position = to
+	_stuck_t = 0.0
+	unstuck_count += 1
+	print("UNSTUCK tier=%d from=(%.2f,%.2f) to=(%.2f,%.2f) why=%s" % [tier, from.x, from.z, to.x, to.z, why])
+	return true
+
+
+## Manual way out, for a HUD button: frees a hero in blocked space to the nearest free spot,
+## otherwise returns them to the latest safe spot on this tier at least 1 unit back along
+## where they walked (never further: with no such spot they stay put). Returns whether the
+## hero moved. Refuses (false, nothing moves) before the tier has started, during a duel or
+## when a foe is close enough to start one, while a screen is open, or while leaving.
+func unstuck() -> bool:
+	if hero == null or not started or duel != null or _leaving or (hud != null and hud.screen != ""):
+		return false
+	for e in ents:
+		if e.type == "foe" and (e.pos as Vector3).distance_to(hero_pos) < 2.6:
+			return false
+	return _free("manual")
 
 
 func _update_camera(delta: float) -> void:
@@ -539,8 +695,12 @@ func _check_surroundings() -> void:
 		elif d < best:
 			best = d
 			near = e
-	if not foe_close:
+	if not foe_close and _walkable(hero_pos):
 		_last_safe = hero_pos
+		if _trail.is_empty() or (_trail[-1] as Vector3).distance_to(hero_pos) >= 2.0:
+			_trail.append(hero_pos)
+			if _trail.size() > 8:
+				_trail.pop_front()
 
 
 func ground_y(_p: Vector3) -> float:
@@ -560,6 +720,7 @@ func _start_duel(e: Dictionary) -> void:
 	for g in group:
 		foes.append({"node": g.node, "def": EnemyDef.make_encounter(g.kind, tier, int(Run.data.loop)), "enc": {"id": g.id, "kind": g.kind}})
 	_duel_ents = group
+	_pre_duel = hero_pos
 	Run.spawn = _last_safe
 	duel = Duel.new()
 	duel.host = self
@@ -582,7 +743,7 @@ func duel_done(won: bool, d: Duel) -> void:
 		return
 	if guardian_fell:
 		_leaving = true
-		Run.spawn = hero.global_position if not d.reward.get("cleared", false) else "entrance"
+		Run.spawn = _settle_from(_pre_duel, hero.global_position) if not d.reward.get("cleared", false) else "entrance"
 		get_tree().reload_current_scene.call_deferred()
 		return
 	hud.visible = true
@@ -594,8 +755,7 @@ func duel_done(won: bool, d: Duel) -> void:
 				ents.erase(e)
 	_duel_ents = []
 	hero.play(&"idle")
-	hero_pos = hero.global_position
-	hero_pos.y = 0.0
+	hero_pos = _settle_from(_pre_duel, hero.global_position)
 	hero.position = hero_pos
 	hero.rotation = Vector3(0, hero_yaw, 0)
 	_last_safe = hero_pos
