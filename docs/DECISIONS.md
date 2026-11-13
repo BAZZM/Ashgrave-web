@@ -40,3 +40,14 @@ The orchestrator owns this file.
 | 12 Nov 2026 | Which tool generated the two texture packs? | (open question from the paperwork lane) | ChatGPT. Recorded in docs/ASSETS.md with the OpenAI terms link. Packs delivered to assets_src/_packs/. |
 | 12 Nov 2026 | Who does the texture work? | Orchestrator lanes / the owner's separate texture chat | The texture chat. The orchestrator runs everything else; file ownership is in the claude.ai project doc claude/orchestrator-status.md. |
 | 12 Nov 2026 | Release world agility (S1) with the stuck-in-walls fix? | Together as Build 12 / stuck fix first | Together, once both pass review and checks. |
+| 13 Nov 2026 | Build 11 phone test | (report) | ONLINE joined and showed a player count. Crashes came back with the restart banner (text still to be sent). Hero stuck in walls, mainly the tower. |
+| 13 Nov 2026 | KayKit heads (ART_BIBLE q3, RIG_PLAN q1) | As shipped / head 0.85 with faces in shadow / also closed helms | Head scale 0.85, faces in shadow. |
+| 13 Nov 2026 | Sky (ART_BIBLE q2) | Always overcast / blue noon over Hearthvale | Always overcast; Hearthvale is the warmest region. |
+| 13 Nov 2026 | Ash ground (ART_BIBLE q1) | Reuse forest floor and mud grains / source a CC0 ash texture now / generate one | Source a CC0 ash texture now. |
+| 13 Nov 2026 | Hunter's Bow (RIG_PLAN q2) | Crossbow and rename / bow in crossbow pose / author a draw clip | Show a crossbow and rename the item. |
+| 13 Nov 2026 | Run animation (RIG_PLAN q3) | Cap leg speed at 1.6x / no cap / slow the world 25% | No cap: legs match speed. |
+| 13 Nov 2026 | Agility XP with sprint and dash | Scale back / keep the bonus | Scale back so levelling pace matches Build 11. |
+| 13 Nov 2026 | Licence for the repo's own code | All rights reserved / MIT / source-available / later | All rights reserved. |
+| 13 Nov 2026 | Replacement sounds | Scout's first choices / owner picks | Scout's first choices (docs/shortlists/AUDIO.md); owner downloads them. |
+| 13 Nov 2026 | Cloudflare account check | Later / done | Later. |
+| 13 Nov 2026 | Usage | (owner instruction) | Continue usage-aware: Build 12 lanes only, narrowed scope, R1 paused, no extra review rounds. |
