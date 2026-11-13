@@ -6,6 +6,8 @@ var ow: Overworld
 var _duel_ents: Array = []
 var _pvp_pending := ""
 var _pending_card := {}
+## Game time (ow._t) when the last duel began or ended; the manual Unstuck keeps away from fights.
+var last_fight_t := -99.0
 
 
 func _init(owner_world: Overworld) -> void:
@@ -19,6 +21,8 @@ func _start_duel(e: Dictionary) -> void:
 	ow.gather_progress = -1.0
 	ow.stick = Vector2.ZERO
 	ow.hero.set_walk(0.0)
+	ow.mover.reset_motion()
+	last_fight_t = ow._t
 	var group: Array = [e]
 	for o in ow.ents:
 		if o.type == "foe" and o != e and o.node != null and group.size() < 3 and (o.pos as Vector3).distance_to(e.pos) < 11.0:
@@ -72,13 +76,21 @@ func duel_done(won: bool, d: Duel) -> void:
 		ow.cam_yaw = 0.0
 	ow.hero_pos.y = Land.walk_height(ow.hero_pos.x, ow.hero_pos.z)
 	ow.hero.position = ow.hero_pos
+	_land_free("duel")
 	ow._last_safe = ow.hero_pos
+	ow.mover.reset_motion()
 	ow.mover._update_camera(1.0)
+	last_fight_t = ow._t
 	Run.data.ow_x = ow.hero_pos.x
 	Run.data.ow_z = ow.hero_pos.z
 	Run.save()
 	if ow._bot == "tour" and not won:
 		print("TOUR hero fell in the land")
+
+
+## The duel's stand point is not checked against the land; make sure the hero is not left in it.
+func _land_free(why: String) -> void:
+	ow.mover.settle_position(why)
 
 
 func _pvp_done(won: bool, d: Duel) -> void:
@@ -96,8 +108,11 @@ func _pvp_done(won: bool, d: Duel) -> void:
 		Run.captions.append("You wake by the hearth. %s took %d of your gold." % [d.pvp.name, int(d.reward.get("lost_gold", 0))])
 	ow.hero_pos.y = Land.walk_height(ow.hero_pos.x, ow.hero_pos.z)
 	ow.hero.position = ow.hero_pos
+	_land_free("duel")
 	ow._last_safe = ow.hero_pos
+	ow.mover.reset_motion()
 	ow.mover._update_camera(1.0)
+	last_fight_t = ow._t
 	Run.data.ow_x = ow.hero_pos.x
 	Run.data.ow_z = ow.hero_pos.z
 	Run.save()
@@ -189,6 +204,8 @@ func _start_pvp(id: String, who: String, card: Dictionary, i_go_first: bool, zon
 	ow.gather_progress = -1.0
 	ow.stick = Vector2.ZERO
 	ow.hero.set_walk(0.0)
+	ow.mover.reset_motion()
+	last_fight_t = ow._t
 	var e: Dictionary = ow._remote[id]
 	(e.node as PlaceholderVisual).set_walk(0.0)
 	ow.duel = Duel.new()

@@ -25,6 +25,9 @@ var _talk := {}
 var sell_mode := false
 var _banner := ""
 var _banner_age := 9.0
+## Tower only: seconds until the Unstuck entry may be used again (the land keeps its own in the mover).
+var _unstuck_wait := 0.0
+const UNSTUCK_WAIT := 10.0
 
 
 func _ready() -> void:
@@ -75,12 +78,37 @@ func _buttons() -> Dictionary:
 	var s := size
 	return {
 		"act": Rect2(s.x - 230, s.y - 220, 170, 170),
+		"dash": Rect2(s.x - 380, s.y - 180, 130, 130),
 		"bag": Rect2(s.x - 150, 26, 100, 60),
 		"map": Rect2(s.x - 262, 26, 100, 60),
 		"skills": Rect2(s.x - 394, 26, 120, 60),
 		"quests": Rect2(s.x - 536, 26, 130, 60),
 		"online": Rect2(s.x - 716, 26, 168, 60),
 	}
+
+
+## The Unstuck entry: top right of the map screen, so it is two taps (MAP, then UNSTUCK) and never
+## on the main HUD.
+func _unstuck_rect() -> Rect2:
+	var p := _panel()
+	return Rect2(p.end.x - 190, p.position.y + 12, 170, 48)
+
+
+func _do_unstuck() -> void:
+	var msg := ""
+	if world.is_land:
+		var r: Dictionary = world.mover.manual_unstuck()
+		msg = String(r.msg)
+	elif world.has_method("unstuck"):
+		if _unstuck_wait > 0.0:
+			msg = "Unstuck again in %d seconds." % ceili(_unstuck_wait)
+		else:
+			_unstuck_wait = UNSTUCK_WAIT
+			Callable(world, &"unstuck").call()
+			msg = "You free yourself."
+	_close()
+	if msg != "":
+		Run.captions.append(msg)
 
 
 func _panel() -> Rect2:
@@ -153,6 +181,9 @@ func _input(event: InputEvent) -> void:
 					world.begin()
 				elif screen == "":
 					world.interact()
+			KEY_SHIFT:
+				if world.is_land and screen == "" and world.started:
+					world.mover.try_dash()
 			KEY_I: open("bag") if screen == "" else _close()
 			KEY_M: open("map") if screen == "" else _close()
 			KEY_K: open("skills") if screen == "" else _close()
@@ -180,6 +211,9 @@ func _press(index: int, pos: Vector2) -> void:
 	if screen == "players":
 		_press_players(pos)
 		return
+	if screen == "map" and _unstuck_rect().has_point(pos):
+		_do_unstuck()
+		return
 	if screen == "map" and world.is_land and _press_map(pos):
 		return
 	if screen in ["map", "skills", "quests"]:
@@ -190,6 +224,9 @@ func _press(index: int, pos: Vector2) -> void:
 		return
 	if screen != "":
 		_press_screen(pos)
+		return
+	if world.is_land and _buttons().dash.has_point(pos):
+		world.mover.try_dash()
 		return
 	if _caption != "" and pos.y > size.y * 0.72 and absf(pos.x - size.x * 0.5) < size.x * 0.3:
 		_caption_age = 99.0
@@ -448,6 +485,7 @@ func _say(text: String) -> void:
 
 func _process(delta: float) -> void:
 	_clock += delta
+	_unstuck_wait = maxf(_unstuck_wait - delta, 0.0)
 	_note_age += delta
 	_banner_age += delta
 	while not Run.xp_log.is_empty():
@@ -615,7 +653,44 @@ func _draw_explore(s: Vector2) -> void:
 
 	if _caption != "":
 		var a := clampf(_caption_age * 3.0, 0.0, 1.0)
-		_wrapped(_caption, Vector2(s.x * 0.5, s.y * 0.84), 22, Color(1, 0.95, 0.85, a), minf(s.x * 0.56, 760.0))
+		var cap := _caption_place(s, b)
+		_wrapped(_caption, cap.pos, 22, Color(1, 0.95, 0.85, a), cap.width)
+	if world.is_land:
+		_draw_dash(b.dash)
+
+
+## Where the caption goes: the bottom centre, but never over the DASH button (land). It takes the
+## space between the stick and DASH if that is wide enough, else it sits above DASH and its pips.
+func _caption_place(s: Vector2, b: Dictionary) -> Dictionary:
+	var width := minf(s.x * 0.56, 760.0)
+	var pos := Vector2(s.x * 0.5, s.y * 0.84)
+	if not world.is_land:
+		return {"pos": pos, "width": width}
+	var dash: Rect2 = b.dash
+	var left := 270.0
+	var right := dash.position.x - 16.0
+	if absf(pos.x - dash.get_center().x) - width * 0.5 - 24.0 >= dash.size.x * 0.5:
+		return {"pos": pos, "width": width}
+	if right - left >= 360.0:
+		return {"pos": Vector2((left + right) * 0.5 + 12.0, pos.y), "width": minf(width, right - left - 48.0)}
+	return {"pos": Vector2(pos.x, dash.position.y - 70.0), "width": width}
+
+
+## The dash button and its pips (one diamond per pip, the next one filling as it recharges).
+func _draw_dash(r: Rect2) -> void:
+	var can: bool = world.mover.dash_ready()
+	_box(r, world.mover.dashing())
+	if not can and not world.mover.dashing():
+		draw_rect(r, Color(0, 0, 0, 0.45))
+	_text("DASH", r.get_center() + Vector2(0, 8), 22, Color(1, 1, 1, 1.0 if can else 0.5))
+	var pips: float = world.mover.dash_pips()
+	var pmax: int = int(world.mover.dash_pip_max())
+	for i in pmax:
+		var c := Vector2(r.get_center().x + (i - (pmax - 1) * 0.5) * 22.0, r.position.y - 16.0)
+		_diamond(c, 7.0, Color(0.25, 0.22, 0.2, 0.8))
+		var fill := clampf(pips - i, 0.0, 1.0)
+		if fill > 0.0:
+			_diamond(c, 7.0 * (0.4 + 0.6 * fill), Color(GOLD.r, GOLD.g, GOLD.b, 0.35 + 0.65 * fill))
 
 
 func _draw_gear(s: Vector2) -> void:
@@ -921,12 +996,19 @@ func _press_map(pos: Vector2) -> bool:
 	return true
 
 
+func _draw_unstuck() -> void:
+	var r := _unstuck_rect()
+	_box(r)
+	_text("UNSTUCK", r.get_center() + Vector2(0, 8), 22, Color.WHITE)
+
+
 func _draw_land_map(s: Vector2) -> void:
 	draw_rect(Rect2(Vector2.ZERO, s), Color(0, 0, 0, 0.78))
 	var p := _panel()
 	_box(p)
 	_text("THE LAND", p.position + Vector2(28, 60), 38, GOLD, false)
-	_text("Tap a place to travel. Tap elsewhere to close.", Vector2(p.end.x - 210, p.position.y + 54), 18, Color(1, 1, 1, 0.6), true, 380.0)
+	_text("Tap a place to travel. Tap elsewhere to close.", Vector2((p.position.x + 250 + p.end.x - 205) * 0.5, p.position.y + 54), 18, Color(1, 1, 1, 0.6), true, p.end.x - 205 - p.position.x - 260)
+	_draw_unstuck()
 	var tex: ImageTexture = Overworld.build_map()
 	var xf := _map_xform()
 	var k: float = xf.k
@@ -958,7 +1040,8 @@ func _draw_map(s: Vector2) -> void:
 	var p := _panel()
 	_box(p)
 	_text("THE TOWER", p.position + Vector2(28, 60), 38, GOLD, false)
-	_text("Tap to close", Vector2(p.end.x - 110, p.position.y + 54), 18, Color(1, 1, 1, 0.6))
+	_text("Tap to close", Vector2(p.end.x - 290, p.position.y + 54), 18, Color(1, 1, 1, 0.6))
+	_draw_unstuck()
 
 	for t in range(1, Run.FLOORS + 1):
 		var r := Rect2(p.position.x + 28, p.end.y - 40 - t * 92.0, 250, 80)

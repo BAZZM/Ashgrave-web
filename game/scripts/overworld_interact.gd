@@ -12,6 +12,8 @@ func _init(owner_world: Overworld) -> void:
 
 
 func _check_surroundings(delta: float) -> void:
+	if ow.bots.agreal_hold():
+		return
 	ow.near = {}
 	var best := 3.0
 	var foe_close := false
@@ -51,7 +53,7 @@ func _check_surroundings(delta: float) -> void:
 			v2.set_walk(walking)
 			if d < 8.0:
 				foe_close = true
-			if d < 2.5 and ow._bot not in ["gather", "pvp_a", "pvp_b"]:
+			if d < 2.5 and ow._bot not in ["gather", "pvp_a", "pvp_b"] and not ow.mover.dash_iframes():
 				ow.duels._start_duel(e)
 				return
 		elif e.type == "beast":
@@ -81,7 +83,7 @@ func _check_surroundings(delta: float) -> void:
 		_reached = here
 		if here != "":
 			Quests.on_reach(here)
-	if not foe_close:
+	if not foe_close and ow.mover.is_free(ow.hero_pos):
 		ow._last_safe = ow.hero_pos
 
 
@@ -167,6 +169,8 @@ func interact() -> void:
 				return
 			var east := ow.hero_pos.x < Land.river_x(Land.STONES_Z)
 			ow.hero_pos = Vector3(Land.river_x(Land.STONES_Z) + (9.0 if east else -9.0), 0, Land.STONES_Z)
+			ow.mover.settle_position("stones")
+			ow.mover.reset_motion()
 			Run.train("agility", 60)
 		"tower":
 			ow._leaving = true
@@ -177,8 +181,10 @@ func interact() -> void:
 			Run.captions.append(Story.inscription(1, int(Run.data.bloodline)))
 			if Run.combat_level() < 12:
 				Run.captions.append("Everything here is far stronger than the land outside. Leave by the gate behind you if it is too much.")
-			Run.data.ow_x = ow.hero_pos.x
-			Run.data.ow_z = ow.hero_pos.z + 6.0
+			var back: Vector3 = ow.mover.free_near(ow.hero_pos + Vector3(0, 0, 6.0))
+			Run.data.ow_x = back.x
+			Run.data.ow_z = back.z
+			ow.mover.reset_motion()
 			Run.save()
 			ow.get_tree().change_scene_to_file.call_deferred("res://scenes/world.tscn")
 			return

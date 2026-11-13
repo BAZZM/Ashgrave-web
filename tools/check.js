@@ -348,6 +348,195 @@ scenario('gather', 'gather bot mines, crafts and takes the task', (ctx) => solo(
   },
 }));
 
+// ---- 4b. world agility (docs/COMBAT_RULES.md section 6, acceptance in section 9)
+
+// `--autoplay=gather --agility`: the hero moves by the real movement code on a cleared lane,
+// fed a scripted stick; the game prints AGILITY lines measured in game time (see
+// overworld_bot.gd). Each check below quotes the spec number beside the measured one.
+function parseAgility(lines) {
+  const out = {};
+  for (const l of lines) {
+    const m = /^AGILITY (\w+) (.*)$/.exec(l);
+    if (!m) continue;
+    const kv = {};
+    for (const part of m[2].split(' ')) {
+      const e = part.indexOf('=');
+      if (e > 0) kv[part.slice(0, e)] = part.slice(e + 1);
+    }
+    (out[m[1]] = out[m[1]] || []).push(kv);
+  }
+  return out;
+}
+
+scenario('agility', 'world movement: run, sprint, turns, dash and its limits match COMBAT_RULES section 6', async (ctx) => {
+  const relay = await ctx.newRelay();
+  const c = await ctx.client('bot');
+  c.stopRe = /^AGILITY (done|fail)/;
+  await c.start(ctx.base, ['--autoplay=gather', '--agility'], [relay.url]);
+  const r = await waitUntil([c], () => c.find(/^AGILITY (done|fail)/), 420);
+  const notes = errorNotes([c]);
+  if (r !== 'ok') { notes.push(`no AGILITY done within 420s (${r})`); return { ok: false, notes }; }
+  if (c.find(/^AGILITY fail/)) return { ok: false, notes: [...notes, c.find(/^AGILITY fail/)] };
+  const a = parseAgility(c.lines);
+  const g = (name, key = null, i = 0) => {
+    const row = a[name] && a[name][i];
+    if (!row) return NaN;
+    return key === null ? row : (row[key] === undefined ? NaN : (isNaN(Number(row[key])) ? row[key] : Number(row[key])));
+  };
+  const rows = [];
+  // [label, spec, measured, ok]
+  const num = (label, spec, name, key, lo, hi, i = 0) => {
+    const v = g(name, key, i);
+    rows.push([label, spec, Number.isFinite(v) ? v.toFixed(3) : 'missing', Number.isFinite(v) && v >= lo && v <= hi]);
+  };
+  const flag = (label, spec, name, key, want) => {
+    const v = g(name, key);
+    rows.push([label, spec, String(v), String(v) === String(want)]);
+  };
+  num('sprint: 100 u at full stick, flat off-road (s)', '<= 9.0', 'sprint', 't100', 0, 9.0);
+  num('run speed reached by (s)', '0.25', 'sprint', 'run_t', 0.15, 0.35);
+  num('sprint starts after (s)', '1.0', 'sprint', 'sprint_t', 0.95, 1.15);
+  num('sprint top speed reached by (s)', '1.0 + 0.4', 'sprint', 'top_t', 1.3, 1.6);
+  num('sprint top speed (u/s)', '12.5', 'sprint', 'top', 12.4, 12.6);
+  num('stopping from sprint: time (s)', '12.5/60 = 0.21', 'stop', 'time', 0.15, 0.3);
+  num('walk at stick 0.7 (u/s)', '0.7 x 5.5 = 3.85', 'walk', 'speed', 3.75, 3.95);
+  num('camera look-ahead at sprint (u)', 'max 2.5', 'sprint', 'look_max', 2.3, 2.5001);
+  num('camera look-ahead at walk 0.7 (u)', '3.85 x 0.25 = 0.96', 'walk', 'look_max', 0.8, 1.1);
+  num('camera FOV at sprint (deg)', '66', 'sprint', 'fov_max', 65.5, 66.1);
+  num('turn 90 deg at run (s)', '90/540 = 0.167', 'turn_run', 't_yaw', 0.12, 0.21);
+  num('turn 90 deg at walk (s)', '90/720 = 0.125', 'turn_walk', 't_yaw', 0.09, 0.17);
+  num('turn 60 deg at sprint (s)', '60/300 = 0.2', 'turn_sprint60', 't_yaw', 0.15, 0.26);
+  flag('sprint kept through a 60 deg turn', 'kept', 'turn_sprint60', 'sprint_after', true);
+  flag('sprint lost on a 120 deg turn', 'lost', 'turn_sprint120', 'sprint_after', false);
+  num('  ... how fast it is lost (s)', '< 0.25', 'turn_sprint120', 't_lost', 0, 0.1);
+  flag('sprint lost when stick drops to 0.7', 'lost', 'sprint_slow', 'sprint_after', false);
+  flag('sprint lost when blocked', 'lost', 'sprint_block', 'sprint_after', false);
+  num('  ... speed after hitting the wall (u/s)', '~0', 'sprint_block', 'speed_after', 0, 0.5);
+  num('dash distance (u)', '4.5 +/- 0.3', 'dash', 'dist', 4.2, 4.8);
+  num('dash duration (s)', '<= 0.25', 'dash', 'dur', 0.18, 0.25);
+  const pb = g('dash', 'pips_before'), pa = g('dash', 'pips_after'), du = g('dash', 'dur');
+  const cost = pb - (pa - 0.6 * du);
+  rows.push(['dash cost (pips; refill over the dash removed)', '1', Number.isFinite(cost) ? cost.toFixed(3) : 'missing', Math.abs(cost - 1) < 0.05]);
+  flag('dash tries at 0 .1 .3 .4 .8 1.2 1.6 1.85 s (T accepted)', 'TFFTTFFT (lockout 0.35, 3 pips)', 'dash', 'tries', 'TFFTTFFT');
+  num('i-frames: last sampled on at (s)', '< 0.18', 'dash', 'iframe_last', 0.14, 0.1801);
+  num('i-frames: first sampled off at (s)', '>= 0.18', 'dash', 'iframe_off', 0.18, 0.22);
+  num('camera FOV peak in a dash (deg)', '70', 'dash', 'fov_max', 69.5, 70.1);
+  for (let i = 0; i < 4; i++) num(`dash ${i + 1} distance (u)`, '4.5 +/- 0.3', 'dash_each', 'dist', 4.2, 4.8, i);
+  flag('dash into a wall 2 u ahead stops', 'stops', 'dash_wall', 'stopped', true);
+  num('  ... distance covered (u)', '< 2.0', 'dash_wall', 'dist', 0.1, 2.0);
+  flag('  ... hero not left inside it', 'false', 'dash_wall', 'hero_blocked', false);
+  flag('dash toward water 2 u ahead stops', 'stops', 'dash_water', 'stopped', true);
+  num('  ... distance covered (u; the shore is found in 0.5 u steps, so up to 2.5)', '<= 2.5', 'dash_water', 'dist', 0.1, 2.5);
+  flag('  ... hero not left in water', 'false', 'dash_water', 'in_water', false);
+  num('road run (u/s)', '11.4', 'road', 'run', 11.3, 11.5);
+  num('road sprint (u/s)', '15.0', 'road', 'sprint', 14.8, 15.3);
+  const kinds = Object.keys(relay.counts);
+  rows.push(['relay message kinds seen', 'none new (none)', kinds.length ? kinds.join(',') : 'none', kinds.length === 0]);
+  let ok = true;
+  for (const [label, spec, got, good] of rows) {
+    if (!good) ok = false;
+    notes.push(`${good ? 'ok ' : 'BAD'} ${label}: ${got}  (spec ${spec})`);
+  }
+  return { ok: ok && c.errors.length === 0, notes };
+}, true);
+
+// ---- 4c. world agility on the real paths: `--autoplay=gather --agility-real`. Nothing is cleared;
+// the hero is put in a tree, a rock, a house and the tower base, slid along a house wall, dashed at
+// obstacles, run through a duel next to an obstacle, and the manual Unstuck is tried. Slices of
+// 1/60, 1/30 and 1/20 s of game time (see overworld_bot.gd, "Real-path movement test").
+function parseAgReal(lines) {
+  const out = {};
+  for (const l of lines) {
+    const m = /^AGREAL (\w+) (.*)$/.exec(l);
+    if (!m) continue;
+    const kv = {};
+    for (const part of m[2].split(' ')) {
+      const e = part.indexOf('=');
+      if (e > 0) kv[part.slice(0, e)] = part.slice(e + 1);
+    }
+    (out[m[1]] = out[m[1]] || []).push(kv);
+  }
+  return out;
+}
+
+scenario('agility-real', 'world movement on the real paths: stuck in obstacles, slide, dash at obstacles, duel stand points, i-frames, manual Unstuck', async (ctx) => {
+  const relay = await ctx.newRelay();
+  const c = await ctx.client('bot');
+  c.stopRe = /^AGREAL (done|fail)/;
+  await c.start(ctx.base, ['--autoplay=gather', '--agility-real'], [relay.url]);
+  const r = await waitUntil([c], () => c.find(/^AGREAL (done|fail)/), 900);
+  const notes = errorNotes([c]);
+  if (r !== 'ok') { notes.push(`no AGREAL done within 900s (${r})`); return { ok: false, notes }; }
+  if (c.find(/^AGREAL fail/)) return { ok: false, notes: [...notes, c.find(/^AGREAL fail/)] };
+  const a = parseAgReal(c.lines);
+  const rows = [];
+  const row = (label, spec, got, good) => rows.push([label, spec, String(got), !!good]);
+  const n = (v) => Number(v);
+  for (const t of a.trap || []) {
+    const tag = `${t.kind} at ${t.fps} fps`;
+    if (t.missing) { row(`stuck in ${tag}`, 'case exists', 'missing', false); continue; }
+    row(`stuck in ${tag}: starts blocked, free within 1 s, one UNSTUCK`, 'free, t <= 1.0, 1',
+      `blocked=${t.start_blocked} free=${t.free} t=${t.t} unstuck=${t.unstuck}`,
+      t.start_blocked === 'true' && t.free === 'true' && n(t.t) <= 1.0 && n(t.unstuck) === 1);
+  }
+  const unstuckLines = c.lines.filter((l) => /^UNSTUCK land from=/.test(l)).length;
+  const expectLines = (a.trap || []).length + (a.duel || []).reduce((s2, d) => s2 + n(d.unstuck || 0), 0) + (a.manual || []).reduce((s2, d) => s2 + n(d.count || 0), 0) + 1;
+  row('console UNSTUCK land lines (traps + duel + manual)', `${expectLines - 1} to ${expectLines + 1}`, unstuckLines, unstuckLines >= expectLines - 1 && unstuckLines <= expectLines + 1);
+  for (const s2 of a.slide || []) {
+    const min = n(s2.deg) === 45 ? 0.6 : 0.4;
+    row(`slide along a house wall at ${s2.deg} deg, ${s2.fps} fps: share of open-ground speed`, `>= ${min}`, `${s2.ratio} (wall ${s2.wall}, open ${s2.open})`, n(s2.open) > 2 && n(s2.ratio) >= min);
+  }
+  row('slide rows present', '6', (a.slide || []).length, (a.slide || []).length === 6);
+  for (const d of a.dash_obstacle || []) {
+    const L = n(d.dist);
+    const tag = `dash at an obstacle ${d.dist} u ahead, ${d.fps} fps`;
+    if (d.missing) { row(tag, 'case exists', 'missing', false); continue; }
+    const moved = n(d.moved);
+    const spent = n(d.pips_before) - n(d.pips_after);
+    const refund = L < 0.5;
+    row(`${tag}: distance moved`, refund ? '< 0.5' : `${(L - 0.15).toFixed(2)} to ${L.toFixed(2)}`,
+      d.moved, refund ? (moved >= 0 && moved < 0.5) : (moved >= L - 0.15 && moved <= L + 0.02));
+    row(`${tag}: pip`, refund ? 'refunded' : 'spent (about 1 less regen)',
+      `before ${d.pips_before} after ${d.pips_after}`, refund ? spent < 0.3 : (spent > 0.6 && spent < 1.1));
+    row(`${tag}: not left inside it`, 'false', d.inside, d.inside === 'false');
+  }
+  const xp = (a.xp || [])[0] || {};
+  const x = (k) => n(xp[k]);
+  row('agility XP per second: walk / run / sprint on road / dash-spam (run is the cap, 1.7)', 'sprint, dash <= run <= 1.7',
+    `${xp.walk} / ${xp.run} / ${xp.sprint_road} / ${xp.dash_spam}`,
+    x('run') > 0 && x('run') <= 1.71 && x('walk') <= x('run') && x('sprint_road') <= x('run') + 0.01 && x('dash_spam') <= x('run') + 0.01 && x('dash_spam') < 0.05);
+  for (const d of a.duel || []) {
+    if (d.missing) { row(`duel next to a ${d.kind}`, 'case exists', 'missing', false); continue; }
+    row(`duel next to a ${d.kind}: hero free afterwards`, 'false', d.hero_blocked, d.hero_blocked === 'false');
+    row(`duel next to a ${d.kind}: saved position free`, 'false', d.saved_blocked, d.saved_blocked === 'false');
+  }
+  const won = (a.duel || []).filter((d) => d.at_start === 'false' && n(d.unstuck) === 1).length;
+  row('duels that ended on a blocked stand point and were moved out', '>= 1', won, won >= 1);
+  for (const d of a.iframes || []) {
+    const at = n(d.duel_at);
+    const dt = 1 / n(d.fps);
+    row(`dash through a foe at ${d.fps} fps: no duel before 0.18 s, one right after`, `0.18 to ${(0.18 + dt + 0.005).toFixed(3)}`, d.duel_at, d.dash_ok === 'true' && at >= 0.18 - 1e-6 && at <= 0.18 + dt + 0.005);
+  }
+  const m = (a.manual || [])[0] || {};
+  if (m.missing) row('manual Unstuck exists', 'yes', 'missing', false);
+  else {
+    row('manual Unstuck refused with a challenge pending', 'true', m.refuse_pvp, m.refuse_pvp === 'true');
+    row('manual Unstuck refused right after a fight', 'true', m.refuse_fight, m.refuse_fight === 'true');
+    row('manual Unstuck refused with a foe close', 'true', m.refuse_foe, m.refuse_foe === 'true');
+    row('manual Unstuck moves the hero (u), to a free spot', '>= 2', `${m.moved} free=${m.free}`, m.first_ok === 'true' && n(m.moved) >= 2 && m.free === 'true');
+    row('manual Unstuck on cooldown at 0.5 s and 9.5 s', 'refused', `${m.second_ok} / ${m.at_9_5}`, m.second_ok === 'false' && m.at_9_5 === 'false');
+    row('manual Unstuck allowed again at 10.1 s and moves (u)', '>= 2', `${m.at_10_1} ${m.moved_again} free=${m.free_again}`, m.at_10_1 === 'true' && n(m.moved_again) >= 2 && m.free_again === 'true');
+  }
+  const kinds = Object.keys(relay.counts);
+  row('relay message kinds seen', 'none', kinds.length ? kinds.join(',') : 'none', kinds.length === 0);
+  let ok = true;
+  for (const [label, spec, got, good] of rows) {
+    if (!good) ok = false;
+    notes.push(`${good ? 'ok ' : 'BAD'} ${label}: ${got}  (want ${spec})`);
+  }
+  return { ok: ok && c.errors.length === 0, notes };
+}, true);
+
 // ---- 5 and 6. two players
 
 // Two clients, one browser each, on `relayCount` shared local relays. Passes
