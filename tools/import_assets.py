@@ -112,7 +112,13 @@ def main() -> int:
         cache = GAME / ".godot" / "uid_cache.bin"
         old = read_uids(cache)
         new = [(u, p) for u, p in read_uids(stage / ".godot" / "uid_cache.bin") if p.startswith("res://assets/")]
-        merged = [e for e in old if not e[1].startswith("res://assets/")] + new
+        # Assets imported earlier whose sources are not in assets_src/ now (it is git-ignored, so another
+        # checkout has only some of them) keep their entries while their .import is still in game/; Godot
+        # drops them from the stage's cache because their source file is missing there.
+        fresh = {p for _, p in new}
+        kept = [e for e in old if e[1].startswith("res://assets/") and e[1] not in fresh
+                and (GAME / (e[1][len("res://"):] + ".import")).is_file()]
+        merged = [e for e in old if not e[1].startswith("res://assets/")] + kept + new
         if merged != old:
             write_uids(cache, merged)
     for rel, files in copied:

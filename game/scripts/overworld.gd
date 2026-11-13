@@ -227,6 +227,7 @@ func _assettest_report() -> void:
 
 
 # ---- debug only: --looktest[=wide|close|skeleton|compare|swing|empty] [--looktest-seek=SECONDS] ----
+# --looktest=rig|rig-check|rig-heads|rig-gear|rig-perf=N|ph-perf=N: RigVisual scenes in rig_looktest.gd.
 # KayKit adventurer vs skeleton in the duel framing (duel.gd CAM_POS/CAM_LOOK, fov 55, 2.5 apart),
 # a short dungeon wall with floor and a lit torch behind. Local frame as in a duel: the player at the
 # origin facing -Z, the enemy 2.5 further along -Z facing +Z (offset sideways so the chunky knight does not hide it). `empty` builds only the camera (baseline).
@@ -339,6 +340,13 @@ func _looktest_setup() -> void:
 			print("LOOKTEST hero mesh below ground: %s y=%.2f..%.2f size=%s" % [n.name, mb.position.y, mb.end.y, mb.size])
 	if mode != "compare":
 		hero.visible = false
+	if mode.begins_with("rig") or mode.begins_with("ph-perf"):
+		# RigVisual (docs/RIG_PLAN.md R1): loaded only here, so a normal start never touches it.
+		var lt: Node3D = load("res://scripts/rig_looktest.gd").new()
+		root.add_child(lt)
+		lt.call("setup", mode, _looktest_seek)
+		get_tree().create_timer(6.0).timeout.connect(_looktest_report)
+		return
 	if mode != "empty":
 		var knight := _lt_actor("knight.glb", root, Vector3(-0.45, 0, 0), -1.0, [LT_SWORD, LT_SHIELD, "Knight_Helmet", "Knight_Cape", "Knight_Body", "Knight_Head", "Knight_ArmLeft", "Knight_ArmRight", "Knight_LegLeft", "Knight_LegRight"], "1H_Melee_Attack_Slice_Diagonal" if mode == "swing" else "Idle")
 		_lt_actor("skeleton_warrior.glb", root, Vector3(0.2, 0, -2.5), 1.0, ["Skeleton_Warrior_Helmet"], "1H_Melee_Attack_Slice_Horizontal" if mode == "swing" else "Idle_Combat")

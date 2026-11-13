@@ -359,6 +359,39 @@ async function pvp(ctx, relayCount) {
 scenario('pvp', 'two players duel through one relay', (ctx) => pvp(ctx, 1), true);
 scenario('pvp-2relay', 'two players duel through the same two relays, duplicates dropped', (ctx) => pvp(ctx, 2), true);
 
+// ---- 7. RigVisual contract (docs/RIG_PLAN.md R1; debug scene, the game itself does not use it yet)
+
+// The look test runs the check on its own 240 Hz clock (not frames), so the timings below do not
+// depend on how slowly software WebGL draws.
+scenario('rig-contract', 'RigVisual: every contract action lands its key pose on time, windups distinct, unknown actions ignored, reparent and tweens safe', async (ctx) => {
+  let seen = [];
+  const res = await solo(ctx, {
+    args: ['--looktest=rig-check'], finish: /^LOOKTEST rig-check ok=/, seconds: 180,
+    verify: (lines) => {
+      seen = lines;
+      const rc = lines.filter((l) => /^RIGCHECK /.test(l));
+      const actions = rc.filter((l) => /^RIGCHECK action /.test(l));
+      const bad = actions.filter((l) => !/ ok$/.test(l));
+      if (actions.length < 34) return `only ${actions.length} action lines (want 32 sequence actions + reparent + tween)`;
+      if (bad.length) return `late or missed key poses: ${bad.slice(0, 3).join(' | ')}`;
+      const fails = rc.filter((l) => /^RIGCHECK FAIL/.test(l));
+      if (fails.length) return fails.slice(0, 3).join(' | ');
+      for (const want of [/^RIGCHECK windup_distinct /, /^RIGCHECK clash_point /, /^RIGCHECK unknown_action ignored=true/, /^RIGCHECK meshkit_blade /, /^RIGCHECK done ok=true/]) {
+        if (!lineOf(lines, want)) return `missing ${want}`;
+      }
+      const wd = /min_hand_pair=([\d.]+)/.exec(lineOf(lines, /^RIGCHECK windup_distinct /));
+      if (!wd || Number(wd[1]) < 0.25) return `windup hand positions too close: ${lineOf(lines, /^RIGCHECK windup_distinct /)}`;
+      const cp = /max_distance=([\d.]+)/.exec(lineOf(lines, /^RIGCHECK clash_point /));
+      if (!cp || Number(cp[1]) > 0.3) return `clash point off: ${lineOf(lines, /^RIGCHECK clash_point /)}`;
+      return null;
+    },
+  });
+  // The figures the plan asked for, so a pass also shows them.
+  const shown = [];
+  for (const re of [/^LOOKTEST rig-check /, /^RIGCHECK windup_pose /, /^RIGCHECK windup_distinct /, /^RIGCHECK meshkit_blade /, /^RIGCHECK done /]) shown.push(...seen.filter((l) => re.test(l)));
+  return { ok: res.ok, notes: [...res.notes, ...shown.map((l) => `saw: ${l.slice(0, 150)}`)] };
+});
+
 // ---------------------------------------------------------------- main
 
 // One scenario's own context: its own clients and relays, closed when it ends.
