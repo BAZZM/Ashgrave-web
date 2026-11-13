@@ -51,3 +51,11 @@ The orchestrator owns this file.
 | 13 Nov 2026 | Replacement sounds | Scout's first choices / owner picks | Scout's first choices (docs/shortlists/AUDIO.md); owner downloads them. |
 | 13 Nov 2026 | Cloudflare account check | Later / done | Later. |
 | 13 Nov 2026 | Usage | (owner instruction) | Continue usage-aware: Build 12 lanes only, narrowed scope, R1 paused, no extra review rounds. |
+| 13 Nov 2026 | Build 12 phone test | (report) | Stuck-in-walls better; still crashes. |
+| 13 Nov 2026 | Releases while the owner is away | Release when green / fixes and performance only / nothing | Release when every bot scenario passes on the pack and one independent review says ship. |
+| 13 Nov 2026 | Texture and graphics ownership | This session / keep split with the texture chat | This session takes all of it. |
+| 13 Nov 2026 | Texture colour treatment | Fresh Visual Critic picks / grain plus palette / source colours | A fresh Visual Critic picks from the look test. |
+| 13 Nov 2026 | Story freedom | Build on existing lore / free rein / owner premise | Build on what exists. |
+| 13 Nov 2026 | Usage while away | 2 lanes / 1 lane / 3 lanes | Two lanes at a time. |
+| 13 Nov 2026 | Automatic safe mode after two memory deaths | Yes with a menu toggle / no | Yes. |
+| 13 Nov 2026 | Build 12 released | (record) | dev and main at 1a70c09; 14/14 scenarios on the pack. |
