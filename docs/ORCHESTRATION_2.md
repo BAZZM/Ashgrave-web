@@ -53,7 +53,7 @@ up. It sits on top of `docs/ORCHESTRATOR.md` (phases, gates, roles) and
 | G3 | Graphics | Visual Critic picks the treatment; apply ground and water behind the quality setting; memory measured | Fable, then Sonnet | `overworld_terrain.gd`, `overworld_kit.gd`, `land.gd` colours | DONE, released as Build 17 |
 | S3 | Story | Acts 2 and 3 and region side quests filled against the schema | Haiku, Sonnet review | quest data | reviewed (docs/story/REVIEW_S3.md on the S4 lane): Act 2 rewrite, Act 3 rejected pending owner rulings, side quests rewrite |
 | S4 | Story | Act 2 part one: the editor's first buildable slice (5 main-line quests, about 9 side quests, Oswin, Nan Harrow), `act2` bot scenarios | Sonnet, Fable text check | quest data, NPC hooks, docs/story | DONE, released as Build 18 |
-| L1 | Perf | Leak hunt: about 1.7 MB of wasm memory in use per soak cycle since Build 15 or earlier; tower part 0.6 to 0.9 MB; use the `mused` columns and `--soak-only` | Opus | any script, minimal | running (lane/l1-leak-hunt) |
+| L1 | Perf | Leak hunt: about 1.7 MB of wasm memory in use per soak cycle since Build 15 or earlier; tower part 0.6 to 0.9 MB; use the `mused` columns and `--soak-only` | Opus | any script, minimal | DONE, released as Build 19 (unused physics servers stopped) |
 | B1 | Bug | PvP: one duel result message sometimes missing (res N, atk N+1) | Opus | online scripts | queued |
 | G4 | Graphics | Walls and wood, then trees | Sonnet | `overworld_places.gd`, `world.gd`, terrain scatter | waiting for the owner's iPhone report on Builds 16 and 17 before adding texture memory |
 | R1 | Graphics | Resume rig stage R1 (paused, work on `lane/p2-r1-rigvisual`) | Opus | see `docs/RIG_PLAN.md` | parked until the above are out |
