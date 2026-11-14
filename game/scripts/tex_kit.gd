@@ -83,8 +83,8 @@ const D_HERO := 0.30
 const D_ENEMY := 0.20
 
 ## The real game's palette for textured ground and water (G3, critic fixes 2 to 5). Raw colours, like every tint here.
-const PATH_LIGHT := Color("#6B5A40")   # trail: light end; the dark end is the region's own ground tint
-const PATH_ASH := Color("#4A4648")     # the Ashlands' trail
+const PATH_LIGHT := Color("#625640")   # trail: warm dry earth, about 1.2 times the grass's luminance (G3 round 2: the Critic's #6B5A40 mixed into the ground made the trail vanish)
+const PATH_ASH := Color("#615850")     # the Ashlands' trail: pale warm grey-brown, about 1.4 times the ground, not gold
 const WATER_DEEP := Color("#20343A")
 const WATER_SHALLOW := Color("#3E6A68")  # only within about 1 m of the shore
 const WORLD_FOG := Color("#6E7470")      # the ramp mixes 10% of this into the dark end; one material serves every region
@@ -233,7 +233,7 @@ uniform float d_mud = 0.20;
 uniform float d_ash = 0.12;
 uniform float cap_ash = 0.62;
 // Vertex data (TexKit.build_ground): COLOR = the region's ground tint, UV = (trail weight, mud weight),
-// UV2 = (forest-floor weight, Ashlands weight). The trail is mix(region ground, trail colour, grain): its grain depth is
+// UV2 = (forest-floor weight, Ashlands weight). The trail is its own colour (path_col, or path_ash in the Ashlands) with grain: its depth is
 // d_path at the trail's middle and falls to d_path_edge at its edges; the Ashlands use their own trail colour, a shallower
 // ground grain (d_ash) and no grain highlights above cap_ash (the pale scratch lines of the forest-floor map read as frost).
 void fragment() {
@@ -252,8 +252,7 @@ void fragment() {
 	vec3 tint = COLOR.rgb;
 	vec3 col = mix(ramp(tint, g_grass, d_base, fog_col), ramp(tint, g_forest, mix(d_forest, d_ash, ash), fog_col), UV2.x);
 	float dp = mix(d_path_edge, d_path, UV.x);
-	float tp = clamp(0.5 + (g_path - 0.5) * dp / d_path, 0.0, 1.0);
-	vec3 pcol = mix(mix(tint, fog_col, 0.10), mix(path_col, path_ash, ash), tp);
+	vec3 pcol = ramp(mix(path_col, path_ash, ash), g_path, dp, fog_col);
 	col = mix(col, pcol, UV.x);
 	col = mix(col, ramp(mud_col, g_mud, d_mud, fog_col), UV.y);
 	ALBEDO = col * macro(p);
