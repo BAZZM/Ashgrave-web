@@ -84,6 +84,11 @@ func _ready() -> void:
 	_bench = "--terrainbench" in args
 	logging = "--perflog" in args or _dump or _world or _live or _bench
 	_crumb_start()
+	# Memory soak bot (tools/check.js perf-soak), debug only.
+	for a in args:
+		if a == "--soak" or a.begins_with("--soak="):
+			add_child(load("res://scripts/soak_bot.gd").new())
+			break
 	if on:
 		_enable()
 	elif logging:

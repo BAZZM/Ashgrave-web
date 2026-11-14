@@ -8,7 +8,7 @@
 //                                       run one client with those game args and print its console
 //
 // Options: --jobs=N (scenarios run at once, default 1), --verbose (print every game
-// console line), --viewport=WxH (default 320x180), --timeout=SECONDS (probe length), --shots=DIR (probe).
+// console line), --viewport=WxH (default 320x180), --dpr=N (device pixel ratio, default 1), --timeout=SECONDS (probe length), --shots=DIR (probe).
 //
 // Needs Playwright with Chromium (as smoke.js) and, for the relay,
 // `npm install` in tools/ (aedes and ws). Uses software WebGL, so the game runs
@@ -45,7 +45,7 @@ async function loadRelayPackages() {
   }
 }
 
-const opts = { jobs: 1, verbose: false, viewport: '320x180', timeout: 300, probe: null, list: false };
+const opts = { dpr: 1, jobs: 1, verbose: false, viewport: '320x180', timeout: 300, probe: null, list: false };
 const names = [];
 for (let i = 2; i < process.argv.length; i++) {
   const a = process.argv[i];
@@ -56,6 +56,7 @@ for (let i = 2; i < process.argv.length; i++) {
   else if (a.startsWith('--shots=')) opts.shots = a.slice(8);
   else if (a.startsWith('--viewport=')) opts.viewport = a.slice(11);
   else if (a.startsWith('--timeout=')) opts.timeout = Number(a.slice(10));
+  else if (a.startsWith('--dpr=')) opts.dpr = Number(a.slice(6));
   else if (a.startsWith('-')) { console.error(`unknown option ${a}`); process.exit(2); }
   else names.push(a);
 }
@@ -131,10 +132,16 @@ async function startRelay() {
 // ---------------------------------------------------------------- clients
 
 const GL = ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'];
+// Precise performance.memory and a gc() the soak bot calls before it reads the JS heap (no effect on play).
+const MEMFLAGS = ['--enable-precise-memory-info', '--js-flags=--expose-gc'];
+// Sound running as on a phone after its first tap. Without it the page's audio context stays suspended, no
+// sound ever ends, and the engine keeps a copy of every sound played (a headless artifact, not the game's).
+const AUDIO_ON = ['--autoplay-policy=no-user-gesture-required'];
 
 class Client {
-  constructor(label) {
+  constructor(label, view = null) {
     this.label = label;
+    this.view = view || { width: VW, height: VH, dpr: opts.dpr };
     this.lines = [];
     this.errors = [];
     this.t0 = Date.now();
@@ -145,17 +152,21 @@ class Client {
   }
 
   async start(base, gameArgs, relays) {
-    this.browser = await chromium.launch({ args: GL });
+    this.browser = await chromium.launch({ args: [...GL, ...MEMFLAGS, ...(this.view.audio || process.env.SOAK_AUDIO ? AUDIO_ON : [])] });
     // newPage on a fresh browser is a fresh profile: no save, no localStorage.
-    this.page = await this.browser.newPage({ viewport: { width: VW, height: VH }, deviceScaleFactor: 1 });
+    this.page = await this.browser.newPage({ viewport: { width: this.view.width, height: this.view.height }, deviceScaleFactor: this.view.dpr });
     this.page.on('pageerror', (e) => { if (!this.done) this.errors.push(String(e).slice(0, 400)); });
     this.page.on('crash', () => { if (!this.done) this.errors.push('page crashed'); });
     this.page.on('console', (m) => {
-      const text = m.text();
+      let text = m.text();
+      if (/^SOAK (cycle|phase)=/.test(text)) {
+        const mem = chromeMemory();
+        text = `${text} pss_renderer=${mem.renderer || 0} pss_gpu=${mem['gpu-process'] || 0}`;
+      }
       this.lines.push(text);
       const wasDone = this.done;
       if (this.stopRe && this.stopRe.test(text)) this.done = true;
-      if (opts.verbose && !/^Blocked call to navigator\.vibrate|^The AudioContext/.test(text)) console.log(`  [${this.label} ${((Date.now() - this.t0) / 1000).toFixed(0)}s] ${text.slice(0, 200)}`);
+      if (opts.verbose && !/^Blocked call to navigator\.vibrate|^The AudioContext/.test(text)) console.log(`  [${this.label} ${((Date.now() - this.t0) / 1000).toFixed(0)}s] ${text.slice(0, /^SOAK/.test(text) ? 2000 : 200)}`);
       // Noise that is the browser's business: an unreachable relay, and vibration before a tap.
       if (wasDone) return;
       if (/^WebSocket connection to|^Blocked call to navigator\.vibrate/.test(text)) return;
@@ -177,6 +188,39 @@ class Client {
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Proportional memory (Pss, bytes) of this harness's Chromium processes by type, read from /proc
+// (Linux only; {} elsewhere). With software WebGL the GPU process holds what a phone keeps in video memory.
+function chromeMemory() {
+  const out = {};
+  try {
+    const kids = {};
+    for (const d of fs.readdirSync('/proc')) {
+      if (!/^\d+$/.test(d)) continue;
+      try {
+        const st = fs.readFileSync(`/proc/${d}/stat`, 'utf8');
+        const ppid = Number(st.slice(st.lastIndexOf(')') + 2).split(' ')[1]);
+        (kids[ppid] = kids[ppid] || []).push(Number(d));
+      } catch (e) { /* gone */ }
+    }
+    const stack = [process.pid];
+    while (stack.length) {
+      const p = stack.pop();
+      for (const k of kids[p] || []) {
+        stack.push(k);
+        try {
+          const cmd = fs.readFileSync(`/proc/${k}/cmdline`, 'utf8');
+          if (!/chrom/i.test(cmd)) continue;
+          const m = /--type=([\w-]+)/.exec(cmd);
+          const type = m ? m[1] : 'browser';
+          const pss = /^Pss:\s+(\d+) kB/m.exec(fs.readFileSync(`/proc/${k}/smaps_rollup`, 'utf8'));
+          if (pss) out[type] = (out[type] || 0) + Number(pss[1]) * 1024;
+        } catch (e) { /* gone */ }
+      }
+    }
+  } catch (e) { /* not Linux */ }
+  return out;
+}
 
 // Resolves 'ok' when done() is true, 'error' as soon as any client reports a
 // script error, or 'timeout'.
@@ -537,6 +581,101 @@ scenario('agility-real', 'world movement on the real paths: stuck in obstacles, 
   return { ok: ok && c.errors.length === 0, notes };
 }, true);
 
+// ---- 4d. memory soak (soak_bot.gd): `--soak` plays the real journey in cycles (roam five biomes with
+// sprint and dash, wild duels won and lost, gathering, every HUD screen, fast travel, the tower: tier 1,
+// a pack duel on tier 2, a death on tier 3) for at least 5 cycles and 12 minutes of game time, and prints
+// one SOAK cycle line of memory readings per cycle at the same spot (idle at the hearth). Cycle 1 is the
+// warm-up; growth is measured from cycle 2 to the last. Thresholds are in docs/PERF_BUDGET.md.
+const SOAK_LIMITS = {
+  // per cycle, after the warm-up
+  heap: 2 * 1048576, nc: 25, orphan: 0, tex: 256 * 1024, oc: 150, res: 2,
+  // JS heap after gc, and the Chromium renderer process (Pss; includes the JS heap and compiled wasm)
+  js: 3 * 1048576, pss_renderer: 40 * 1048576,
+  // absolute ceilings over the whole run (wasm heap; Godot video memory at the check's 320x180 viewport)
+  peakHeap: 128 * 1048576, peakVid: 30 * 1048576,
+  // the title on an iPhone-shaped page (844x390 CSS pixels at devicePixelRatio 3): Godot video memory
+  phoneVid: 48 * 1048576,
+};
+function parseSoak(lines) {
+  const rows = [];
+  for (const l of lines) {
+    const m = /^SOAK (cycle|phase)=(\S+)(?: cycle=(\d+))? (.*)$/.exec(l);
+    if (!m) continue;
+    const kv = { kind: m[1], name: m[2] };
+    for (const part of m[4].split(' ')) {
+      const e = part.indexOf('=');
+      if (e > 0) kv[part.slice(0, e)] = isNaN(Number(part.slice(e + 1))) ? part.slice(e + 1) : Number(part.slice(e + 1));
+    }
+    kv.cycle = m[1] === 'cycle' ? Number(m[2]) : Number(m[3]);
+    rows.push(kv);
+  }
+  return rows;
+}
+function soakVerdict(lines) {
+  const rows = parseSoak(lines);
+  const cyc = rows.filter((r) => r.kind === 'cycle');
+  const notes = [];
+  const mb = (b) => (b / 1048576).toFixed(1);
+  notes.push('cycle  game_s  heap_MB  js_MB  rend_MB  gpu_MB  objects  nodes  orphans  resources  tex_MB  buf_MB  vid_MB  draws  prims  meshkit  results');
+  for (const r of cyc) notes.push(`${String(r.cycle).padStart(5)}  ${String(r.gt).padStart(6)}  ${mb(r.heap).padStart(7)}  ${mb(r.js).padStart(5)}  ${mb(r.pss_renderer || 0).padStart(7)}  ${mb(r.pss_gpu || 0).padStart(6)}  ${String(r.oc).padStart(7)}  ${String(r.nc).padStart(5)}  ${String(r.orphan).padStart(7)}  ${String(r.res).padStart(9)}  ${mb(r.tex).padStart(6)}  ${mb(r.buf).padStart(6)}  ${mb(r.vid).padStart(6)}  ${String(r.dc).padStart(5)}  ${String(r.prim).padStart(6)}  ${String(r.meshkit).padStart(7)}  ${r.results || ''}`);
+  for (const ph of ['title', 'land', 'screens', 'tower', 'duel']) {
+    const p = rows.filter((r) => r.kind === 'phase' && r.name === ph);
+    if (p.length) notes.push(`phase ${ph.padEnd(7)} heap ${p.map((r) => mb(r.heap)).join(' ')} | nodes ${p.map((r) => r.nc).join(' ')} | tex ${p.map((r) => mb(r.tex)).join(' ')} | vid ${p.map((r) => mb(r.vid)).join(' ')} | draws ${p.map((r) => r.dc).join(' ')}`);
+  }
+  const grows = lines.filter((l) => /^SOAKGROW /.test(l));
+  notes.push(`heap grew ${grows.length} time(s): ${grows.map((l) => l.slice(9)).join('; ')}`);
+  const bad = [];
+  if (cyc.length < 5) bad.push(`only ${cyc.length} cycle lines (want 5)`);
+  const last = cyc[cyc.length - 1];
+  if (last && last.gt < 720) bad.push(`only ${last.gt} s of game time (want 720)`);
+  if (cyc.length >= 3) {
+    const a = cyc[1];
+    const n = cyc.length - 2;
+    for (const k of ['heap', 'js', 'pss_renderer', 'nc', 'orphan', 'tex', 'oc', 'res']) {
+      if (!(k in a) || !(k in last)) continue;
+      const per = (last[k] - a[k]) / n;
+      const ok = per <= SOAK_LIMITS[k];
+      const bytes = ['heap', 'tex', 'js', 'pss_renderer'].includes(k);
+      notes.push(`${ok ? 'ok ' : 'BAD'} growth per cycle ${k}: ${bytes ? mb(per) + ' MB' : per.toFixed(1)} (limit ${bytes ? mb(SOAK_LIMITS[k]) + ' MB' : SOAK_LIMITS[k]})`);
+      if (!ok) bad.push(`${k} grows ${per.toFixed(0)} per cycle`);
+    }
+  }
+  const peakHeap = Math.max(...rows.map((r) => r.peak || 0));
+  const peakVid = Math.max(...rows.map((r) => r.vid || 0));
+  notes.push(`${peakHeap <= SOAK_LIMITS.peakHeap ? 'ok ' : 'BAD'} peak wasm heap ${mb(peakHeap)} MB (ceiling ${mb(SOAK_LIMITS.peakHeap)})`);
+  notes.push(`${peakVid <= SOAK_LIMITS.peakVid ? 'ok ' : 'BAD'} peak video memory ${mb(peakVid)} MB (ceiling ${mb(SOAK_LIMITS.peakVid)})`);
+  if (peakHeap > SOAK_LIMITS.peakHeap) bad.push('heap over ceiling');
+  if (peakVid > SOAK_LIMITS.peakVid) bad.push('video memory over ceiling');
+  return { bad, notes };
+}
+
+scenario('perf-soak', 'memory soak: 5+ cycles of the real journey; growth per cycle and peaks under the limits in docs/PERF_BUDGET.md', async (ctx) => {
+  const relay = await ctx.newRelay();
+  // First the title on a phone-shaped page at devicePixelRatio 3: the canvas and full-size buffers.
+  const ph = await ctx.client('phone', { width: 844, height: 390, dpr: 3, audio: true });
+  ph.stopRe = /^SOAK done/;
+  await ph.start(ctx.base, ['--soak=title'], [relay.url]);
+  await waitUntil([ph], () => ph.find(/^SOAK done/), 300);
+  const phRow = parseSoak(ph.lines).find((r) => r.name === 'title');
+  const phoneNotes = errorNotes([ph]);
+  let phoneOk = !!phRow && ph.errors.length === 0;
+  if (phRow) {
+    phoneOk = phoneOk && phRow.vid <= SOAK_LIMITS.phoneVid;
+    phoneNotes.push(`${phRow.vid <= SOAK_LIMITS.phoneVid ? 'ok ' : 'BAD'} phone title (844x390 at dpr 3): video ${(phRow.vid / 1048576).toFixed(1)} MB (ceiling ${(SOAK_LIMITS.phoneVid / 1048576).toFixed(0)}), textures ${(phRow.tex / 1048576).toFixed(1)} MB, buffers ${(phRow.buf / 1048576).toFixed(1)} MB, heap ${(phRow.heap / 1048576).toFixed(1)} MB, renderer ${((phRow.pss_renderer || 0) / 1048576).toFixed(0)} MB, gpu process ${((phRow.pss_gpu || 0) / 1048576).toFixed(0)} MB`);
+  } else phoneNotes.push('FAIL: no title reading from the phone-shaped page');
+  await ph.close();
+  const c = await ctx.client('bot', { width: VW, height: VH, dpr: opts.dpr, audio: true });
+  c.stopRe = /^SOAK (done|fail)/;
+  await c.start(ctx.base, ['--soak'], [relay.url]);
+  const r = await waitUntil([c], () => c.find(/^SOAK (done|fail)/), 3600);
+  const notes = errorNotes([c]);
+  if (r !== 'ok') notes.push(`no SOAK done within 3600s (${r})`);
+  if (c.find(/^SOAK fail/)) notes.push(c.find(/^SOAK fail/));
+  const v = soakVerdict(c.lines);
+  if (process.env.SOAK_LOG) fs.writeFileSync(process.env.SOAK_LOG, c.lines.join('\n'));
+  return { ok: phoneOk && r === 'ok' && !c.find(/^SOAK fail/) && v.bad.length === 0 && c.errors.length === 0, notes: [...phoneNotes, ...notes, ...v.notes, ...v.bad.map((b) => `FAIL: ${b}`)] };
+}, true);
+
 // ---- 5 and 6. two players
 
 // Two clients, one browser each, on `relayCount` shared local relays. Passes
@@ -587,7 +726,7 @@ function makeContext(base) {
   const ctx = {
     base,
     newRelay: async () => { const r = await startRelay(); relays.push(r); return r; },
-    client: async (label) => { const c = new Client(label); clients.push(c); return c; },
+    client: async (label, view) => { const c = new Client(label, view); clients.push(c); return c; },
   };
   const cleanup = async () => {
     for (const c of clients.splice(0)) await c.close();
