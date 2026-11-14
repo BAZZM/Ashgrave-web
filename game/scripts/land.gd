@@ -32,11 +32,11 @@ const ROADS := [
 const BIOMES := {
 	"village": {"name": "Hearthvale", "ground": Color("#5E6B38"), "fog": Color("#918E85"), "key": Color("#FFE2B8"), "amb": Color("#8795A8"), "foe": ""},
 	"meadow": {"name": "The Meadows", "ground": Color("#5A6B3C"), "fog": Color("#888D85"), "key": Color("#F5E6C4"), "amb": Color("#7E8FA4"), "foe": "thrall", "beast": "deer"},
-	"forest": {"name": "Greywood", "ground": Color("#2F3F2C"), "fog": Color("#4A5F54"), "amb_k": 1.7, "key": Color("#DDE8C4"), "amb": Color("#55685E"), "foe": "bandit", "alt": "poacher", "beast": "deer"},
+	"forest": {"name": "Greywood", "ground": Color("#445A40"), "fog": Color("#4A5F54"), "amb_k": 1.7, "key": Color("#DDE8C4"), "amb": Color("#7C9186"), "foe": "bandit", "alt": "poacher", "beast": "deer"},
 	"marsh": {"name": "Mirefen", "ground": Color("#4A4634"), "fog": Color("#66756E"), "key": Color("#E6E2D0"), "amb": Color("#6A7C82"), "foe": "wight", "alt": "hexer", "beast": "boar"},
 	"quarry": {"name": "The Scar", "ground": Color("#5A5248"), "fog": Color("#76706A"), "key": Color("#F0E2C8"), "amb": Color("#77716E"), "foe": "brute"},
 	"ruins": {"name": "The Old Ruins", "ground": Color("#4F4F4A"), "fog": Color("#5F6068"), "key": Color("#D9DDE6"), "amb": Color("#5E6472"), "foe": "keeper", "alt": "seer"},
-	"ashlands": {"name": "The Ashlands", "ground": Color("#332B2B"), "fog": Color("#4D332E"), "key": Color("#DDD5D0"), "amb_k": 1.7, "amb": Color("#4A3A40"), "foe": "pyre"},
+	"ashlands": {"name": "The Ashlands", "ground": Color("#504D4C"), "fog": Color("#4A3A36"), "key": Color("#DDD5D0"), "amb_k": 1.7, "amb": Color("#666565"), "foe": "pyre"},
 }
 
 ## Road and shore blends in ground_color_with: Dirt trail light (bible 2.1) and a muddy shore.

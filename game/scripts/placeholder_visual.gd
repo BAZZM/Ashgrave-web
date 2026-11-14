@@ -97,7 +97,7 @@ func _metal(color: Color, rough := METAL_ROUGH, metallic := METAL_METALLIC) -> S
 	m.rim = _rim_amt
 	m.rim_tint = RIM_TINT
 	m.emission_enabled = true
-	m.emission = color * FIGHTER_LIFT
+	m.emission = color.lerp(Color.WHITE, 0.3) * FIGHTER_LIFT
 	return m
 
 
@@ -644,4 +644,4 @@ func flash(color: Color) -> void:
 	_armour.emission_enabled = true
 	_armour.emission = color
 	_flash_tw = create_tween()
-	_flash_tw.tween_property(_armour, "emission", body_color * FIGHTER_LIFT, 0.18)
+	_flash_tw.tween_property(_armour, "emission", body_color.lerp(Color.WHITE, 0.3) * FIGHTER_LIFT, 0.18)
