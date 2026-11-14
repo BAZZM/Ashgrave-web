@@ -126,7 +126,7 @@ or a key to `Quality.LEVELS` (a missing key counts as allowed). `Run.quality_tun
 `Run.quality_tune_sky(sky)` apply the level to lights and skies built in code; `Run.quality_apply(viewport)`
 re-applies the level to a running scene (it walks the tree once). A feature name a row does not list is refused in
 safe (typos fail closed). Gated features are decided when a scene loads and never loaded or unloaded mid-scene; a lane
-that wants to notice a change reads `Run.quality_rev` (counts level changes). Nothing in the live game uses textures or models yet.
+that wants to notice a change reads `Run.quality_rev` (counts level changes). Lane G3: the live game's ground and water use textures at Full only (`overworld_terrain.gd`, `tex_kit.gd` GRAIN; three lossless maps, 2.63 MB of the pack). Measured in the real overworld (844x390): texture memory +3.15 MB on land and in a duel, video +3.6 MB, about +8k primitives and +0.5 MB of buffers (water meshes); Safe adds nothing (`texheld=0` in PERFLOG, checked by `check.js quality`). Nothing in the live game uses models yet.
 
 ## Budget for textures and skinned characters
 

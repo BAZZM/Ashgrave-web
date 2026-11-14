@@ -725,7 +725,7 @@ scenario('quality', 'safe mode: land, tower duel, duel and tower play clean with
       const rows = perfRows(c.lines).filter((x) => x.draw > 0);
       const rest = rows.slice(Math.min(2, rows.length - 1));
       if (!rest.length) { ok = false; notes.push(`FAIL: ${level} ${what}: no PERFLOG lines`); await c.close(); continue; }
-      const wrong = rest.filter((x) => x.q !== level || x.textures !== (level === 'full' ? 1 : 0) || x.models !== (level === 'full' ? 1 : 0));
+      const wrong = rest.filter((x) => x.q !== level || x.textures !== (level === 'full' ? 1 : 0) || x.models !== (level === 'full' ? 1 : 0) || (level === 'safe' && x.texheld !== 0));
       const scene = rest.filter((x) => x.dirlights > 0);
       const want = 1.0; // safe keeps the full render scale and sky radiance (see docs/PERF_BUDGET.md); its levers are the cap and shadows
       const badScale = rest.filter((x) => Math.abs(x.scale3d - want) > 0.011);

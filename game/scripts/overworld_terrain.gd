@@ -13,6 +13,7 @@ const STEP_HOUSE := 2
 const STEP_PLACE := 3
 const STEP_BRIDGE := 4
 const STEP_BATCH := 5
+const STEP_WATER := 6
 const TABLES := {
 	"meadow": [["tree", 0.07], ["tnode", 0.035], ["rock", 0.02], ["rnode", 0.014], ["herb", 0.05], ["foe", 0.03], ["beast", 0.022]],
 	"forest": [["tree", 0.58], ["tnode", 0.1], ["herb", 0.03], ["foe", 0.04], ["rock", 0.02], ["beast", 0.02]],
@@ -41,6 +42,9 @@ var _flat_debug := "--flatground" in OS.get_cmdline_user_args()
 func _init(owner_world: Overworld) -> void:
 	ow = owner_world
 	_q_rev = Run.quality_rev
+	# Safe chosen in the tower (no terrain was there to follow it): do not keep the textures from an earlier land visit.
+	if not Run.quality_allows("textures"):
+		TexKit.clear()
 
 
 func _chunk_of(p: Vector3) -> Vector2i:
@@ -178,7 +182,7 @@ func _ground_mesh(origin: Vector2, textured := false) -> ArrayMesh:
 func _ground_arrays_tex(origin: Vector2) -> Array:
 	var n := GROUND_N
 	var step := Land.CHUNK / n
-	var segs := Land.road_segments_near(Rect2(origin, Vector2(Land.CHUNK, Land.CHUNK)), 3.2)
+	var segs := Land.road_segments_near(Rect2(origin, Vector2(Land.CHUNK, Land.CHUNK)), 4.2)
 	var verts := PackedVector3Array()
 	var cols := PackedColorArray()
 	var uv := PackedVector2Array()
@@ -203,7 +207,7 @@ func _ground_arrays_tex(origin: Vector2) -> Array:
 				var t := clampf((p - a).dot(d) / d.length_squared(), 0.0, 1.0)
 				rd = minf(rd, p.distance_to(a + d * t))
 			var wd := minf(Land.river_dist(x, z) - 5.0, Land.lake_dist(x, z) - Land.LAKE_R + 3.0)
-			uv[i] = Vector2(smoothstep(3.2, 1.2, rd) if rd < 3.2 else 0.0, smoothstep(3.0, 0.0, wd) if wd < 3.0 else 0.0)
+			uv[i] = Vector2(smoothstep(4.2, 1.4, rd) if rd < 4.2 else 0.0, smoothstep(3.0, 0.0, wd) if wd < 3.0 else 0.0)
 			uv2[i] = Vector2(0.0 if b in ["village", "meadow"] else 1.0, 1.0 if b == "ashlands" else 0.0)
 			verts[i] = Vector3(x, Land.height_in(x, z, b), z)
 			i += 1
@@ -225,6 +229,14 @@ func _ground_material(textured: bool) -> Material:
 ## Textured water for the chunk (TexKit GRAIN): the baked shallow factor is 1 at the shore line and falls to 0 within about 1.2 m of water depth; WATER_N cells a side keep that band narrow without many triangles.
 func _water_mesh(origin: Vector2) -> ArrayMesh:
 	return TexKit.build_water(origin, Land.CHUNK, WATER_N, Land.WATER_Y, func(x: float, z: float) -> float:
+		# Cheap answers where the depth is known without the height: in the river's or the lake's deep middle (deep), and away
+		# from both (land, which the ground hides anyway).
+		var rd := Land.river_dist(x, z)
+		var ld := Land.lake_dist(x, z)
+		if rd < 2.5 or ld < Land.LAKE_R - 7.0:
+			return 0.0
+		if rd > 10.0 and ld > Land.LAKE_R + 4.0:
+			return 1.0
 		return 1.0 - smoothstep(0.0, 1.2, Land.WATER_Y - Land.height(x, z)))
 
 
@@ -237,6 +249,11 @@ func _flat_water_material() -> Material:
 		wm.roughness = 0.08
 		Kit._mats["water"] = wm
 	return Kit._mats["water"]
+
+
+func _step_water() -> void:
+	var origin: Vector2 = _job.origin
+	_job.chunk.water = Kit._part(_job.root, _water_mesh(origin), Vector3.ZERO, TexKit.water(TexKit.GRAIN, TexKit.world_pal()))
 
 
 ## Put a chunk's ground and water (if any) into the current look.
@@ -275,10 +292,11 @@ func _follow_quality(build_all: bool) -> void:
 		return
 	while not _remesh.is_empty():
 		var k: Vector2i = _remesh.pop_back()
-		if ow._chunks.has(k) and ow._chunks[k].has("ground") and is_instance_valid(ow._chunks[k].ground):
+		# Only chunks not already in the wanted look (a press that changes nothing re-meshes nothing).
+		if ow._chunks.has(k) and ow._chunks[k].has("ground") and is_instance_valid(ow._chunks[k].ground) and bool(ow._chunks[k].get("tex", false)) != want:
 			_apply_look(ow._chunks[k], want)
-		if not build_all:
-			break
+			if not build_all:
+				break
 	_tex_state = want or _tex_state
 
 
@@ -347,6 +365,8 @@ func _do_step(step: Array) -> void:
 				Kit._part(root, rail, Vector3(Land.BRIDGE.get_center().x, 1.6, Land.BRIDGE.get_center().y + side * (Land.BRIDGE.size.y * 0.5 - 0.1)), Kit.mat("wood", Color.WHITE))
 		STEP_BATCH:
 			_step_batch()
+		STEP_WATER:
+			_step_water()
 
 
 func _step_ground() -> void:
@@ -358,14 +378,12 @@ func _step_ground() -> void:
 	_job.chunk.tex = textured
 	_job.chunk.ground = Kit._part(root, _ground_mesh(origin, textured), Vector3.ZERO, _ground_material(textured))
 	if Land.river_dist(centre.x, centre.y) < 44.0 or Land.lake_dist(centre.x, centre.y) < Land.LAKE_R + 30.0:
-		var wi: MeshInstance3D
 		if textured and TexKit.water_ready():
-			wi = Kit._part(root, _water_mesh(origin), Vector3.ZERO, TexKit.water(TexKit.GRAIN, TexKit.world_pal()))
+			_job.steps.append([STEP_WATER])  # its own step: about a thousand height lookups, kept off the ground step
 		else:
 			var plane := PlaneMesh.new()
 			plane.size = Vector2(Land.CHUNK, Land.CHUNK)
-			wi = Kit._part(root, plane, Vector3(centre.x, Land.WATER_Y, centre.y), _flat_water_material())
-		_job.chunk.water = wi
+			_job.chunk.water = Kit._part(root, plane, Vector3(centre.x, Land.WATER_Y, centre.y), _flat_water_material())
 	var steps: Array = _job.steps
 	for cz in 5:
 		steps.append([STEP_ROW, cz])

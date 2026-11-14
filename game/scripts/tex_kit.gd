@@ -83,18 +83,18 @@ const D_HERO := 0.30
 const D_ENEMY := 0.20
 
 ## The real game's palette for textured ground and water (G3, critic fixes 2 to 5). Raw colours, like every tint here.
-const PATH_LIGHT := Color("#625640")   # trail: warm dry earth, about 1.2 times the grass's luminance (G3 round 2: the Critic's #6B5A40 mixed into the ground made the trail vanish)
-const PATH_ASH := Color("#615850")     # the Ashlands' trail: pale warm grey-brown, about 1.4 times the ground, not gold
+const PATH_LIGHT := Color("#6E5238")   # trail: warm dry earth, about 1.2 times the grass's luminance (G3 round 2: the Critic's #6B5A40 mixed into the ground made the trail vanish)
+const PATH_ASH := Color("#746A60")     # the Ashlands' trail: pale warm grey-brown, about 1.35 times the ground (whose tint is TINT_GRAIN.ashlands), not gold
 const WATER_DEEP := Color("#20343A")
 const WATER_SHALLOW := Color("#3E6A68")  # only within about 1 m of the shore
 const WORLD_FOG := Color("#6E7470")      # the ramp mixes 10% of this into the dark end; one material serves every region
 ## Ground tints that differ from Land.BIOMES' flat colours when textured (docs/TEXTURE_LOOK.md, G3).
 ## forest (Greywood): the flat colour renders a saturated emerald (rendered saturation about 0.39) under the region's green ambient;
-## this tint is less saturated (hue near the palette's #2F3F2C, rendered saturation about 0.28) at the luminance Greywood has
-## today, because an earlier lighting review required it bright enough to play in.
-## village 10% and meadow 18% darker, so that a fighter reads at 1.5 times the ground's luminance or more in the real duel
-## (measured with tools/g3_measure.py; the grain's mean is already a little below the flat colour's).
-const TINT_GRAIN := {"forest": Color("#505C4E"), "village": Color("#556032"), "meadow": Color("#4A5831")}
+## this tint is less saturated (hue near the palette's #2F3F2C) at about the luminance Greywood has today (an earlier lighting review).
+## ashlands: lifted so the grain (mean a few percent below the flat colour, highlights capped) lands near today's luminance.
+## village and meadow: darker (10% and 18%) so a fighter reads at 1.45 times the ground or more in the real duel (flat today: 1.12;
+## measured with tools/g3_measure.py).
+const TINT_GRAIN := {"forest": Color("#566253"), "ashlands": Color("#605C5B"), "village": Color("#596635"), "meadow": Color("#4A5831")}
 
 static var _tex := {}
 static var _shaders := {}
@@ -390,10 +390,11 @@ void vertex() { wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
 	NORMAL = normalize((VIEW_MATRIX * vec4(nw, 0.0)).xyz);
 	// Shallow tint only at the shore: the baked factor reaches 1 at the shore line and 0 about a metre out.
 	float s = smoothstep(0.35, 0.95, clamp(UV.x, 0.0, 1.0));
-	ALPHA = mix(a_deep, a_shallow, s);
-	ROUGHNESS = 0.10;
+	float farf = smoothstep(10.0, 40.0, dist);
+	ALPHA = mix(mix(a_deep, a_shallow, s), 0.92, farf);
+	ROUGHNESS = mix(0.10, 0.35, farf);
 	METALLIC = 0.0;
-	SPECULAR = 0.25;
+	SPECULAR = 0.25 * (1.0 - 0.8 * farf);
 """
 	if t == GRAIN:
 		return head + """
@@ -407,7 +408,7 @@ void fragment() {
 	float gf = 1.0 - smoothstep(25.0, 60.0, dist);   // far water: the mean, not a pattern
 	float g_deep = mix(0.5, both(b1.b, b2.b), gf);
 	float g_sh = mix(0.5, both(b1.g, b2.g), gf);
-	ALBEDO = mix(ramp(deep_col, g_deep, d, fog_col), ramp(shallow_col, g_sh, d, fog_col), s);
+	ALBEDO = mix(ramp(deep_col, g_deep, d, fog_col), ramp(shallow_col, g_sh, d, fog_col), s) * (1.0 - 0.12 - 0.40 * farf);
 }
 """
 	return head + """

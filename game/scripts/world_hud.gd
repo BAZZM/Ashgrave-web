@@ -120,6 +120,9 @@ func _toggle_quality() -> void:
 	var next := "full" if Run.quality_choice() == "safe" else "safe"
 	Run.set_quality(next)
 	Run.quality_apply(get_viewport())
+	# In the tower there is no terrain to follow the change: free the ground and water textures here (chunks keep their own references).
+	if not Run.quality_allows("textures"):
+		preload("res://scripts/tex_kit.gd").clear()
 	# Safe applies its cheap levers at once and the lower resolution at the next launch; Full waits for the next launch.
 	_say("Safe quality on. Lower resolution from next launch." if next == "safe" else "Full quality from next launch.")
 
