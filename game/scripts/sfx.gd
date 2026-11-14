@@ -9,6 +9,7 @@ var _players: Array[AudioStreamPlayer] = []
 var _next := 0
 
 var ambience := true
+static var _amb: AudioStreamWAV
 var _layer_ms := {}
 
 
@@ -21,11 +22,14 @@ func _ready() -> void:
 				break
 
 	if ambience and ResourceLoader.exists("res://audio/ambience.wav"):
-		var amb: AudioStreamWAV = load("res://audio/ambience.wav").duplicate()
-		amb.loop_mode = AudioStreamWAV.LOOP_FORWARD
-		amb.loop_end = int(amb.get_length() * amb.mix_rate)
+		# One looping copy for the whole run: on the web every new stream is handed to the page as a
+		# sample (its sound decoded into JS memory) and never released, about 3 MB per scene load.
+		if _amb == null:
+			_amb = load("res://audio/ambience.wav").duplicate()
+			_amb.loop_mode = AudioStreamWAV.LOOP_FORWARD
+			_amb.loop_end = int(_amb.get_length() * _amb.mix_rate)
 		var ap := AudioStreamPlayer.new()
-		ap.stream = amb
+		ap.stream = _amb
 		ap.volume_db = -9.0
 		add_child(ap)
 		ap.play()
