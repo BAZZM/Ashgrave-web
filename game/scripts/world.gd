@@ -54,6 +54,7 @@ var _stone: StandardMaterial3D
 var _show_light: OmniLight3D
 ## Tower wall test bot (`--towerbot=walls`, see world_bot.gd); null in normal play.
 var _wbot: RefCounted
+var quest_run := false
 var _stuck_t := 0.0
 ## Recent safe spots the hero walked through on this tier (oldest first), for unstuck().
 var _trail: Array = []
@@ -95,6 +96,14 @@ func _ready() -> void:
 			GoldenBot.golden_world(self, a.trim_prefix("--golden="))
 		elif a.begins_with("--towerbot="):
 			_wbot = WallBot.new(self, a.trim_prefix("--towerbot="))
+		elif a.begins_with("--questbot=") and a.trim_prefix("--questbot=") == "act1":
+			# The quest bot (world_bot.gd, mode act1) drives the tower with the tour bot's movement.
+			_wbot = WallBot.new(self, "act1")
+			direct_duel = false
+			quest_run = true
+	if quest_run:
+		direct_duel = false
+		_bot = "tour"
 	if direct_duel or _shot_when in ["windup", "open", "result", "tutorial"]:
 		get_tree().change_scene_to_file.call_deferred("res://scenes/duel.tscn")
 		return
@@ -176,6 +185,7 @@ func begin() -> void:
 	started = true
 	Run.title_seen = true
 	Run.captions.append(Story.inscription(tier, int(Run.data.bloodline)))
+	Story.read_inscription(tier, int(Run.data.bloodline))
 	Run.save()
 
 
@@ -809,6 +819,8 @@ func interact() -> void:
 			Run.data.relics.append(tier)
 			var rel: Dictionary = Story.RELICS[tier]
 			Run.captions.append("%s. %s" % [rel.name, rel.text])
+			Story.found("relic%d" % tier)
+			Quests.sync()
 			if Run.data.relics.size() >= Run.FLOORS:
 				Run.captions.append(Story.TRUTH)
 			_remove(e)
@@ -847,6 +859,8 @@ func _travel(to: int, at: String) -> void:
 
 
 func _bot_dir() -> Vector3:
+	if quest_run:
+		return _wbot.quest_dir()
 	var target := Tiers.EXIT
 	if not Run.is_slain("t%d_guardian" % tier):
 		target = Vector3(0, 0, -40)

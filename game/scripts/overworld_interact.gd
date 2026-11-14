@@ -179,6 +179,7 @@ func interact() -> void:
 			Run.spawn = "entrance"
 			Run.data.tower_slain = []
 			Run.captions.append(Story.inscription(1, int(Run.data.bloodline)))
+			Story.read_inscription(1, int(Run.data.bloodline))
 			if Run.combat_level() < 12:
 				Run.captions.append("Everything here is far stronger than the land outside. Leave by the gate behind you if it is too much.")
 			var back: Vector3 = ow.mover.free_near(ow.hero_pos + Vector3(0, 0, 6.0))

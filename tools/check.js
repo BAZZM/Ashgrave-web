@@ -145,6 +145,7 @@ class Client {
     this.lines = [];
     this.errors = [];
     this.t0 = Date.now();
+    this.seed = null;
     // Once this pattern is seen the bot is done and quits; errors from the engine
     // shutting down after that are not the build's.
     this.stopRe = null;
@@ -172,6 +173,8 @@ class Client {
       if (/^WebSocket connection to|^Blocked call to navigator\.vibrate/.test(text)) return;
       if (m.type() === 'error' || /SCRIPT ERROR|Parse Error/.test(text)) this.errors.push(text.slice(0, 400));
     });
+    // A save (JSON text) put in localStorage before the game boots, for scenarios that start from a fixture.
+    if (this.seed) await this.page.addInitScript((t) => { if (!localStorage.getItem('ashgrave_save_v1')) localStorage.setItem('ashgrave_save_v1', t); }, this.seed);
     const q = new URLSearchParams();
     if (relays.length) q.set('relay', relays.join(','));
     for (const a of gameArgs) q.append('arg', a);
@@ -268,7 +271,7 @@ async function solo(ctx, { args, finish, fail, seconds, verify }) {
   return { ok, notes };
 }
 
-const GAME_LINE = /^(LAND|WORLD|TOUR|RESULT|GATHER|PVP)/;
+const GAME_LINE = /^(LAND|WORLD|TOUR|RESULT|GATHER|PVP|ACT1|QSAVE)/;
 const lineOf = (lines, re) => lines.find((l) => re.test(l));
 
 // ---- 1. load
@@ -714,6 +717,79 @@ async function pvp(ctx, relayCount) {
   });
   return { ok, notes };
 }
+
+// ---- 3b. Act 1 quest bot (docs/story/ACT1.md) and old-save compatibility
+
+// Plays Act 1 from a fresh save through the real talk, kill, find and win hooks (game/scripts/overworld_bot.gd,
+// world_bot.gd). Two runs, so that every choice is taken once: --pick=0 then --pick=1.
+scenario('act1', 'quest bot plays Act 1 start to finish: every quest started and completed in order, text fits its boxes', async (ctx) => {
+  const notes = [];
+  let ok = true;
+  for (const pick of [0, 1]) {
+    const res = await solo(ctx, {
+      args: ['--autoplay=gather', '--questbot=act1', `--pick=${pick}`], finish: /^ACT1 (DONE|FAILED)/, seconds: 1500,
+      verify: (lines) => {
+        const bad = lines.filter((l) => /^ACT1 FAIL /.test(l));
+        if (bad.length) return bad.slice(0, 3).join(' | ');
+        if (!lines.some((l) => /^ACT1 DONE quests=12\/12 /.test(l))) return 'did not finish 12 of 12 Act 1 quests';
+        const started = lines.filter((l) => /^QUEST start /.test(l)).length;
+        const done = lines.filter((l) => /^QUEST done /.test(l)).length;
+        if (started !== 12 || done !== 12) return `quest log: ${started} started, ${done} done`;
+        const order = lines.filter((l) => /^QUEST done /.test(l)).map((l) => l.split(' ')[2]);
+        if (order.indexOf('a1_hand') < order.indexOf('oath') || order.indexOf('a1_hand') < order.indexOf('a1_thirty_first')) return 'a1_hand completed before its requirements';
+        if (order.indexOf('a1_stair') < order.indexOf('a1_hand')) return 'a1_stair completed before a1_hand';
+        if (order.indexOf('a1_bone') < order.indexOf('forge')) return 'a1_bone completed before forge';
+        return null;
+      },
+    });
+    ok = ok && res.ok;
+    notes.push(`pick ${pick}: ${res.ok ? 'ok' : 'FAILED'}`);
+    notes.push(...res.notes);
+    if (!res.ok) break;
+  }
+  return { ok, notes };
+}, true);
+
+// Loads saves exported from Build 13 at several points in the five old quests and checks that each quest is at
+// the same step with the same text, and that the open ones can still be finished.
+scenario('quest-save', 'saves made on the previous build keep their quest progress step for step', async (ctx) => {
+  const dir = path.join(ROOT, 'tools', 'fixtures');
+  const texts = JSON.parse(fs.readFileSync(path.join(dir, 'old_step_texts.json'), 'utf8'));
+  const notes = [];
+  let ok = true;
+  for (const f of fs.readdirSync(dir).filter((n) => /^old-.*\.json$/.test(n)).sort()) {
+    const raw = fs.readFileSync(path.join(dir, f), 'utf8');
+    const save = JSON.parse(raw);
+    const relay = await ctx.newRelay();
+    const c = await ctx.client('save');
+    c.seed = raw;
+    c.stopRe = /^QSAVE END/;
+    await c.start(ctx.base, ['--questbot=save'], [relay.url]);
+    const r = await waitUntil([c], () => c.find(/^QSAVE END/), 150);
+    const problems = [...errorNotes([c])];
+    if (r !== 'ok') problems.push(`no QSAVE END (${r})`);
+    else {
+      for (const id of ['forge', 'line', 'poach', 'mire', 'oath']) {
+        const want = save.quests[id];
+        const got = c.lines.find((l) => l.startsWith(`QSAVE state ${id} `));
+        if (!want) { if (!/ none$/.test(got || '')) problems.push(`${id}: expected no entry, got ${got}`); continue; }
+        const m = (got || '').match(/step=(\d+) count=(\d+) done=(\w+) text=(.*)$/);
+        if (!m) { problems.push(`${id}: no state line`); continue; }
+        if (Number(m[1]) !== want.step || Number(m[2]) !== want.count || (m[3] === 'true') !== want.done) problems.push(`${id}: saved step ${want.step}/${want.count}/${want.done}, loaded ${m[1]}/${m[2]}/${m[3]}`);
+        const wantText = want.done ? 'Complete' : texts[id][want.step];
+        if (m[4] !== wantText) problems.push(`${id}: step text changed: ${m[4].slice(0, 50)}`);
+        if (!want.done && !c.lines.some((l) => l.startsWith(`QSAVE finished ${id} done=true`))) problems.push(`${id}: could not be finished from step ${want.step}`);
+      }
+      const gl = c.lines.find((l) => l.startsWith('QSAVE gold='));
+      if (!gl || !gl.startsWith(`QSAVE gold=${save.gold} `)) problems.push(`gold changed: ${gl}`);
+      if (c.lines.some((l) => /^QSAVE state \w+ none/.test(l)) === false && false) problems.push('x');
+    }
+    await c.close();
+    notes.push(`${f}: ${problems.length ? 'FAILED' : 'ok'}`);
+    for (const p of problems) { notes.push(`  ${p}`); ok = false; }
+  }
+  return { ok, notes };
+});
 
 scenario('pvp', 'two players duel through one relay', (ctx) => pvp(ctx, 1), true);
 scenario('pvp-2relay', 'two players duel through the same two relays, duplicates dropped', (ctx) => pvp(ctx, 2), true);

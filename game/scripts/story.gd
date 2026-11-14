@@ -1,6 +1,8 @@
 class_name Story
 extends RefCounted
 
+const Act1 := preload("res://scripts/quest_data_act1.gd")
+
 const INSCRIPTIONS := {
 	1: ["Here the oath was first spoken. Here it is still owed.", "Ash keeps what fire forgets.", "Your father's name is on this gate. So is his father's."],
 	2: ["The cisterns were dug to drown the pyre. They failed.", "Still water remembers every face that looked into it."],
@@ -44,10 +46,39 @@ static func inscription(tier: int, bloodline: int) -> String:
 
 
 static func bark(enemy_name: String, moment: String, met_before := false) -> String:
-	var b: Dictionary = BARKS.get(enemy_name, {})
+	var b: Dictionary = BARKS.get(enemy_name, Act1.BARKS.get(enemy_name, {}))
 	if moment == "intro" and met_before and b.has("again"):
 		return b.again
-	return b.get(moment, "")
+	var v: Variant = b.get(moment, "")
+	if v is Array:
+		return v[randi() % v.size()] if not v.is_empty() else ""
+	return v
+
+
+## Lore found so far is kept in Run.data.lore (ids). "insc<tier>_<n>" is a tower inscription, "relic<n>" a
+## relic; anything else is a key of Act1.LORE. Returns true if it was new.
+static func found(id: String) -> bool:
+	if Run.data.lore.has(id):
+		return false
+	Run.data.lore.append(id)
+	Quests.touch()
+	return true
+
+
+static func lore_entry(id: String) -> Dictionary:
+	if id.begins_with("insc"):
+		var p := id.substr(4).split("_")
+		var pool: Array = INSCRIPTIONS.get(int(p[0]), [""])
+		return {"name": "Inscription: %s" % Tiers.THEMES[int(p[0])].name, "text": pool[int(p[1]) % pool.size()]}
+	if id.begins_with("relic"):
+		return RELICS.get(int(id.substr(5)), {"name": id, "text": ""})
+	return Act1.LORE.get(id, {"name": id, "text": ""})
+
+
+## Record a tower inscription as read.
+static func read_inscription(tier: int, bloodline: int) -> void:
+	var n: int = INSCRIPTIONS.get(tier, [""]).size()
+	found("insc%d_%d" % [tier, (bloodline - 1) % n])
 
 
 static func heir_letter(bloodline: int) -> String:
