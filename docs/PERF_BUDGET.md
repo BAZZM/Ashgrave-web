@@ -58,6 +58,76 @@ copy of each, a headless artifact.
 | Sky radiance 64 instead of 256 | -0.65 MB; metal reflections duller |
 | Shadow atlas 512 | not visible in monitors (est. 1.5-3 MB) |
 
+## Quality levels (Build 15: `game/scripts/quality.gd`, `run.gd`)
+
+Two levels, saved in the save's `settings` key (`quality`, plus `q_auto`, `q_auto_done`, `q_auto_n`, `q_mark`) and
+mirrored in the small localStorage key `ashgrave_quality`, which `index.html` reads before the engine starts. A save
+without the key loads as `full`; a level string this build does not know reads as `safe` (and stays stored untouched);
+an older build ignores the key and drops it on its next save (the level then resets to full there). `?quality=safe|full`
+on the page address (or `--quality=` as a user arg) sets the level for that session only, never saved, and also sets
+the pixel-ratio cap from the first frame.
+
+**What `safe` changes**: pixel-ratio cap 1.5 instead of 2 (the big one; applies from the first frame of the next
+launch), and sun and moon shadows off with the shadow atlas released (size 0). The 3D render scale (`scale_k`) and
+sky radiance (`radiance`) levers exist in `LEVELS` but are left at the full values: with them in, safe soaked with a
+16 MB wasm heap step at cycle 5 (three runs, atlas 0 and 256); without them, and with the setters guarded to run only
+on a change, the safe soak is flat at 79.8 MB through all five cycles. Cause of the step not isolated (it appeared with
+those two levers on, at a heap growth boundary). The HUD is a little softer at 1.5 (text and bars stay legible in the captures); the owner accepted
+that for not crashing. Not changed: draw distance and chunk radius (no memory saving measured). Switching in the
+game: to Safe applies shadows, scale and radiance at once and the cap at the next launch; back to Full takes effect
+at the next launch only (the button says so), and the stored level changes immediately.
+
+Measured, headless software WebGL, 844x390 at dpr 3 (Godot monitors, video = textures + buffers, MB):
+
+| Phase | full | safe, cap 2 | safe, cap 1.5 | safe, cap 1.0 |
+|---|---|---|---|---|
+| title | 39.1 | 40.0 (buffer reading 4 MB high, transient) | **30.2 (-8.9)** | 25.7 (-13.4) |
+| land (road-wide shot) | 34.3 | 30.9 (-3.4) | **25.4 (-8.9)** | 20.9 (-13.4) |
+| duel (HUD shot) | 35.8 | 26.5 (-9.3) | **23.6 (-12.2)** | 18.2 (-17.6) |
+
+**Shipped safe** (cap 1.5, shadows off, atlas released) against full, video MB: phone title 37.3 -> 26.6 in the soak (-10.7), land shot 34.3 -> 23.1 (-11.2), duel shot 35.8 -> 21.3 (-14.4). Safe soak: heap 79.8 in every cycle, buffers 17.6 against 15.5 in full (+2 MB). The table above was measured with the scale and radiance levers on. Cap 1.5 saves at least 8.9 MB in every phase, so it is the one used (1.0 would save 4.5 MB more with a much softer
+HUD). Textures alone: title 23.0 -> 14.1 at 1.5; land 18.4 -> 9.5; duel 24.3 -> 12.1. Buffers (15-16 MB land, 11.5 duel)
+do not move with any lever; the shadow atlas does not show in the monitors either way. Levers alone at the title
+at cap 2 (earlier run): shadows off draws 424 -> 247 and primitives 124k -> 84k, no memory; scale x0.75 -2.7 MB;
+sky radiance 64 -0.65 MB. At 320x180 (the soak size) the levers save almost nothing (about 0.4 MB): the saving is the
+phone-sized canvas. Wasm heap is the same in both (79.8 MB).
+
+`check.js quality` (PERFLOG means at 320x180, `--perflog` also prints the levers read back from the engine):
+
+| Phase | level | draws | primitives | scale | shadowed lights | radiance |
+|---|---|---|---|---|---|---|
+| land | full / safe | 379 / 224 | 113k / 55k | 1.00 / 0.75 | 1 / 0 | 256 / 64 |
+| tower duel | full / safe | 235 / 133 | 56k / 19k | 1.00 / 0.75 | 1 / 0 | 256 / 64 |
+| duel | full / safe | 228 / 114 | 55k / 27k | 1.00 / 0.75 | 1 / 0 | 256 / 64 |
+
+`perf-soak` (320x180, 5 cycles, sound on). Full (merged build): passes, heap flat 79.8 MB, video peak 24.1 MB. Safe, run three
+times: phone title video 28.8 MB (textures 13.5 against 22.0 in full); per-cycle video 18.1 MB (full 18.5), textures
+2.6 (3.0), buffers 15.5 flat, nodes, objects, resources and orphans flat, renderer growth 5-9 MB per cycle, draws per
+phase about 40% lower. The buffer rise seen in the first safe run (17.6 MB) did not persist as a trend: it appeared only
+on the cycle where the wasm heap stepped. **Safe fails the soak's heap check** (twice with the shadow atlas released, once
+at 256): one 16 MB wasm heap step (79.8 -> 95.8 MB) in cycle 5, at the screens phase, then flat; full never stepped.
+Not a leak (a single step, under the 128 MB ceiling) and not the atlas size; cause unknown, open for a phone to show.
+
+**Automatic rule** (`perf.gd`, `_auto_safe_check`): when a boot reports a foreground death or a stall that is young
+enough to show the banner (not a background reload, a shared tab or an old death), and the previous such death is
+no more than 30 minutes before it, and both came after the level last changed, and the level is `full`, and the
+game has not already switched by itself, the level becomes `safe` (saved, marked automatic) and the banner says so
+once (and once more in the caption line). A death during the engine load (crumb phase `boot`) never counts. Why: one unlucky crash does not count; two a day apart do not count; two in half an hour is a loop. In `safe`
+nothing further happens but the crumb. The player choosing Full (or Safe) resets the mark and re-arms the rule.
+Every crumb carries `q` (level in force), `qa` (set by the game), `qd` (deaths counted since the last change; 0 on a boot that reported none) and
+`qn` (automatic switches); the restart banner prints `Quality:` and the death line `q= qa= qd= qn=`. The six-
+character report code already uses all 30 bits (heap 9, video 7, mode 3, minutes 6, dpr 2, nodes 3), so it is
+unchanged: the level is on the banner line next to it.
+
+**Hooks for texture and model lanes**: ask `Run.quality_allows("textures")` / `("models")` / `("shadows")` before
+loading, creating or showing anything heavy, and skip the `load()` itself when it is false (a gated resource must
+never be loaded, not loaded and hidden). `Run.quality_level()` names the level; to add a level or switch, add a row
+or a key to `Quality.LEVELS` (a missing key counts as allowed). `Run.quality_tune_light(light)` and
+`Run.quality_tune_sky(sky)` apply the level to lights and skies built in code; `Run.quality_apply(viewport)`
+re-applies the level to a running scene (it walks the tree once). A feature name a row does not list is refused in
+safe (typos fail closed). Gated features are decided when a scene loads and never loaded or unloaded mid-scene; a lane
+that wants to notice a change reads `Run.quality_rev` (counts level changes). Nothing in the live game uses textures or models yet.
+
 ## Budget for textures and skinned characters
 
 Estimated iPhone footprint today, after the fixes: wasm heap 80 MB, compiled 43.7 MB
