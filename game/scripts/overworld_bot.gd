@@ -21,7 +21,7 @@ var _g_ok := 0
 var _g_said := false
 
 
-## Quest bot, `--autoplay=gather --questbot=act1|save [--pick=N]` (see quest_bot notes below).
+## Quest bot, `--autoplay=gather --questbot=act1|act2|save [--pick=N]` (see quest_bot notes below).
 var questbot := ""
 var _qb_pick := 0
 var _qb_started := false
@@ -552,6 +552,8 @@ func _process(_delta: float) -> void:
 				_qs_main()
 			elif questbot == "touch":
 				_qt_main()
+			elif questbot == "act2":
+				_q2_main()
 			elif questbot.begins_with("shot-"):
 				_qshot_main(questbot.trim_prefix("shot-"))
 			else:
@@ -1116,19 +1118,20 @@ func _qb_audit() -> void:
 				for l in _qb_lines_of(st.reply[k]):
 					_qb_check_line(l, false, "%s reply" % id)
 					n += 1
-	for npc in Story.Act1.IDLE:
-		for l in _qb_lines_of(Story.Act1.IDLE[npc]):
-			_qb_check_line(l, false, "idle " + npc)
-			n += 1
-	for nm in Story.Act1.BARKS:
-		for m in Story.Act1.BARKS[nm]:
-			for l in _qb_lines_of(Story.Act1.BARKS[nm][m]):
-				if l.length() > 60:
-					_qb_text_fail("bark", l, nm)
+	for tbl in [Story.Act1, Story.Act2, Story.Side]:
+		for npc in tbl.IDLE:
+			for l in _qb_lines_of(tbl.IDLE[npc]):
+				_qb_check_line(l, false, "idle " + npc)
 				n += 1
-	for lid in Story.Act1.LORE:
-		if _qb_rows(Story.Act1.LORE[lid].text, 17, jw) > 3:
-			_qb_text_fail("lore", Story.Act1.LORE[lid].text, lid)
+		for nm in tbl.BARKS:
+			for m in tbl.BARKS[nm]:
+				for l in _qb_lines_of(tbl.BARKS[nm][m]):
+					if l.length() > 60:
+						_qb_text_fail("bark", l, nm)
+					n += 1
+		for lid in tbl.LORE:
+			if _qb_rows(tbl.LORE[lid].text, 17, jw) > 3:
+				_qb_text_fail("lore", tbl.LORE[lid].text, lid)
 	print("TEXT audited %d lines" % n)
 
 
@@ -1155,6 +1158,9 @@ func _qb_frames(n: int) -> void:
 
 
 func _qb_pos(id: String) -> Vector3:
+	if id == "villager" and not ow._walkers.is_empty():
+		var w: Dictionary = ow._walkers[0]
+		return Vector3(w.pos.x, 0, w.pos.z)
 	for pl in Land.PLACES:
 		if pl.id == id:
 			return Vector3(pl.pos.x, 0, pl.pos.y)
@@ -1164,6 +1170,21 @@ func _qb_pos(id: String) -> Vector3:
 ## Stand the hero beside a place or NPC until the game itself says it is the nearest thing (so the real
 ## prompt and hooks apply).
 func _qb_stand(id: String) -> bool:
+	if id == "villager" and not ow._walkers.is_empty():
+		# The villager wanders: go to wherever it is now, and ask again if it has moved on.
+		for t in 8:
+			var w: Dictionary = ow._walkers[0]
+			var wc := Vector3(w.pos.x, 0, w.pos.z)
+			for k in 4:
+				var at := wc + Vector3(cos(k * TAU / 4.0), 0, sin(k * TAU / 4.0)) * 1.5
+				if t > 0 and not ow.mover.is_free(at):
+					continue
+				_ar_put(at)
+				if t == 0:
+					await _ar_ready(at)
+				await _qb_frames(1)
+				if ow.near.get("id", "") == "villager":
+					return true
 	var c := _qb_pos(id)
 	_ar_put(c)
 	await _ar_ready(c)
@@ -1596,6 +1617,265 @@ func _qb_end() -> void:
 	ow.get_tree().quit()
 
 
+# ---------------------------------------------------------------- act 2, part one
+
+## Every line the hero was shown in a talk, kept for the consequence checks.
+func _q2_talk(npc: String) -> Array:
+	var shown: Array = await _qb_talk(npc)
+	var seen: Array = Engine.get_meta("q2_seen", [])
+	seen.append_array(shown)
+	Engine.set_meta("q2_seen", seen)
+	return shown
+
+
+## Act 1 finished the way `kind` says. a2 is the full, kind road (bloodline 1); a2keep is the other: the Warden's
+## words kept back, the bribe taken, the oath ended, a second heir.
+static func q2_seed(kind: String) -> void:
+	Run.data.quests = {}
+	var ids := ["forge", "line", "poach", "mire", "oath", "a1_thirty_first", "a1_bone", "a1_tam", "a1_struck", "a1_diggers", "a1_hand", "a1_stair"]
+	for id in ids:
+		Run.data.quests[id] = {"step": 0, "count": 0, "done": true}
+	if kind == "a2keep":
+		Run.data.flags = {"oath": "end", "poach": "bribe", "a1_hand": "accuse", "a1_stair": "keep", "act": "2"}
+		Run.data.bloodline = 2
+	else:
+		Run.data.flags = {"oath": "keep", "poach": "tally", "a1_hand": "ask", "a1_stair": "all", "act": "2"}
+		Run.data.bloodline = 1
+	Run.data.relics = [1]
+	Run.data.unlocked = 2
+	Run.data.best_floor = 2
+	Quests.touch()
+
+
+## The tower, by its own bookkeeping: the relic is taken, the Warden beaten (the real fights are world_bot's).
+func _q2_relic(n: int) -> void:
+	if not Run.data.relics.has(n):
+		Run.data.relics.append(n)
+	Story.found("relic%d" % n)
+	Quests.sync()
+
+
+func _q2_beat(t: int) -> void:
+	Run.data.unlocked = maxi(int(Run.data.unlocked), t + 1)
+	Run.data.best_floor = maxi(int(Run.data.best_floor), int(Run.data.unlocked))
+	Quests.sync()
+
+
+func _q2_log() -> Array:
+	return Engine.get_meta("q2_log", [])
+
+
+## Log start and done events in the order they happen.
+func _q2_mark() -> void:
+	var log: Array = _q2_log()
+	var have: Dictionary = Engine.get_meta("q2_have", {})
+	for id in Quests.ids():
+		if not (id.begins_with("a2_") or id.begins_with("side_")):
+			continue
+		var s := _qb_state(id)
+		var was: int = have.get(id, -1)
+		if s != was:
+			if was == -1 and s >= 0:
+				log.append("start:" + id)
+			if s == 99:
+				log.append("done:" + id)
+			have[id] = s
+	Engine.set_meta("q2_log", log)
+	Engine.set_meta("q2_have", have)
+
+
+func _q2_before(a: String, b: String) -> void:
+	var l := _q2_log()
+	var ia := l.find(a)
+	var ib := l.find(b)
+	qb_check(ia >= 0 and ib >= 0 and ia < ib, "order: %s before %s" % [a, b])
+
+
+func _q2_do(id: String, giver: String) -> void:
+	_q2_mark()
+	if not Quests.started(id):
+		if giver != "":
+			for i in 3:
+				if Quests.started(id):
+					break
+				await _q2_talk(giver)
+		else:
+			Quests.sync()
+	_q2_mark()
+	if not Quests.started(id):
+		qb_fail("%s did not start (giver %s)" % [id, giver])
+		return
+	var guard := 0
+	while Quests.active(id) and guard < 16:
+		guard += 1
+		var st := Quests.step(id)
+		var cur := _qb_state(id)
+		match st.do:
+			"bring":
+				_qb_need(st.mats)
+				await _q2_talk(st.to)
+			"talk", "choose":
+				await _q2_talk(st.to)
+			"reach":
+				await _qb_reach(st.place)
+			"kill":
+				await _qb_kill(st.foes, func(): return _qb_state(id) != cur)
+			"find":
+				_q2_relic(int(st.relic))
+			"win":
+				_q2_beat(int(st.tier))
+			_:
+				guard = 99
+		_q2_mark()
+		if _qb_state(id) == cur and st.do in ["talk", "choose", "bring"] and guard > 4:
+			break
+	qb_check(_qb_state(id) == 99, "%s done" % id)
+	_q2_mark()
+
+
+func _q2_flagv(k: String) -> String:
+	if k == "bloodline2":
+		return "yes" if int(Run.data.bloodline) >= 2 else "no"
+	return str(Run.data.flags.get(k, ""))
+
+
+## [flag, value, line start]. A leading ! on the value means "any other value". The line must have been shown when
+## the flag holds that value, and must not have been shown when it does not.
+const Q2_SEEN := [
+	["a1_stair", "all", "The Warden's words you gave me whole"],
+	["a1_stair", "keep", "The Warden's words you kept from me"],
+	["a2_ending", "keep", "Whatever it asked, it asked about the oath"],
+	["a2_ending", "!keep", "As to the ending, I did not write"],
+	["a2_ending", "keep", "He will not have told you who swore"],
+	["a2_ending", "!keep", "He told you who swore here first"],
+	["a2_letter", "read", "'Brother.' Is that how it begins"],
+	["a2_letter", "give", "Give it here. Hold the light still"],
+	["a2_letter", "keep", "Keep it, then. It came down the stair"],
+	["a2_letter", "keep", "Paper from the fourth stair"],
+	["a2_letter", "!keep", "His name was Ansel. I have not said"],
+	["a2_letter", "keep", "I told you I could not decide whether to bring him down or keep him company. I think"],
+	["a2_letter", "!keep", "I told you I could not decide whether to bring him down or keep him company. He had"],
+	["bloodline2", "yes", "More loaves than I will say"],
+	["bloodline2", "no", "Thirty loaves went out"],
+	["side_thralls", "burn", "We will see what walks the rows tonight. Fire is quick"],
+	["side_thralls", "!burn", "We will see what walks the rows tonight. A thing put"],
+	["side_thralls", "burn", "The thralls' bone burned"],
+	["side_thralls", "!burn", "The thralls' bone lies"],
+	["side_hexer", "!silent", "A hexer at the shrine said the flood needs"],
+	["side_thralls", "burn", "The burned ones stood at the stake again"],
+	["side_thralls", "!burn", "The buried ones lie where I put them"],
+	["side_trader", "post", "It is on the stone. Come back in a week"],
+	["side_trader", "hold", "He will send me venison by the next full moon"],
+	["side_hexer", "tell", "Do not carry it for me. I will ask"],
+	["side_hexer", "silent", "Keep your quiet, then."],
+	["side_hexer", "silent", "A hexer at the shrine said what the flood costs"],
+]
+
+
+func _q2_check_seen() -> void:
+	var seen: Array = Engine.get_meta("q2_seen", []).duplicate()
+	for id in Quests.ids():
+		if _qb_state(id) == 99:
+			seen.append(Quests.journal_text(id))
+	for row in Q2_SEEN:
+		var v := _q2_flagv(row[0])
+		var want: bool = (v == str(row[1])) if not str(row[1]).begins_with("!") else (v != str(row[1]).substr(1))
+		if v == "":
+			continue  # that choice was never offered in this run
+		var got := false
+		for l in seen:
+			if str(l).begins_with(row[2]):
+				got = true
+		qb_check(got == want, "%s=%s: '%s' %s" % [row[0], v, str(row[2]).left(40), "shown" if want else "not shown"])
+
+
+func _q2_main() -> void:
+	Engine.set_meta("qb_t0", Time.get_ticks_msec())
+	Engine.set_meta("qb_fails", 0)
+	var kind := "a2"
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--seed="):
+			kind = a.trim_prefix("--seed=")
+	q2_seed(kind)
+	for sk in Craft.COMBAT:
+		Run.data.skills[sk] = Craft.xp_for(45)
+	Run.data.skills["foraging"] = Craft.xp_for(20)
+	print("ACT2 start pick=%d bloodline=%d seed=%s" % [_qb_pick, Run.data.bloodline, kind])
+	_qb_audit()
+	Quests.sync()
+	_q2_mark()
+	# Nothing of the main line starts early, and what waits on a flag waits.
+	qb_check(Quests.offerable("a2_flood"), "a2_flood is offered once a1_stair is done")
+	qb_check(not Quests.started("a2_ending") and not Quests.started("a2_letter"), "a2_ending and a2_letter wait for the tower")
+	qb_check(not Quests.offerable("a2_rune"), "a2_rune waits for a2_ending")
+	qb_check(not Quests.offerable("side_lie"), "side_lie waits for a2_rune")
+	var gold0 := int(Run.data.gold)
+	# Main line, in the order the story tells it.
+	await _q2_do("a2_flood", "alchemist")
+	qb_check(Run.data.inventory.has("ward"), "a2_flood gave the ward")
+	qb_check(int(Run.data.gold) - gold0 >= 80, "a2_flood paid its gold")
+	await _q2_do("a2_ending", "")
+	qb_check(Run.data.flags.has("a2_ending"), "a2_ending stored its choice (%s)" % str(Run.data.flags.get("a2_ending", "")))
+	await _q2_do("a2_mark", "smith")
+	qb_check(Run.data.inventory.has("pyre_greatsword"), "a2_mark gave the Pyre Greatsword")
+	await _q2_do("a2_rune", "oswin")
+	qb_check(Run.data.lore.has("oath_plain"), "a2_rune put oath_plain in the lore save key")
+	_q2_relic(4)
+	_q2_beat(4)
+	await _q2_do("a2_letter", "")
+	qb_check(Run.data.flags.has("a2_letter"), "a2_letter stored its choice (%s)" % str(Run.data.flags.get("a2_letter", "")))
+	qb_check(Run.data.lore.has("rooks_sent"), "a2_letter put rooks_sent in the lore save key")
+	# Sides. Which ones open depends on Act 1: the a2keep road never took the tally, so the Trader stays shut.
+	await _q2_do("side_bread", "villager")
+	await _q2_do("side_mine", "smith")
+	await _q2_do("side_thralls", "nan")
+	await _q2_do("side_marigold", "nan")
+	await _q2_do("side_isolde", "ranger")
+	if kind == "a2keep":
+		qb_check(not Quests.offerable("side_trader") and not Quests.started("side_trader"), "side_trader stays shut: the tally was never given")
+	else:
+		await _q2_do("side_trader", "ranger")
+	await _q2_do("side_hexer", "")
+	await _q2_do("side_cloaks", "alchemist")
+	await _q2_do("side_lie", "fisher")
+	# Orders that the story depends on.
+	_q2_before("done:a2_ending", "start:a2_rune")
+	_q2_before("done:a2_rune", "start:side_lie")
+	_q2_before("done:side_thralls", "start:side_marigold")
+	_q2_before("done:a2_flood", "start:side_hexer")
+	_q2_before("start:a2_ending", "start:a2_letter")
+	_q2_before("done:a2_ending", "done:a2_letter")
+	# Idle talk, so that the lines that read a choice are shown.
+	for npc in ["elder", "alchemist", "villager", "ranger", "nan", "oswin", "fisher", "smith"]:
+		await _q2_talk(npc)
+	_q2_check_seen()
+	_q2_end(kind)
+
+
+func _q2_end(kind: String) -> void:
+	var hud: WorldHud = ow.hud
+	var done := 0
+	var total := 0
+	for id in Quests.ids():
+		if id.begins_with("a2_") or id.begins_with("side_"):
+			total += 1
+			if _qb_state(id) == 99:
+				done += 1
+	var bad := hud.journal_check()
+	if not bad.is_empty():
+		qb_fail("journal text overflows for %s" % str(bad))
+	hud.open("quests")
+	var fails := int(Engine.get_meta("qb_fails", 0))
+	var want := total - (1 if kind == "a2keep" else 0)
+	if done != want:
+		qb_fail("%d of %d Act 2 quests done, wanted %d" % [done, total, want])
+		fails += 1
+	var secs := (Time.get_ticks_msec() - int(Engine.get_meta("qb_t0", 0))) / 1000
+	print("ACT2 LOG %s" % str(_q2_log()))
+	print("ACT2 %s quests=%d/%d fails=%d bloodline=%d secs=%d" % ["DONE" if fails == 0 else "FAILED", done, total, fails, Run.data.bloodline, secs])
+	ow.get_tree().quit()
+
+
 # ---------------------------------------------------------------- quest-save
 
 ## Prints every quest's saved state (also called from the tower scene when a save was made inside it).
@@ -1619,7 +1899,11 @@ func _qs_main() -> void:
 	for sk in Craft.COMBAT:
 		Run.data.skills[sk] = Craft.xp_for(45)
 	Run.data.skills["foraging"] = Craft.xp_for(20)
-	for id in OLD_FIVE:
+	var todo: Array = []
+	for id in Quests.ids():
+		if (id in OLD_FIVE or id.begins_with("a2_") or id.begins_with("side_")) and Quests.active(id):
+			todo.append(id)
+	for id in todo:
 		if not Quests.active(id):
 			continue
 		var gold0 := int(Run.data.gold)
@@ -1638,6 +1922,10 @@ func _qs_main() -> void:
 					await _qb_reach(st.place)
 				"kill":
 					await _qb_kill(st.foes, func(): return _qb_state(id) != cur)
+				"find":
+					_q2_relic(int(st.relic))
+				"win":
+					_q2_beat(int(st.tier))
 				_:
 					guard = 99
 		var r: Dictionary = Quests.QUESTS[id].reward

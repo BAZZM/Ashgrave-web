@@ -274,7 +274,7 @@ async function solo(ctx, { args, finish, fail, seconds, verify }) {
   return { ok, notes };
 }
 
-const GAME_LINE = /^(LAND|WORLD|TOUR|RESULT|GATHER|PVP|ACT1|QSAVE)/;
+const GAME_LINE = /^(LAND|WORLD|TOUR|RESULT|GATHER|PVP|ACT1|ACT2|QSAVE)/;
 const lineOf = (lines, re) => lines.find((l) => re.test(l));
 
 // ---- 1. load
@@ -823,6 +823,50 @@ scenario('act1', 'quest bot plays Act 1 start to finish: every quest started and
   return { ok, notes };
 }, true);
 
+// Act 2, part one, from Act 1 finished (game/scripts/overworld_bot.gd, `--questbot=act2`). The main line and the
+// nine side quests are played through the real talk, kill, reach and bring hooks; the tower's relics and Wardens are
+// set by hand. Text fit is audited, quest starts and finishes are logged in order, and each choice must show its
+// consequence where the story reads it. Three runs take every choice: a2 --pick=0 (kind road: tell, read, post,
+// burn), a2 --pick=1 (give, hold, bury, silent) and a2keep --pick=2 (keep, keep, the other Act 1 flags, bloodline 2).
+function act2Verify(want) {
+  return (lines) => {
+    const bad = lines.filter((l) => /^ACT1 FAIL /.test(l));
+    if (bad.length) return bad.slice(0, 3).join(' | ');
+    const fin = lines.find((l) => /^ACT2 (DONE|FAILED) /.test(l));
+    if (!fin || !fin.startsWith(`ACT2 DONE quests=${want}/14 `)) return `finished with: ${fin}`;
+    const started = lines.filter((l) => /^QUEST start (a2_|side_)/.test(l)).map((l) => l.split(' ')[2]);
+    const done = lines.filter((l) => /^QUEST done (a2_|side_)/.test(l)).map((l) => l.split(' ')[2]);
+    if (started.length !== want || done.length !== want) return `quest log: ${started.length} started, ${done.length} done`;
+    const order = (a, b) => done.indexOf(a) < done.indexOf(b);
+    if (!order('a2_ending', 'a2_rune')) return 'a2_rune finished before a2_ending';
+    if (!order('side_thralls', 'side_marigold')) return 'side_marigold finished before side_thralls';
+    if (!order('a2_rune', 'side_lie')) return 'side_lie finished before a2_rune';
+    return null;
+  };
+}
+scenario('act2', 'quest bot plays Act 2, part one, from Act 1 finished: 14 quests in order, choices show their consequence', async (ctx) => {
+  const notes = [];
+  let ok = true;
+  for (const pick of [0, 1]) {
+    const res = await solo(ctx, {
+      args: ['--autoplay=gather', '--questbot=act2', '--seed=a2', `--pick=${pick}`], finish: /^ACT2 (DONE|FAILED)/, seconds: 1500,
+      verify: act2Verify(14),
+    });
+    ok = ok && res.ok;
+    notes.push(`pick ${pick}: ${res.ok ? 'ok' : 'FAILED'}`);
+    notes.push(...res.notes);
+    if (!res.ok) break;
+  }
+  return { ok, notes };
+}, true);
+
+// Act 1 ended the other way (Warden's words kept, bribe taken, oath ended, a second heir): the Trader never opens,
+// and every line that reads those flags must pick its other branch.
+scenario('act2-keep', 'Act 2, part one after the other Act 1 ending (keep, bribe, end, bloodline 2): 13 quests, keep branches', (ctx) => solo(ctx, {
+  args: ['--autoplay=gather', '--questbot=act2', '--seed=a2keep', '--pick=2'], finish: /^ACT2 (DONE|FAILED)/, seconds: 1500,
+  verify: act2Verify(13),
+}), true);
+
 // The same act with the page reloaded three times on the way (after a talk step, in the middle of a kill count,
 // after the tablet is found in the tower), the game continuing from what it saved. With WRITE_FIXTURES=1 the saves
 // it printed before each reload are kept as tools/fixtures/played-*.json.
@@ -912,7 +956,7 @@ scenario('quest-save', 'saves from earlier builds keep their quest progress step
           const wantText = want.done ? 'Complete' : texts[id][want.step];
           if (m[4] !== wantText) problems.push(`${id}: step text changed: ${m[4].slice(0, 50)}`);
         }
-        if (OLD.includes(id) && !want.done && !save.in_tower) {
+        if ((OLD.includes(id) || /^(a2_|side_)/.test(id)) && !want.done && !save.in_tower) {
           if (!c.lines.some((l) => l.startsWith(`QSAVE finished ${id} done=true paid=true item=true`))) problems.push(`${id}: could not be finished from step ${want.step} (${c.lines.find((l) => l.startsWith(`QSAVE finished ${id} `))})`);
         }
       }
@@ -923,7 +967,7 @@ scenario('quest-save', 'saves from earlier builds keep their quest progress step
       if (save.bloodline !== undefined && !gl.includes(`bloodline=${save.bloodline} `)) problems.push(`bloodline changed on load: ${gl}`);
       const after = JSON.parse(await c.page.evaluate(() => localStorage.getItem('ashgrave_save_v1')));
       for (const id of Object.keys(wantQ)) {
-        if (OLD.includes(id) || /^a\d_/.test(id)) continue;
+        if (OLD.includes(id) || /^(a\d_|side_)/.test(id)) continue;
         if (JSON.stringify(after.quests[id]) !== JSON.stringify(wantQ[id])) problems.push(`unknown quest ${id} was not kept: ${JSON.stringify(after.quests[id])}`);
       }
       if (!Array.isArray(after.lore)) problems.push('lore key missing after save');
