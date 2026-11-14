@@ -4,7 +4,9 @@ extends Node
 const Tune := preload("res://scripts/combat_tune.gd")
 
 const NAMES := ["whoosh", "clang", "hit", "block", "hurt", "break", "finish", "tell"]
-var _streams := {}
+## Shared by every Sfx for the whole run. On the web each new stream object becomes a new sample in
+## the page on first play and is never released, so streams must not be reloaded per scene.
+static var _streams := {}
 var _players: Array[AudioStreamPlayer] = []
 var _next := 0
 
@@ -14,16 +16,17 @@ var _layer_ms := {}
 
 
 func _ready() -> void:
-	for n in NAMES:
-		for ext in ["ogg", "wav"]:
-			var path := "res://audio/%s.%s" % [n, ext]
-			if ResourceLoader.exists(path):
-				_streams[n] = load(path)
-				break
+	if _streams.is_empty():
+		for n in NAMES:
+			for ext in ["ogg", "wav"]:
+				var path := "res://audio/%s.%s" % [n, ext]
+				if ResourceLoader.exists(path):
+					_streams[n] = load(path)
+					break
 
 	if ambience and ResourceLoader.exists("res://audio/ambience.wav"):
 		# One looping copy for the whole run: on the web every new stream is handed to the page as a
-		# sample (its sound decoded into JS memory) and never released, about 3 MB per scene load.
+		# sample (its sound decoded into JS memory) and never released, about 4.6 MB per scene load.
 		if _amb == null:
 			_amb = load("res://audio/ambience.wav").duplicate()
 			_amb.loop_mode = AudioStreamWAV.LOOP_FORWARD

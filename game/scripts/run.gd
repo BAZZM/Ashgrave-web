@@ -4,7 +4,7 @@ extends RefCounted
 const SAVE_PATH := "user://save.json"
 const FLOORS := 5
 
-const BUILD := 13
+const BUILD := 14
 
 const BOONS := {
 	"edge": {"name": "Keen Edge", "desc": "+15% sword damage", "max": 6},
@@ -34,7 +34,9 @@ static var resumed := false
 static func apply_web_settings(vp: Viewport) -> void:
 	if not OS.has_feature("web"):
 		return
-	var px := float(DisplayServer.window_get_size().y)
+	# The shorter side: a load in portrait (before the phone is turned) must not pick a lower scale.
+	var sz := DisplayServer.window_get_size()
+	var px := float(mini(sz.x, sz.y))
 	vp.msaa_3d = Viewport.MSAA_DISABLED
 	vp.scaling_3d_scale = clampf(640.0 / maxf(px, 1.0), 0.45, 1.0)
 	RenderingServer.directional_shadow_atlas_set_size(1024, true)

@@ -44,7 +44,7 @@ up. It sits on top of `docs/ORCHESTRATOR.md` (phases, gates, roles) and
 
 | # | Track | Task | Model | Files | Status |
 |---|---|---|---|---|---|
-| P1 | Perf | Memory and crash investigation by soak bot; fix leaks found; `perf-soak` scenario; `docs/PERF_BUDGET.md` | Opus | any script, minimal; `tools/` | running |
+| P1 | Perf | Memory and crash investigation by soak bot; fix leaks found; `perf-soak` scenario; `docs/PERF_BUDGET.md` | Opus | any script, minimal; `tools/` | DONE, released as Build 14 |
 | S1 | Story | `docs/STORY_BIBLE.md` and a fully written Act 1 from existing lore | Fable | docs only | DONE, merged (6010437) |
 | P2 | Perf | Safe mode and quality settings (pixel-ratio cap, shadows, auto-drop after two memory deaths, menu toggle) | Sonnet | `perf.gd`, `run.gd` settings, `world_hud.gd` | queued |
 | G1 | Graphics | Lighting and atmosphere per `docs/ART_BIBLE.md` section 4; Golden Shots before and after | Sonnet | `overworld_sky.gd`, `arena.gd`, lights in `world.gd` | DONE, released as Build 13 |
