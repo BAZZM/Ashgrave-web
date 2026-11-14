@@ -22,6 +22,16 @@ var _note := ""
 var _note_age := 9.0
 var _pops: Array = []
 var _talk := {}
+## Cached layout (rebuilt when the state it comes from changes, never per frame).
+var _talk_rows: Array = []
+var _talk_rows_i := -1
+var _jr: Array = []
+var _jr_pages: Array = []
+var _jr_page := 0
+var _jr_rev := -1
+var _jr_size := Vector2.ZERO
+var _trk: Array = []
+var _trk_rev := -1
 var sell_mode := false
 var _banner := ""
 var _banner_age := 9.0
@@ -58,6 +68,7 @@ func talk(d: Dictionary) -> void:
 		return
 	_talk = d
 	_talk.i = 0
+	_talk_rows_i = -1
 	open("talk")
 
 
@@ -69,6 +80,7 @@ func announce(text: String) -> void:
 func open(which: String) -> void:
 	screen = which
 	page = 0
+	_jr_page = 0
 	tab = "weapon"
 	world.stick = Vector2.ZERO
 	_stick_touch = -1
@@ -216,7 +228,10 @@ func _press(index: int, pos: Vector2) -> void:
 		return
 	if screen == "map" and world.is_land and _press_map(pos):
 		return
-	if screen in ["map", "skills", "quests"]:
+	if screen == "quests":
+		_press_quests(pos)
+		return
+	if screen in ["map", "skills"]:
 		_close()
 		return
 	if screen in ["craft", "store"]:
@@ -252,12 +267,12 @@ func _press(index: int, pos: Vector2) -> void:
 
 
 func _talk_panel() -> Rect2:
-	return Rect2(110, size.y - 270, size.x - 220, 244)
+	return Rect2(110, size.y - 346, size.x - 220, 320)
 
 
 func _choice_rect(i: int) -> Rect2:
 	var p := _talk_panel()
-	return Rect2(p.end.x - 470, p.position.y + 62 + i * 60.0, 450, 50)
+	return Rect2(p.end.x - 470, p.position.y + 62 + i * 84.0, 450, 76)
 
 
 func _press_talk(pos: Vector2) -> void:
@@ -285,6 +300,7 @@ func _press_talk(pos: Vector2) -> void:
 					_close()
 				else:
 					_talk = {"name": _talk.name, "lines": more, "choices": [], "i": 0}
+					_talk_rows_i = -1
 				world.refresh_hero()
 			return
 
@@ -642,11 +658,13 @@ func _draw_explore(s: Vector2) -> void:
 		var ba := clampf(minf(_banner_age * 2.0, 3.0 - _banner_age), 0.0, 1.0)
 		_text(_banner, Vector2(s.x * 0.5, s.y * 0.24), 60, Color(GOLD.r, GOLD.g, GOLD.b, ba))
 	if world.is_land:
+		if _trk_rev != Quests.rev:
+			_trk_rev = Quests.rev
+			_trk = tracker_lines()
 		var qy := 166.0 if not Run.data.task.is_empty() else 140.0
-		for qid in Quests.QUESTS:
-			if Quests.active(qid):
-				_text("%s: %s" % [Quests.QUESTS[qid].name, Quests.progress(qid)], Vector2(58, qy), 15, Color(1.0, 0.9, 0.6, 0.85), false, 520.0)
-				qy += 22.0
+		for line in _trk:
+			_text(line, Vector2(58, qy), 15, Color(1.0, 0.9, 0.6, 0.85), false, 520.0)
+			qy += 22.0
 	if world.is_land and not Run.data.task.is_empty():
 		var tk: Dictionary = Run.data.task
 		_text("Hunt: %s %d of %d" % [Land.FOES[tk.foe].name, tk.have, tk.need], Vector2(58, 140), 17, Color(1, 1, 1, 0.75), false)
@@ -657,6 +675,19 @@ func _draw_explore(s: Vector2) -> void:
 		_wrapped(_caption, cap.pos, 22, Color(1, 0.95, 0.85, a), cap.width)
 	if world.is_land:
 		_draw_dash(b.dash)
+
+
+## Tracker: the three most recently started open quests, each as "name: step".
+func tracker_lines() -> Array:
+	var out: Array = []
+	var keys: Array = Run.data.quests.keys()
+	keys.reverse()
+	for qid in keys:
+		if Quests.QUESTS.has(qid) and Quests.active(qid):
+			out.append(Quests.track_text(qid))
+			if out.size() >= 3:
+				break
+	return out
 
 
 ## Where the caption goes: the bottom centre, but never over the DASH button (land). It takes the
@@ -807,9 +838,11 @@ func _draw_talk(s: Vector2) -> void:
 	var lines: Array = _talk.lines
 	var last: bool = int(_talk.i) >= lines.size() - 1
 	var choices: Array = _talk.choices if last else []
-	var width := p.size.x - 60.0 - (480.0 if not choices.is_empty() else 0.0)
+	if _talk_rows_i != int(_talk.i):
+		_talk_rows_i = int(_talk.i)
+		_talk_rows = _wrap(lines[_talk_rows_i], 22, talk_width(not choices.is_empty()))
 	var y := p.position.y + 82.0
-	for row in _wrap(lines[int(_talk.i)], 22, width):
+	for row in _talk_rows:
 		_text(row, Vector2(p.position.x + 24, y), 22, Color(1, 0.96, 0.9), false)
 		y += 30.0
 	for i in choices.size():
@@ -818,6 +851,24 @@ func _draw_talk(s: Vector2) -> void:
 		_text(choices[i][0], cr.get_center() + Vector2(0, 7), 19, Color.WHITE, true, cr.size.x - 24)
 	if choices.is_empty():
 		_text("Tap to continue" if not last else "Tap to close", Vector2(p.end.x - 110, p.end.y - 16), 15, Color(1, 1, 1, 0.5 + 0.3 * sin(_clock * 4.0)))
+
+
+## Width of the dialogue text: the whole box, or the left part when choices stand on the right.
+func talk_width(with_choices: bool) -> float:
+	return _talk_panel().size.x - 60.0 - (480.0 if with_choices else 0.0)
+
+
+## Rows a text takes when wrapped as the HUD wraps it (the quest bot checks lines against its boxes).
+func rows_for(text: String, font_size: int, width: float) -> int:
+	return _wrap(text, font_size, width).size()
+
+
+func text_width(text: String, font_size: int) -> float:
+	return _font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+
+
+func choice_center(i: int) -> Vector2:
+	return _choice_rect(i).get_center()
 
 
 func _draw_explore_world_only(_s: Vector2) -> void:
@@ -842,28 +893,142 @@ func _wrap(text: String, font_size: int, width: float) -> Array:
 	return lines
 
 
+const JR_GAP := 10.0
+
+
+func _jr_close_rect() -> Rect2:
+	var p := _panel()
+	return Rect2(p.end.x - 170, p.position.y + 18, 146, 56)
+
+
+func _jr_prev_rect() -> Rect2:
+	var p := _panel()
+	return Rect2(p.position.x + 24, p.end.y - 76, 170, 56)
+
+
+func _jr_next_rect() -> Rect2:
+	var p := _panel()
+	return Rect2(p.end.x - 194, p.end.y - 76, 170, 56)
+
+
+func _press_quests(pos: Vector2) -> void:
+	_jr_refresh()
+	if _jr_close_rect().has_point(pos) or not _panel().has_point(pos):
+		_close()
+	elif _jr_prev_rect().has_point(pos):
+		_jr_page = maxi(_jr_page - 1, 0)
+	elif _jr_next_rect().has_point(pos):
+		_jr_page = mini(_jr_page + 1, _jr_pages.size() - 1)
+
+
+## The journal as a flat list of headers and cards, split into pages that fit the panel. Built when
+## the quest state or the screen size changes.
+func _jr_refresh() -> void:
+	if _jr_rev == Quests.rev and _jr_size == size and not _jr.is_empty():
+		return
+	_jr_rev = Quests.rev
+	_jr_size = size
+	var p := _panel()
+	var w := p.size.x - 48.0 - 40.0
+	_jr = []
+	var acts: Array = []
+	for id in Quests.ids():
+		var a := int(Quests.QUESTS[id].get("act", 1))
+		if not acts.has(a):
+			acts.append(a)
+	acts.sort()
+	for a in acts:
+		_jr.append({"head": "ACT %d: %s" % [a, Quests.ACT_NAMES.get(a, "")], "h": 44.0})
+		for rank in 3:
+			for id in Quests.ids():
+				var q: Dictionary = Quests.QUESTS[id]
+				if int(q.get("act", 1)) != a:
+					continue
+				var done: bool = Quests.state(id).get("done", false)
+				var open: bool = Quests.started(id) and not done
+				var detail := ""
+				var status := ""
+				if rank == 0 and open:
+					status = "In progress"
+					detail = Quests.progress(id)
+				elif rank == 1 and Quests.offerable(id):
+					status = "Not started"
+					detail = "Speak to %s." % Quests.NPCS[q.giver]
+				elif rank == 2 and done:
+					status = "Complete"
+					detail = Quests.journal_text(id)
+				else:
+					continue
+				_jr.append(_jr_card(q.name, status, detail, w, rank != 1, open))
+	if not Run.data.lore.is_empty():
+		_jr.append({"head": "FOUND", "h": 44.0})
+		for lid in Run.data.lore:
+			var le := Story.lore_entry(lid)
+			_jr.append(_jr_card(le.name, "", le.text, w, true, false))
+	_jr_pages = [[]]
+	var room := p.size.y - 100.0 - 80.0
+	var used := 0.0
+	for i in _jr.size():
+		var h: float = _jr[i].h + JR_GAP
+		if used + h > room and not (_jr_pages[-1] as Array).is_empty():
+			_jr_pages.append([])
+			used = 0.0
+		(_jr_pages[-1] as Array).append(i)
+		used += h
+	_jr_page = clampi(_jr_page, 0, _jr_pages.size() - 1)
+
+
+func _jr_card(title: String, status: String, detail: String, w: float, lit_title: bool, lit: bool) -> Dictionary:
+	var rows := _wrap(detail, 17, w)
+	return {"title": title, "status": status, "rows": rows.slice(0, 3), "over": rows.size() > 3, "h": 54.0 + minf(rows.size(), 3) * 22.0, "gold": lit_title, "lit": lit}
+
+
+## Journal cards whose text would not fit (the quest bot fails on any).
+func journal_check() -> Array:
+	_jr_refresh()
+	var bad: Array = []
+	for e in _jr:
+		if e.get("over", false):
+			bad.append(e.title)
+	return bad
+
+
+func journal_pages() -> int:
+	_jr_refresh()
+	return _jr_pages.size()
+
+
 func _draw_quests(s: Vector2) -> void:
+	_jr_refresh()
 	draw_rect(Rect2(Vector2.ZERO, s), Color(0, 0, 0, 0.78))
 	var p := _panel()
 	_box(p)
 	_text("QUESTS", p.position + Vector2(28, 60), 38, GOLD, false)
-	_text("Tap to close", Vector2(p.end.x - 110, p.position.y + 54), 18, Color(1, 1, 1, 0.6))
+	_box(_jr_close_rect())
+	_text("CLOSE", _jr_close_rect().get_center() + Vector2(0, 7), 19, Color.WHITE)
 	var y := p.position.y + 100.0
-	for id in Quests.QUESTS:
-		var q: Dictionary = Quests.QUESTS[id]
-		var r := Rect2(p.position.x + 24, y, p.size.x - 48, 98)
-		var started: bool = Run.data.quests.has(id)
-		var done: bool = Quests.state(id).get("done", false)
-		_box(r, started and not done)
-		_text(q.name, r.position + Vector2(18, 34), 24, GOLD if started else Color(1, 1, 1, 0.6), false)
-		var status := "Complete" if done else ("In progress" if started else "Not started")
-		_text(status, Vector2(r.end.x - 110, r.position.y + 34), 17, Color(0.5, 1.0, 0.6) if done else Color(1, 1, 1, 0.7))
-		var detail := Quests.progress(id) if started else "Speak to %s." % Quests.NPCS[q.giver]
-		var wy := r.position.y + 62.0
-		for row in _wrap(detail, 17, r.size.x - 40.0).slice(0, 2):
-			_text(row, Vector2(r.position.x + 18, wy), 17, Color(1, 1, 1, 0.85), false)
-			wy += 22.0
-		y += 108.0
+	for i in _jr_pages[_jr_page]:
+		var e: Dictionary = _jr[i]
+		if e.has("head"):
+			_text(e.head, Vector2(p.position.x + 28, y + 28), 21, Color(1, 1, 1, 0.55), false)
+		else:
+			var r := Rect2(p.position.x + 24, y, p.size.x - 48, e.h)
+			_box(r, e.lit)
+			_text(e.title, r.position + Vector2(18, 34), 24, GOLD if e.gold else Color(1, 1, 1, 0.6), false)
+			if e.status != "":
+				_text(e.status, Vector2(r.end.x - 110, r.position.y + 34), 17, Color(0.5, 1.0, 0.6) if e.status == "Complete" else Color(1, 1, 1, 0.7))
+			var wy := r.position.y + 62.0
+			for row in e.rows:
+				_text(row, Vector2(r.position.x + 18, wy), 17, Color(1, 1, 1, 0.85), false)
+				wy += 22.0
+		y += e.h + JR_GAP
+	if _jr_pages.size() > 1:
+		_text("Page %d of %d" % [_jr_page + 1, _jr_pages.size()], Vector2(p.get_center().x, p.end.y - 40), 20, Color(1, 1, 1, 0.7))
+		_box(_jr_prev_rect(), _jr_page > 0)
+		_text("PREV", _jr_prev_rect().get_center() + Vector2(0, 7), 19, Color.WHITE if _jr_page > 0 else Color(1, 1, 1, 0.35))
+		var more := _jr_page < _jr_pages.size() - 1
+		_box(_jr_next_rect(), more)
+		_text("NEXT", _jr_next_rect().get_center() + Vector2(0, 7), 19, Color.WHITE if more else Color(1, 1, 1, 0.35))
 
 
 func _draw_players(s: Vector2) -> void:

@@ -69,6 +69,9 @@ func _init(world: Node3D, which: String) -> void:
 func tick(delta: float) -> void:
 	if _inner:
 		return
+	if mode == "act1":
+		_quest_tick()
+		return
 	match phase:
 		"setup":
 			_t0 = Time.get_ticks_msec()
@@ -598,3 +601,46 @@ func _finish() -> void:
 		print("TOWERBOT DONE mode=net net_ok=%d net_bad=%d manual=%s" % [_net_ok, _net_bad, _manual])
 	phase = "done"
 	w.get_tree().quit()
+
+
+# ---------------------------------------------------------------- quest bot, tower part (act1)
+
+const QBot := preload("res://scripts/overworld_bot.gd")
+var _q_checked := false
+
+
+func _quest_tick() -> void:
+	if phase == "setup":
+		phase = "run"
+		w.started = true
+		Run.title_seen = true
+		print("QBOT tower tier=%d relic=%s guardian_slain=%s" % [w.tier, str(Run.data.relics), str(Run.is_slain("t1_guardian"))])
+	QBot.qb_poll()
+	if not _q_checked and Run.data.relics.has(1) and Quests.state("a1_stair").get("step", 0) >= 1:
+		_q_checked = true
+		var tier_done := Quests.cond("tier:1")
+		QBot.qb_check(tier_done or int(Quests.state("a1_stair").step) == 1, "tablet found, the Warden still stands, step 2 of a1_stair is current")
+
+
+## Walk: the tablet, then the first guardian, then the way out. Presses E where the prompt appears.
+func quest_dir() -> Vector3:
+	var target := Vector3.ZERO
+	if not Run.data.relics.has(1) and not Run.data.relics.has(1.0):
+		if not w.near.is_empty() and w.near.type == "relic":
+			w.interact()
+			return Vector3.ZERO
+		for e in w.ents:
+			if e.type == "relic":
+				target = e.pos
+	elif not Run.is_slain("t1_guardian"):
+		target = Vector3(0, 0, -40)
+	else:
+		if not w.near.is_empty() and w.near.type == "entry":
+			w.interact()
+			return Vector3.ZERO
+		target = Vector3(0, 0, 5.6)
+	var to: Vector3 = target - w.hero_pos
+	if absf(w.hero_pos.x) > 0.4 and absf(to.z) > 1.0 and target.x == 0.0:
+		to = Vector3(-w.hero_pos.x, 0, 0) + Vector3(0, 0, signf(to.z) * 0.3)
+	to.y = 0
+	return to.normalized()

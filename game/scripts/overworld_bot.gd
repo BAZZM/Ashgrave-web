@@ -21,8 +21,19 @@ var _g_ok := 0
 var _g_said := false
 
 
+## Quest bot, `--autoplay=gather --questbot=act1|save [--pick=N]` (see quest_bot notes below).
+var questbot := ""
+var _qb_pick := 0
+var _qb_started := false
+
+
 func _init(owner_world: Overworld) -> void:
 	ow = owner_world
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--questbot="):
+			questbot = a.trim_prefix("--questbot=")
+		elif a.begins_with("--pick="):
+			_qb_pick = int(a.trim_prefix("--pick="))
 	agility = "--agility" in OS.get_cmdline_user_args()
 	agreal = "--agility-real" in OS.get_cmdline_user_args()
 
@@ -38,6 +49,8 @@ func _walk_to(target: Vector3, delta: float) -> Vector3:
 
 
 func _bot_dir(delta: float) -> Vector3:
+	if questbot != "":
+		return Vector3.ZERO
 	if ow._bot.begins_with("pvp"):
 		return Vector3.ZERO
 	if ow._bot == "tour":
@@ -530,6 +543,22 @@ func agreal_hold() -> bool:
 
 
 func _process(_delta: float) -> void:
+	if questbot != "":
+		if not _qb_started and ow.hero != null and ow.hud != null and ow.duel == null:
+			_qb_started = true
+			ow.started = true
+			Run.title_seen = true
+			if questbot == "save":
+				_qs_main()
+			elif questbot.begins_with("shot-"):
+				_qshot_main(questbot.trim_prefix("shot-"))
+			elif Engine.get_meta("qb_phase", "") == "tower":
+				Engine.set_meta("qb_phase", "back")
+				_qb_return()
+			else:
+				_qb_main()
+		qb_poll()
+		return
 	if agreal and not _ar_started and ow.hero != null and ow.started and ow.hud != null and ow.duel == null:
 		_ar_started = true
 		_ar_on = true
@@ -974,3 +1003,585 @@ func _ar_xp(lane: Dictionary) -> void:
 			await _ar_run(secs, 30, stick)
 		out[case] = (float(_ar_get(m, "xp_dist", 0.0)) - x0) * 0.2 / secs
 	_ar_say("xp", "walk=%.2f run=%.2f sprint_road=%.2f dash_spam=%.2f" % [out.walk, out.run, out.sprint_road, out.dash_spam])
+
+
+# ================================================================ quest bot
+## `--autoplay=gather --questbot=act1` plays Act 1 from a fresh save through the real hooks: it stands the hero
+## beside each NPC or place (debug shortcut for travel time), presses E (Overworld.interact) and taps through the
+## real dialogue boxes, takes `--pick`th choice at each choice, starts the duels itself with the real
+## Duel and Quests.on_kill hooks, and (tower part, world_bot.gd) takes the relic and beats the Cinder Warden.
+## Shortcuts: travel, combat skills at 45, raw materials for the bring steps (gathering is the `gather` scenario's
+## business). It prints QUEST lines (start, step, done), CHECK and TEXT lines, and ACT1 DONE or ACT1 FAIL.
+## `--questbot=save` loads whatever save the page has (a fixture) and prints QSAVE lines, see _qs_main.
+
+static func qb_say(line: String) -> void:
+	print(line)
+
+
+static func qb_fail(msg: String) -> void:
+	Engine.set_meta("qb_fails", int(Engine.get_meta("qb_fails", 0)) + 1)
+	print("ACT1 FAIL %s" % msg)
+
+
+static func qb_check(ok: bool, what: String) -> void:
+	if ok:
+		print("CHECK ok %s" % what)
+	else:
+		qb_fail("check: " + what)
+
+
+## Print one line for every change in any quest's saved state since the last call.
+static func qb_poll() -> void:
+	var snap: Dictionary = Engine.get_meta("qb_snap", {})
+	var t := (Time.get_ticks_msec() - int(Engine.get_meta("qb_t0", Time.get_ticks_msec()))) / 1000
+	for id in Quests.ids():
+		var st: Dictionary = Run.data.quests.get(id, {})
+		var key := "" if st.is_empty() else "%d,%d,%s" % [int(st.step), int(st.count), str(st.done)]
+		if snap.get(id, "") == key:
+			continue
+		var old: String = snap.get(id, "")
+		snap[id] = key
+		if st.is_empty():
+			continue
+		if old == "":
+			print("QUEST start %s t=%d" % [id, t])
+		if st.done:
+			print("QUEST done %s t=%d" % [id, t])
+		else:
+			var steps: Array = Quests.QUESTS[id].steps
+			var cur := int(st.step)
+			if old == "" or int(old.split(",")[0]) != cur:
+				print("QUEST step %s %d/%d %s t=%d" % [id, cur + 1, steps.size(), steps[cur].text.left(60), t])
+	Engine.set_meta("qb_snap", snap)
+
+
+func _qb_rows(text: String, size_px: int, width: float) -> int:
+	return ow.hud.rows_for(text, size_px, width)
+
+
+func _qb_lines_of(v: Variant) -> Array:
+	var out: Array = []
+	if v is String:
+		if v != "":
+			out.append(v)
+	elif v is Array:
+		for x in v:
+			out.append_array(_qb_lines_of(x))
+	elif v is Dictionary:
+		for pair in v.get("if", []):
+			out.append_array(_qb_lines_of(pair[1]))
+		out.append_array(_qb_lines_of(v.get("else", "")))
+	return out
+
+
+func _qb_text_fail(kind: String, text: String, detail: String) -> void:
+	qb_fail("TEXT overflow %s (%s): %s" % [kind, detail, text.left(70)])
+
+
+func _qb_check_line(text: String, with_choices: bool, kind := "talk") -> void:
+	var rows := _qb_rows(text, 22, ow.hud.talk_width(with_choices))
+	var limit := 5
+	if rows > limit:
+		_qb_text_fail(kind, text, "%d rows, limit %d" % [rows, limit])
+
+
+## Every line of Act 1 data measured against its box, whichever variant is shown.
+func _qb_audit() -> void:
+	var hud: WorldHud = ow.hud
+	var n := 0
+	var jw := hud._panel().size.x - 88.0
+	for id in Quests.ids():
+		var q: Dictionary = Quests.QUESTS[id]
+		for l in _qb_lines_of(q.get("offer", [])) + _qb_lines_of(q.get("finish", [])):
+			_qb_check_line(l, false, "%s offer/finish" % id)
+			n += 1
+		for lab in [q.get("accept", "I will do it."), q.get("decline", "Not now.")]:
+			if hud.text_width(lab, 19) > 426.0:
+				_qb_text_fail("choice", lab, id)
+		var j := Quests.journal_text(id)
+		if _qb_rows(j, 17, jw) > 3:
+			_qb_text_fail("journal", j, id)
+		for st in q.steps:
+			var tr: String = "%s: %s" % [q.name, st.get("track", st.text)]
+			if hud.text_width(tr, 15) > 520.0:
+				_qb_text_fail("tracker", tr, id)
+			if _qb_rows(st.text, 17, jw) > 3:
+				_qb_text_fail("step", st.text, id)
+			for l in _qb_lines_of(st.get("say", [])):
+				_qb_check_line(l, st.do == "choose", "%s say" % id)
+				n += 1
+			for c in st.get("choices", []):
+				if hud.text_width(c[0], 19) > 426.0:
+					_qb_text_fail("choice", c[0], id)
+			for k in st.get("reply", {}):
+				for l in _qb_lines_of(st.reply[k]):
+					_qb_check_line(l, false, "%s reply" % id)
+					n += 1
+	for npc in Story.Act1.IDLE:
+		for l in _qb_lines_of(Story.Act1.IDLE[npc]):
+			_qb_check_line(l, false, "idle " + npc)
+			n += 1
+	for nm in Story.Act1.BARKS:
+		for m in Story.Act1.BARKS[nm]:
+			for l in _qb_lines_of(Story.Act1.BARKS[nm][m]):
+				if l.length() > 60:
+					_qb_text_fail("bark", l, nm)
+				n += 1
+	for lid in Story.Act1.LORE:
+		if _qb_rows(Story.Act1.LORE[lid].text, 17, jw) > 3:
+			_qb_text_fail("lore", Story.Act1.LORE[lid].text, lid)
+	print("TEXT audited %d lines" % n)
+
+
+## Quest strings that reach the caption box through Run.captions (reach and kill steps).
+func _qb_caption_scan() -> void:
+	var seen: Dictionary = Engine.get_meta("qb_cap", {})
+	var all: Array = Run.captions.duplicate()
+	if ow.hud._caption != "":
+		all.append(ow.hud._caption)
+	for c in all:
+		if seen.has(c):
+			continue
+		seen[c] = true
+		var rows := _qb_rows(c, 22, 716.0)
+		if rows > 3:
+			_qb_text_fail("caption", c, "%d rows at 716 px" % rows)
+	Engine.set_meta("qb_cap", seen)
+
+
+func _qb_frames(n: int) -> void:
+	for i in n:
+		await _ar_frame()
+		_qb_caption_scan()
+
+
+func _qb_pos(id: String) -> Vector3:
+	for pl in Land.PLACES:
+		if pl.id == id:
+			return Vector3(pl.pos.x, 0, pl.pos.y)
+	return Vector3.ZERO
+
+
+## Stand the hero beside a place or NPC until the game itself says it is the nearest thing (so the real
+## prompt and hooks apply).
+func _qb_stand(id: String) -> bool:
+	var c := _qb_pos(id)
+	_ar_put(c)
+	await _ar_ready(c)
+	# Free ground within reach of the thing, nearest first, starting on the village side (where the road is).
+	var toward := atan2(Land.VILLAGE.y - c.z, Land.VILLAGE.x - c.x)
+	var tried := 0
+	for r in [1.4, 1.8, 2.2, 2.6, 2.9]:
+		for k in 16:
+			var a := toward + TAU * k / 16.0
+			var at: Vector3 = c + Vector3(cos(a) * r, 0, sin(a) * r)
+			if not ow.mover.is_free(at):
+				continue
+			tried += 1
+			_ar_put(at)
+			await _qb_frames(3)
+			if ow.near.get("id", "") == id:
+				return true
+			if tried >= 4:
+				break
+		if tried >= 4:
+			break
+	var around: Array = []
+	for e in ow.ents:
+		var d: float = Vector2(e.pos.x - ow.hero_pos.x, e.pos.z - ow.hero_pos.z).length()
+		if d < 12.0:
+			around.append("%s/%s@%.1f" % [e.get("id", "?"), e.type, d])
+	qb_fail("could not stand at %s: hero (%.1f,%.1f) wanted (%.1f,%.1f) near=%s ents=%s hud=%s" % [id, ow.hero_pos.x, ow.hero_pos.z, c.x, c.z, ow.near.get("id", "none"), str(around), ow.hud.screen])
+	return false
+
+
+func _qb_leave(place: String) -> void:
+	# Away first so that arriving again counts as reaching it again.
+	_ar_put(Vector3(0, 0, 30))
+	await _qb_frames(3)
+
+
+func _qb_reach(place: String) -> void:
+	await _qb_leave(place)
+	await _qb_stand(place)
+	await _qb_frames(2)
+
+
+## Press E at an NPC and tap through the box. Returns the lines shown.
+func _qb_talk(npc: String) -> Array:
+	var shown: Array = []
+	if not await _qb_stand(npc):
+		return shown
+	ow.interact()
+	await _qb_frames(2)
+	var hud: WorldHud = ow.hud
+	if hud.screen != "talk":
+		if hud.screen != "":
+			hud._close()
+		return shown
+	var guard := 0
+	while hud.screen == "talk" and guard < 40:
+		guard += 1
+		var d: Dictionary = hud._talk
+		var ls: Array = d.lines
+		var i := int(d.i)
+		var last := i >= ls.size() - 1
+		var choices: Array = d.choices if last else []
+		_qb_check_line(ls[i], not choices.is_empty())
+		shown.append(ls[i])
+		if not choices.is_empty():
+			var pick := -1
+			var nth := 0
+			for k in choices.size():
+				var act: String = choices[k][1]
+				if hud.text_width(choices[k][0], 19) > 426.0:
+					_qb_text_fail("choice", choices[k][0], "dialogue")
+				if act.begins_with("accept:") and pick < 0:
+					pick = k
+				elif act.begins_with("choose:"):
+					if nth == _qb_pick or k == choices.size() - 1:
+						if pick < 0:
+							pick = k
+					nth += 1
+			if pick < 0:
+				pick = choices.size() - 1
+			print("TALK %s picks '%s' (%s)" % [npc, choices[pick][0], choices[pick][1]])
+			hud._press(0, hud.choice_center(pick))
+			if hud.screen == "shop" or hud.screen == "store":
+				hud._close()
+		else:
+			hud._press(0, hud.size * 0.5)
+		await _qb_frames(1)
+	if hud.screen != "":
+		qb_fail("dialogue with %s did not close" % npc)
+		hud._close()
+	return shown
+
+
+func _qb_spots(wilds: Array) -> Array:
+	var out: Array = []
+	for x in range(-200, 220, 20):
+		for z in range(-250, 200, 20):
+			if not Land.in_bounds(x, z) or Land.is_water(x, z):
+				continue
+			var b: Dictionary = Land.BIOMES[Land.biome(x, z)]
+			if b.foe in wilds or b.get("alt", "") in wilds:
+				out.append(Vector3(x, 0, z))
+	out.sort_custom(func(a, b): return Land.START.distance_to(a) < Land.START.distance_to(b))
+	return out
+
+
+func _qb_foe(wilds: Array) -> Dictionary:
+	var best := {}
+	var bd := 1e9
+	for e in ow.ents:
+		if e.type == "foe" and e.wild in wilds and e.node != null:
+			var d: float = (e.pos as Vector3).distance_to(ow.hero_pos)
+			if d < bd:
+				bd = d
+				best = e
+	return best
+
+
+## Fight real land foes of these kinds, one duel at a time through Duel and Run.on_win, until done.call().
+func _qb_kill(wilds: Array, done: Callable) -> void:
+	var spots := _qb_spots(wilds)
+	var si := 0
+	var tries := 0
+	while not done.call() and tries < 60:
+		tries += 1
+		var f := _qb_foe(wilds)
+		if f.is_empty():
+			if spots.is_empty():
+				qb_fail("no land where %s live" % str(wilds))
+				return
+			var c: Vector3 = spots[si % spots.size()]
+			si += 1
+			_ar_put(c)
+			await _ar_ready(c)
+			await _qb_frames(8)
+			continue
+		var at: Vector3 = f.pos
+		_ar_put(at + Vector3(0, 0, 3.0))
+		await _qb_frames(2)
+		if f.node == null or not is_instance_valid(f.node):
+			continue
+		print("KILL duel with %s" % f.wild)
+		ow.duels._start_duel(f)
+		await _ar_wait_duel()
+		await _qb_frames(2)
+	if not done.call():
+		qb_fail("kills not completed for %s" % str(wilds))
+
+
+func _qb_state(id: String) -> int:
+	if Quests.state(id).get("done", false):
+		return 99
+	return int(Quests.state(id).get("step", -1)) if Quests.started(id) else -1
+
+
+func _qb_mats(m: Dictionary) -> void:
+	for k in m:
+		Run.add_mat(k, int(m[k]))
+
+
+func _qb_cook() -> void:
+	for r in Craft.RECIPES:
+		if r.name == "Grilled trout":
+			Run.add_mat("trout", 1)
+			Craft.make(r)
+			return
+
+
+func _qb_main() -> void:
+	Engine.set_meta("qb_t0", Time.get_ticks_msec())
+	Engine.set_meta("qb_fails", 0)
+	var hud: WorldHud = ow.hud
+	for sk in Craft.COMBAT:
+		Run.data.skills[sk] = Craft.xp_for(45)
+	Run.data.skills["foraging"] = Craft.xp_for(20)
+	print("ACT1 start pick=%d bloodline=%d combat=%d" % [_qb_pick, Run.data.bloodline, Run.combat_level()])
+	_qb_audit()
+	# Nothing past the first row is open on a fresh save.
+	for id in ["a1_bone", "a1_tam", "a1_struck", "a1_diggers", "a1_stair"]:
+		qb_check(not Quests.offerable(id), "%s is not offered at the start" % id)
+	qb_check(not Quests.started("a1_hand"), "a1_hand has not started")
+
+	# 1. Maren: The Thirty-First, then The First Oath.
+	await _qb_talk("elder")
+	qb_check(_qb_state("a1_thirty_first") == 0, "a1_thirty_first accepted")
+	await _qb_talk("elder")
+	qb_check(_qb_state("oath") == 0, "oath accepted")
+	# 2. The oath, before the thirty-first is finished: a1_hand must wait.
+	await _qb_reach("tower")
+	await _qb_reach("altar")
+	var early := Quests.talk("elder")
+	qb_check(early.choices.size() == 2 and _qb_state("oath") == 2, "oath choice waits at Maren")
+	await _qb_talk("elder")
+	qb_check(_qb_state("oath") == 99, "oath done")
+	qb_check(not Quests.started("a1_hand"), "a1_hand waits for a1_thirty_first")
+	# 3. Brannoc, Wren, Maren: the thirty-first.
+	await _qb_talk("smith")
+	qb_check(_qb_state("a1_thirty_first") == 1, "Brannoc answers first")
+	await _qb_talk("alchemist")
+	qb_check(_qb_state("a1_thirty_first") == 2, "Wren answers second")
+	var gold := int(Run.data.gold)
+	await _qb_talk("elder")
+	qb_check(_qb_state("a1_thirty_first") == 99 and int(Run.data.gold) >= gold + 30, "a1_thirty_first done, 30 gold")
+	qb_check(Run.data.lore.has("letter_thirtieth"), "letter_thirtieth is in the lore save key")
+	qb_check(_qb_state("a1_hand") == 0, "a1_hand started by itself")
+	var premature := Quests.talk("elder")
+	qb_check(premature.choices.is_empty() and _qb_state("a1_hand") == 0, "a1_hand cannot finish before the altar")
+	# 4. Brannoc: forge, then a1_bone.
+	await _qb_talk("smith")
+	qb_check(_qb_state("forge") == 0, "forge accepted")
+	await _qb_talk("smith")
+	qb_check(_qb_state("forge") == 0, "forge waits for its materials")
+	_qb_mats({"copper_ore": 4, "oak_log": 2})
+	await _qb_talk("smith")
+	qb_check(_qb_state("forge") == 99, "forge done")
+	await _qb_talk("smith")
+	qb_check(_qb_state("a1_bone") == 0, "a1_bone offered and accepted after forge")
+	await _qb_kill(["thrall"], func(): return Run.mat("bone") >= 2)
+	await _qb_talk("smith")
+	qb_check(_qb_state("a1_bone") == 99, "a1_bone done")
+	# 5. Old Tam.
+	await _qb_talk("fisher")
+	_qb_mats({"trout": 3})
+	await _qb_talk("fisher")
+	_qb_cook()
+	await _qb_talk("fisher")
+	qb_check(_qb_state("line") == 99, "line done")
+	await _qb_talk("fisher")
+	qb_check(_qb_state("a1_tam") == 0, "a1_tam accepted")
+	await _qb_reach("circle")
+	await _qb_talk("fisher")
+	qb_check(_qb_state("a1_tam") == 99, "a1_tam done")
+	# 6. Warden Isolde.
+	await _qb_talk("ranger")
+	await _qb_kill(["bandit", "poacher"], func(): return _qb_state("poach") >= 1)
+	await _qb_talk("ranger")
+	qb_check(_qb_state("poach") == 99, "poach done")
+	await _qb_talk("ranger")
+	qb_check(_qb_state("a1_struck") == 0, "a1_struck accepted")
+	await _qb_reach("watch")
+	await _qb_talk("ranger")
+	qb_check(_qb_state("a1_struck") == 99, "a1_struck done")
+	# 7. Sister Wren.
+	await _qb_talk("alchemist")
+	_qb_mats({"bogroot": 3})
+	await _qb_talk("alchemist")
+	await _qb_reach("shrine")
+	await _qb_kill(["hexer"], func(): return _qb_state("mire") >= 3)
+	await _qb_talk("alchemist")
+	qb_check(_qb_state("mire") == 99, "mire done")
+	await _qb_talk("alchemist")
+	qb_check(_qb_state("a1_diggers") == 0, "a1_diggers accepted")
+	await _qb_kill(["wight"], func(): return _qb_state("a1_diggers") >= 1)
+	await _qb_talk("alchemist")
+	qb_check(_qb_state("a1_diggers") == 99, "a1_diggers done")
+	# 8. In One Hand.
+	qb_check(not Quests.offerable("a1_stair"), "a1_stair is not offered before a1_hand is done")
+	await _qb_reach("altar")
+	qb_check(_qb_state("a1_hand") == 1, "a1_hand: altar read")
+	await _qb_talk("elder")
+	qb_check(_qb_state("a1_hand") == 99, "a1_hand done")
+	await _qb_talk("elder")
+	qb_check(_qb_state("a1_stair") == 0, "a1_stair accepted")
+	_qb_enter_tower(1)
+
+
+func _qb_enter_tower(attempt: int) -> void:
+	Engine.set_meta("qb_attempt", attempt)
+	Engine.set_meta("qb_phase", "tower")
+	await _qb_stand("tower")
+	ow.interact()
+
+
+## Back from the tower (won, or lost and woke by the hearth).
+func _qb_return() -> void:
+	var hud: WorldHud = ow.hud
+	if _qb_state("a1_stair") < 2:
+		var n := int(Engine.get_meta("qb_attempt", 1))
+		if n >= 3:
+			qb_fail("the tower did not yield a1_stair step 3 in 3 tries")
+			_qb_end()
+			return
+		print("ACT1 back from the tower without the win, trying again (%d)" % (n + 1))
+		_qb_enter_tower(n + 1)
+		return
+	await _qb_talk("elder")
+	qb_check(_qb_state("a1_stair") == 99, "a1_stair done")
+	qb_check(Run.data.inventory.has("wardens_brand"), "Warden's Brand received")
+	qb_check(str(Run.data.flags.get("act", "")) == "2", "flag act=2 set")
+	qb_check(str(Run.data.flags.get("a1_stair", "")) in ["all", "keep"], "a1_stair choice stored")
+	await _qb_talk("elder")
+	_qb_end()
+
+
+func _qb_end() -> void:
+	var hud: WorldHud = ow.hud
+	var done := 0
+	for id in Quests.ids():
+		if str(Quests.QUESTS[id].get("act", 0)) == "1" and _qb_state(id) == 99:
+			done += 1
+	var total := 0
+	for id in Quests.ids():
+		if int(Quests.QUESTS[id].get("act", 0)) == 1:
+			total += 1
+	var bad := hud.journal_check()
+	if not bad.is_empty():
+		qb_fail("journal text overflows for %s" % str(bad))
+	hud.open("quests")
+	print("JOURNAL pages=%d lore=%s" % [hud.journal_pages(), str(Run.data.lore)])
+	var secs := (Time.get_ticks_msec() - int(Engine.get_meta("qb_t0", 0))) / 1000
+	var fails := int(Engine.get_meta("qb_fails", 0))
+	if done != total:
+		qb_fail("only %d of %d Act 1 quests done" % [done, total])
+		fails += 1
+	print("ACT1 %s quests=%d/%d fails=%d secs=%d" % ["DONE" if fails == 0 else "FAILED", done, total, fails, secs])
+	ow.get_tree().quit()
+
+
+# ---------------------------------------------------------------- quest-save
+
+## `--questbot=save` with a save from an older build in localStorage: print the five old quests' state and the
+## step text the game now shows, then finish each open one through the real Quests API and print the result.
+func _qs_main() -> void:
+	Engine.set_meta("qb_t0", Time.get_ticks_msec())
+	var old := ["forge", "line", "poach", "mire", "oath"]
+	print("QSAVE gold=%d flags=%s relics=%s lore=%s" % [Run.data.gold, JSON.stringify(Run.data.flags), JSON.stringify(Run.data.relics), JSON.stringify(Run.data.lore)])
+	for id in old:
+		var st: Dictionary = Run.data.quests.get(id, {})
+		if st.is_empty():
+			print("QSAVE state %s none" % id)
+			continue
+		var text := "Complete" if st.done else str(Quests.step(id).text)
+		print("QSAVE state %s step=%d count=%d done=%s text=%s" % [id, int(st.step), int(st.count), str(st.done), text])
+	for id in old:
+		if not Quests.active(id):
+			continue
+		var guard := 0
+		while Quests.active(id) and guard < 12:
+			guard += 1
+			var st := Quests.step(id)
+			match st.do:
+				"bring":
+					for m in st.mats:
+						Run.add_mat(m, int(st.mats[m]))
+					Quests.talk(st.to)
+				"talk":
+					Quests.talk(st.to)
+				"reach":
+					Quests.on_reach(st.place)
+				"kill":
+					for k in int(st.need):
+						Quests.on_kill(st.foes[0])
+				"choose":
+					var t := Quests.talk(st.to)
+					Quests.act(t.choices[0][1])
+				_:
+					guard = 99
+		print("QSAVE finished %s done=%s" % [id, str(not Quests.active(id))])
+	print("QSAVE END")
+	ow.get_tree().quit()
+
+
+# ---------------------------------------------------------------- screenshots
+
+## `--autoplay=gather --questbot=shot-dialogue|journal|tracker|inscription`: sets up a moment of Act 1 and prints
+## "SHOT ready <name>" for tools that take a picture (screens for the review).
+func _qshot_main(which: String) -> void:
+	Engine.time_scale = 1.0
+	var done := {"step": 0, "count": 0, "done": true}
+	var q := {}
+	for id in ["forge", "line", "poach", "mire", "oath", "a1_thirty_first", "a1_bone", "a1_tam", "a1_struck", "a1_diggers"]:
+		q[id] = done.duplicate()
+	Run.data.flags = {"oath": "keep", "poach": "tally"}
+	Run.data.lore = ["letter_thirtieth", "insc1_0"]
+	match which:
+		"dialogue":
+			q["a1_hand"] = {"step": 1, "count": 0, "done": false}
+		"journal":
+			q["a1_hand"] = done.duplicate()
+			q["a1_stair"] = {"step": 1, "count": 0, "done": false}
+			Run.data.relics = [1]
+		"tracker":
+			q.erase("a1_struck")
+			q.erase("a1_diggers")
+			q.erase("a1_tam")
+			q["a1_hand"] = {"step": 0, "count": 0, "done": false}
+			q["poach2"] = {}
+			q.erase("poach2")
+			q["poach"] = {"step": 0, "count": 1, "done": false}
+			q["mire"] = {"step": 2, "count": 0, "done": false}
+		"inscription":
+			q["a1_hand"] = {"step": 0, "count": 0, "done": false}
+	Run.data.quests = q
+	Quests.touch()
+	_ar_put(Vector3(0, 0, 34))
+	await _qb_frames(10)
+	match which:
+		"dialogue":
+			await _qb_stand("elder")
+			ow.interact()
+			await _qb_frames(2)
+			var hud: WorldHud = ow.hud
+			var guard := 0
+			while hud.screen == "talk" and int(hud._talk.i) < (hud._talk.lines as Array).size() - 1 and guard < 20:
+				guard += 1
+				hud._press(0, hud.size * 0.5)
+				await _qb_frames(1)
+		"journal":
+			ow.hud.open("quests")
+		"tracker":
+			await _qb_stand("elder")
+		"inscription":
+			await _qb_reach("altar")
+			var g2 := 0
+			while ow.hud._caption == "" and g2 < 100:
+				g2 += 1
+				await _qb_frames(1)
+			ow.hud._caption_age = 0.4
+	await _qb_frames(6)
+	print("SHOT ready %s" % which)

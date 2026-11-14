@@ -57,7 +57,7 @@ static func defaults() -> Dictionary:
 		"ow_x": Land.START.x, "ow_z": Land.START.z, "in_tower": false,
 		"task": {}, "ow_opened": [], "skills_seeded": false, "visited": [],
 
-		"respawn": {}, "tower_slain": [], "stamp": 0, "mastery": {}, "perks": {}, "quests": {}, "flags": {},
+		"lore": [], "respawn": {}, "tower_slain": [], "stamp": 0, "mastery": {}, "perks": {}, "quests": {}, "flags": {},
 
 		"pid": "", "pname": "", "online": true, "pvp_w": 0, "pvp_l": 0,
 	}
@@ -97,6 +97,7 @@ static func ensure_loaded() -> void:
 	if now() - int(data.stamp) < 240000 and int(data.stamp) > 0:
 		title_seen = true
 		resumed = true
+	Quests.sync()
 
 
 static func _migrate() -> void:
@@ -129,6 +130,11 @@ static func _migrate() -> void:
 		if id != "" and not inv.has(id):
 			inv.append(id)
 	data.inventory = inv
+	var lore: Array = []
+	for l in data.lore:
+		if l is String and not lore.has(l):
+			lore.append(l)
+	data.lore = lore
 
 
 static func add_item(id: String) -> void:
@@ -421,6 +427,7 @@ static func on_win(bonus_gold: int) -> Dictionary:
 			data.unlocked = maxi(int(data.unlocked), tier + 1)
 			captions.append("The way up is open.")
 	data.best_floor = maxi(int(data.best_floor), int(data.unlocked) + FLOORS * int(data.loop))
+	Quests.sync()
 	save()
 	return out
 
@@ -449,4 +456,5 @@ static func travel(to_tier: int, arrive_at: String) -> void:
 	data.tower_slain = []
 	spawn = arrive_at
 	captions.append(Story.inscription(int(data.floor), int(data.bloodline)))
+	Story.read_inscription(int(data.floor), int(data.bloodline))
 	save()
