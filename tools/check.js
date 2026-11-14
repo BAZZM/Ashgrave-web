@@ -138,6 +138,113 @@ const MEMFLAGS = ['--enable-precise-memory-info', '--js-flags=--expose-gc'];
 // sound ever ends, and the engine keeps a copy of every sound played (a headless artifact, not the game's).
 const AUDIO_ON = ['--autoplay-policy=no-user-gesture-required'];
 
+// Finer wasm heap reading than the 16 MB memory size. The engine (part0-2.wasm, stock Godot 4.4.1) allocates with
+// emscripten's dlmalloc and exports `malloc`; the first `i32.const X; i32.load` in malloc's body reads
+// gm->smallmap, so X is the address of dlmalloc's malloc_state. Found once per run from the wasm file itself (no
+// hard-coded address); null if the pattern is not there (another engine build), and the columns then read '-'.
+let _gmAddr;
+function dlmallocStateAddr() {
+  if (_gmAddr !== undefined) return _gmAddr;
+  _gmAddr = null;
+  try {
+    const b = Buffer.concat(['part0.wasm', 'part1.wasm', 'part2.wasm'].map((f) => fs.readFileSync(path.join(ROOT, f))));
+    let p = 8;
+    const u = () => { let r = 0, s = 0, x; do { x = b[p++]; r += (x & 0x7f) * 2 ** s; s += 7; } while (x & 0x80); return r; };
+    const sl = () => { let r = 0, s = 0, x; do { x = b[p++]; r |= (x & 0x7f) << s; s += 7; } while (x & 0x80); if (s < 32 && (x & 0x40)) r |= -1 << s; return r; };
+    let nimp = 0, mallocIx = -1, code = -1;
+    while (p < b.length) {
+      const id = b[p++]; const len = u(); const st = p;
+      if (id === 2) {
+        const n = u();
+        for (let i = 0; i < n; i++) {
+          for (let t = 0; t < 2; t++) { const l = u(); p += l; }
+          const k = b[p++];
+          if (k === 0) { u(); nimp++; } else if (k === 1) { p++; const f = u(); u(); if (f & 1) u(); } else if (k === 2) { const f = u(); u(); if (f & 1) u(); } else if (k === 3) p += 2;
+        }
+      } else if (id === 7) {
+        const n = u();
+        for (let i = 0; i < n; i++) { const l = u(); const nm = b.toString('latin1', p, p + l); p += l; const k = b[p++]; const ix = u(); if (k === 0 && nm === 'malloc') mallocIx = ix; }
+      } else if (id === 10) code = st;
+      p = st + len;
+    }
+    if (mallocIx < 0 || code < 0) return _gmAddr;
+    p = code;
+    const n = u();
+    for (let i = 0; i < n; i++) {
+      const sz = u(); const st = p;
+      if (i === mallocIx - nimp) {
+        const nl = u(); for (let j = 0; j < nl; j++) { u(); p++; }
+        // Only the opcodes that occur before the first load in dlmalloc's prologue need decoding.
+        for (let k = 0; k < 200 && p < st + sz; k++) {
+          const op = b[p++];
+          if (op === 0x41) { const v = sl(); if (b[p] === 0x28 && v > 1024) { _gmAddr = v; break; } }
+          else if (op >= 0x20 && op <= 0x24) u();
+          else if (op >= 0x02 && op <= 0x04) { if (b[p] === 0x40 || b[p] >= 0x7b) p++; else sl(); }
+          else if (op === 0x0c || op === 0x0d) u();
+          else if (op >= 0x28 && op <= 0x3e) { u(); u(); }
+          else if (op >= 0x45 && op <= 0xc4) { /* no immediates */ }
+          else break;
+        }
+        break;
+      }
+      p = st + sz;
+    }
+  } catch (e) { /* no engine files: columns read '-' */ }
+  return _gmAddr;
+}
+// Page side: window.__agm() walks dlmalloc's chunks as mallinfo() does and returns "mfp=... mused=... mfree=...":
+// mfp the bytes malloc has taken from sbrk (the real top of the heap, against the memory size in 16 MB steps), mused the
+// bytes in live allocations, mfree the free bytes inside that (top chunk included), mnfree the free chunk count.
+// Read-only: it never calls into the engine. Layout: dlmalloc 2.8.6 malloc_state, 32-bit, no locks (emscripten).
+function mallinfoInit(gm) {
+  let mem = null;
+  try {
+    const P = WebAssembly.Memory.prototype, d = Object.getOwnPropertyDescriptor(P, 'buffer');
+    if (d && d.get) Object.defineProperty(P, 'buffer', { configurable: true, get() { mem = this; return d.get.call(this); } });
+  } catch (e) { /* no reading */ }
+  window.__agm = function () {
+    try {
+      if (!mem || !gm) return '';
+      const H = new Uint32Array(mem.buffer), L = H.length * 4;
+      const at = (a) => H[a >>> 2];
+      const topsize = at(gm + 12), least = at(gm + 16), top = at(gm + 24), footprint = at(gm + 432), maxfp = at(gm + 436);
+      if (!top || top < least || top >= L || footprint > L) return '';
+      let mfree = topsize + 40, nfree = 1; // TOP_FOOT_SIZE is 40 on wasm32
+      for (let s = gm + 448, guard = 0; s && guard < 64; s = at(s + 8), guard++) {
+        const base = at(s), size = at(s + 4);
+        if (!base) break;
+        let q = base + ((8 - ((base + 8) & 7)) & 7);
+        while (q >= base && q < base + size && q !== top) {
+          const head = at(q + 4);
+          if (head === 7) break; // fencepost
+          const sz = head & ~7;
+          if (sz < 16) return ''; // not a heap we understand
+          if (!(head & 2)) { mfree += sz; nfree++; }
+          q += sz;
+        }
+      }
+      if (window.__agmHist) {
+        // Debug (soak --soak-hist): in-use chunks by exact size, for finding what grows.
+        const h = {};
+        for (let s = gm + 448, guard = 0; s && guard < 64; s = at(s + 8), guard++) {
+          const base = at(s), size = at(s + 4);
+          if (!base) break;
+          let q = base + ((8 - ((base + 8) & 7)) & 7);
+          while (q >= base && q < base + size && q !== top) {
+            const head = at(q + 4);
+            if (head === 7) break;
+            const sz = head & ~7;
+            if (head & 2) h[sz] = (h[sz] || 0) + 1;
+            q += sz;
+          }
+        }
+        window.__agmLast = h;
+      }
+      return `mfp=${footprint} mmax=${maxfp} mused=${footprint - mfree} mfree=${mfree} mnfree=${nfree}`;
+    } catch (e) { return ''; }
+  };
+}
+
 class Client {
   constructor(label, view = null) {
     this.label = label;
@@ -167,12 +274,13 @@ class Client {
       this.lines.push(text);
       const wasDone = this.done;
       if (this.stopRe && this.stopRe.test(text)) this.done = true;
-      if (opts.verbose && !/^Blocked call to navigator\.vibrate|^The AudioContext/.test(text)) console.log(`  [${this.label} ${((Date.now() - this.t0) / 1000).toFixed(0)}s] ${text.slice(0, /^SOAK/.test(text) ? 2000 : 200)}`);
+      if (opts.verbose && !/^Blocked call to navigator\.vibrate|^The AudioContext/.test(text)) console.log(`  [${this.label} ${((Date.now() - this.t0) / 1000).toFixed(0)}s] ${text.slice(0, /^SOAK/.test(text) ? 50000 : 200)}`);
       // Noise that is the browser's business: an unreachable relay, and vibration before a tap.
       if (wasDone) return;
       if (/^WebSocket connection to|^Blocked call to navigator\.vibrate/.test(text)) return;
       if (m.type() === 'error' || /SCRIPT ERROR|Parse Error/.test(text)) this.errors.push(text.slice(0, 400));
     });
+    await this.page.addInitScript(mallinfoInit, dlmallocStateAddr());
     // A save (JSON text) put in localStorage before the game boots, for scenarios that start from a fixture.
     if (this.seed) await this.page.addInitScript((t) => { if (!localStorage.getItem('ashgrave_save_v1')) localStorage.setItem('ashgrave_save_v1', t); }, this.seed);
     const q = new URLSearchParams();
@@ -594,7 +702,7 @@ scenario('agility-real', 'world movement on the real paths: stuck in obstacles, 
 // warm-up; growth is measured from cycle 2 to the last. Thresholds are in docs/PERF_BUDGET.md.
 const SOAK_LIMITS = {
   // per cycle, after the warm-up
-  heap: 2 * 1048576, nc: 25, orphan: 0, tex: 256 * 1024, oc: 150, res: 2,
+  heap: 2 * 1048576, mused: 2 * 1048576, mfp: 2 * 1048576, nc: 25, orphan: 0, tex: 256 * 1024, oc: 150, res: 2,
   // JS heap after gc, and the Chromium renderer process (Pss; includes the JS heap and compiled wasm)
   // (with sound running, a playback copy of a sound may be alive at a reading: single readings jump by ~5-18 MB)
   js: 10 * 1048576, pss_renderer: 20 * 1048576,
@@ -623,11 +731,12 @@ function soakVerdict(lines) {
   const cyc = rows.filter((r) => r.kind === 'cycle');
   const notes = [];
   const mb = (b) => (b / 1048576).toFixed(1);
-  notes.push('cycle  game_s  heap_MB  js_MB  rend_MB  gpu_MB  objects  nodes  orphans  resources  tex_MB  buf_MB  vid_MB  draws  prims  meshkit  results');
-  for (const r of cyc) notes.push(`${String(r.cycle).padStart(5)}  ${String(r.gt).padStart(6)}  ${mb(r.heap).padStart(7)}  ${mb(r.js).padStart(5)}  ${mb(r.pss_renderer || 0).padStart(7)}  ${mb(r.pss_gpu || 0).padStart(6)}  ${String(r.oc).padStart(7)}  ${String(r.nc).padStart(5)}  ${String(r.orphan).padStart(7)}  ${String(r.res).padStart(9)}  ${mb(r.tex).padStart(6)}  ${mb(r.buf).padStart(6)}  ${mb(r.vid).padStart(6)}  ${String(r.dc).padStart(5)}  ${String(r.prim).padStart(6)}  ${String(r.meshkit).padStart(7)}  ${r.results || ''}`);
+  const mbm = (b) => (typeof b === 'number' ? mb(b) : '-');
+  notes.push('cycle  game_s  heap_MB  mfp_MB  mused_MB  mfree_MB  js_MB  rend_MB  gpu_MB  objects  nodes  orphans  resources  tex_MB  buf_MB  vid_MB  draws  prims  meshkit  results');
+  for (const r of cyc) notes.push(`${String(r.cycle).padStart(5)}  ${String(r.gt).padStart(6)}  ${mb(r.heap).padStart(7)}  ${mbm(r.mfp).padStart(6)}  ${mbm(r.mused).padStart(8)}  ${mbm(r.mfree).padStart(8)}  ${mb(r.js).padStart(5)}  ${mb(r.pss_renderer || 0).padStart(7)}  ${mb(r.pss_gpu || 0).padStart(6)}  ${String(r.oc).padStart(7)}  ${String(r.nc).padStart(5)}  ${String(r.orphan).padStart(7)}  ${String(r.res).padStart(9)}  ${mb(r.tex).padStart(6)}  ${mb(r.buf).padStart(6)}  ${mb(r.vid).padStart(6)}  ${String(r.dc).padStart(5)}  ${String(r.prim).padStart(6)}  ${String(r.meshkit).padStart(7)}  ${r.results || ''}`);
   for (const ph of ['title', 'land', 'screens', 'tower', 'duel']) {
     const p = rows.filter((r) => r.kind === 'phase' && r.name === ph);
-    if (p.length) notes.push(`phase ${ph.padEnd(7)} heap ${p.map((r) => mb(r.heap)).join(' ')} | nodes ${p.map((r) => r.nc).join(' ')} | tex ${p.map((r) => mb(r.tex)).join(' ')} | vid ${p.map((r) => mb(r.vid)).join(' ')} | draws ${p.map((r) => r.dc).join(' ')}`);
+    if (p.length) notes.push(`phase ${ph.padEnd(7)} heap ${p.map((r) => mb(r.heap)).join(' ')} | mused ${p.map((r) => mbm(r.mused)).join(' ')} | mfp ${p.map((r) => mbm(r.mfp)).join(' ')} | nodes ${p.map((r) => r.nc).join(' ')} | tex ${p.map((r) => mb(r.tex)).join(' ')} | vid ${p.map((r) => mb(r.vid)).join(' ')} | draws ${p.map((r) => r.dc).join(' ')}`);
   }
   const grows = lines.filter((l) => /^SOAKGROW /.test(l));
   notes.push(`heap grew ${grows.length} time(s): ${grows.map((l) => l.slice(9)).join('; ')}`);
@@ -638,13 +747,22 @@ function soakVerdict(lines) {
   if (cyc.length >= 3) {
     const a = cyc[1];
     const n = cyc.length - 2;
-    for (const k of ['heap', 'js', 'pss_renderer', 'nc', 'orphan', 'tex', 'oc', 'res']) {
+    // The wasm heap gate: bytes in live allocations (mused, read from dlmalloc) when the page can read them. The memory
+    // size (heap) only moves in 16 MB steps, so over 5 cycles one step reads as 4-5.3 MB a cycle whatever the real rate
+    // (a step lands wherever the in-use figure crosses a boundary); it is then reported, not gated. Without the finer
+    // reading (another engine build) the memory size is gated as before. mfp (malloc's top) also counts free space
+    // inside the heap (fragmentation), so it is reported only. See docs/PERF_BUDGET.md.
+    const fine = 'mused' in a && 'mused' in last;
+    for (const k of ['heap', 'mused', 'mfp', 'js', 'pss_renderer', 'nc', 'orphan', 'tex', 'oc', 'res']) {
       if (!(k in a) || !(k in last)) continue;
       const per = (last[k] - a[k]) / n;
+      const gated = k === 'mfp' ? false : k === 'heap' ? !fine : true;
       const ok = per <= SOAK_LIMITS[k];
-      const bytes = ['heap', 'tex', 'js', 'pss_renderer'].includes(k);
-      notes.push(`${ok ? 'ok ' : 'BAD'} growth per cycle ${k}: ${bytes ? mb(per) + ' MB' : per.toFixed(1)} (limit ${bytes ? mb(SOAK_LIMITS[k]) + ' MB' : SOAK_LIMITS[k]})`);
-      if (!ok) bad.push(`${k} grows ${per.toFixed(0)} per cycle`);
+      const bytes = ['heap', 'mused', 'mfp', 'tex', 'js', 'pss_renderer'].includes(k);
+      const tag = !gated ? 'info' : ok ? 'ok ' : 'BAD';
+      const why = k === 'heap' && !gated ? ', 16 MB steps: not gated, mused is' : k === 'mfp' ? ', includes free space: not gated' : '';
+      notes.push(`${tag} growth per cycle ${k}: ${bytes ? mb(per) + ' MB' : per.toFixed(1)} (limit ${bytes ? mb(SOAK_LIMITS[k]) + ' MB' : SOAK_LIMITS[k]}${why})`);
+      if (gated && !ok) bad.push(`${k} grows ${per.toFixed(0)} per cycle`);
     }
   }
   const peakHeap = Math.max(...rows.map((r) => r.peak || 0));
@@ -673,10 +791,13 @@ scenario('perf-soak', 'memory soak: 5+ cycles of the real journey; growth per cy
   await ph.close();
   const c = await ctx.client('bot', { width: VW, height: VH, dpr: opts.dpr, audio: true });
   c.stopRe = /^SOAK (done|fail)/;
-  await c.start(ctx.base, ['--soak'], [relay.url]);
-  const r = await waitUntil([c], () => c.find(/^SOAK (done|fail)/), 3600);
+  // SOAK_CYCLES=N plays N cycles (at least 5) for a longer soak; the time limit grows with it.
+  const cycles = Math.max(5, Number(process.env.SOAK_CYCLES) || 5);
+  const limitS = 3600 * Math.ceil(cycles / 5);
+  await c.start(ctx.base, ['--soak', `--soak-cycles=${cycles}`], [relay.url]);
+  const r = await waitUntil([c], () => c.find(/^SOAK (done|fail)/), limitS);
   const notes = errorNotes([c]);
-  if (r !== 'ok') notes.push(`no SOAK done within 3600s (${r})`);
+  if (r !== 'ok') notes.push(`no SOAK done within ${limitS}s (${r})`);
   if (c.find(/^SOAK fail/)) notes.push(c.find(/^SOAK fail/));
   const v = soakVerdict(c.lines);
   if (process.env.SOAK_LOG) fs.writeFileSync(process.env.SOAK_LOG, c.lines.join('\n'));
