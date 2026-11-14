@@ -46,18 +46,20 @@ static var _cloth_shader: Shader
 
 ## Art Bible sections 5 and 7 (G1). Metal reads as its own colour, not a mirrored sky.
 const METAL_ROUGH := 0.45
-const METAL_METALLIC := 0.60
+const METAL_METALLIC := 0.35  # bible 0.60; metal reflects the dark overcast sky and read dark on land
 const TRIM_ROUGH := 0.40
 const TRIM_METALLIC := 0.70
 const BLADE_ROUGH := 0.30
 const BLADE_METALLIC := 0.85
 ## Rim light: the hero and a duel enemy get a strong one, everyone else keeps today's.
 ## Enemies are told from villagers and NPCs by scale (enemies are 1.1 and up).
-const RIM_HERO := 0.5
-const RIM_ENEMY := 0.7
+const RIM_HERO := 0.9
+const RIM_ENEMY := 1.0
 const RIM_OTHER := 0.35
 const RIM_TINT := 0.3
 const ENEMY_MIN_SCALE := 1.08
+## Fighters only: a small self-light so they stay lighter than the ground they stand on (no extra light node).
+const FIGHTER_LIFT := 0.5
 var _rim_amt := RIM_OTHER
 var _trail_pts: Array = []
 var _trail_time := 0.0
@@ -94,6 +96,8 @@ func _metal(color: Color, rough := METAL_ROUGH, metallic := METAL_METALLIC) -> S
 	m.rim_enabled = true
 	m.rim = _rim_amt
 	m.rim_tint = RIM_TINT
+	m.emission_enabled = true
+	m.emission = color * FIGHTER_LIFT
 	return m
 
 
@@ -640,4 +644,4 @@ func flash(color: Color) -> void:
 	_armour.emission_enabled = true
 	_armour.emission = color
 	_flash_tw = create_tween()
-	_flash_tw.tween_property(_armour, "emission", Color.BLACK, 0.18)
+	_flash_tw.tween_property(_armour, "emission", body_color * FIGHTER_LIFT, 0.18)

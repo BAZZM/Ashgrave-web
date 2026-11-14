@@ -30,17 +30,17 @@ const ROADS := [
 ## The Meadows, The Scar and The Old Ruins have no bible row: the Meadows sit a little cooler than
 ## Hearthvale, the Scar is Hearthvale's earth with the green taken out, the Ruins are a grey-blue stone.
 const BIOMES := {
-	"village": {"name": "Hearthvale", "ground": Color("#5E6B38"), "fog": Color("#8A8F88"), "key": Color("#FFE2B8"), "amb": Color("#8795A8"), "foe": ""},
-	"meadow": {"name": "The Meadows", "ground": Color("#5A6B3C"), "fog": Color("#818E88"), "key": Color("#F5E6C4"), "amb": Color("#7E8FA4"), "foe": "thrall", "beast": "deer"},
-	"forest": {"name": "Greywood", "ground": Color("#2F3F2C"), "fog": Color("#4A5F54"), "key": Color("#DDE8C4"), "amb": Color("#55685E"), "foe": "bandit", "alt": "poacher", "beast": "deer"},
+	"village": {"name": "Hearthvale", "ground": Color("#5E6B38"), "fog": Color("#918E85"), "key": Color("#FFE2B8"), "amb": Color("#8795A8"), "foe": ""},
+	"meadow": {"name": "The Meadows", "ground": Color("#5A6B3C"), "fog": Color("#888D85"), "key": Color("#F5E6C4"), "amb": Color("#7E8FA4"), "foe": "thrall", "beast": "deer"},
+	"forest": {"name": "Greywood", "ground": Color("#2F3F2C"), "fog": Color("#4A5F54"), "amb_k": 1.7, "key": Color("#DDE8C4"), "amb": Color("#55685E"), "foe": "bandit", "alt": "poacher", "beast": "deer"},
 	"marsh": {"name": "Mirefen", "ground": Color("#4A4634"), "fog": Color("#66756E"), "key": Color("#E6E2D0"), "amb": Color("#6A7C82"), "foe": "wight", "alt": "hexer", "beast": "boar"},
 	"quarry": {"name": "The Scar", "ground": Color("#5A5248"), "fog": Color("#76706A"), "key": Color("#F0E2C8"), "amb": Color("#77716E"), "foe": "brute"},
 	"ruins": {"name": "The Old Ruins", "ground": Color("#4F4F4A"), "fog": Color("#5F6068"), "key": Color("#D9DDE6"), "amb": Color("#5E6472"), "foe": "keeper", "alt": "seer"},
-	"ashlands": {"name": "The Ashlands", "ground": Color("#332B2B"), "fog": Color("#4D332E"), "key": Color("#DDB8A4"), "amb": Color("#4A3A40"), "foe": "pyre"},
+	"ashlands": {"name": "The Ashlands", "ground": Color("#332B2B"), "fog": Color("#4D332E"), "key": Color("#DDD5D0"), "amb_k": 1.7, "amb": Color("#4A3A40"), "foe": "pyre"},
 }
 
 ## Road and shore blends in ground_color_with: Dirt trail light (bible 2.1) and a muddy shore.
-const ROAD_COLOR := Color("#6B5A40")
+const ROAD_COLOR := Color("#8A7552")
 const SHORE_COLOR := Color("#5A5238")
 
 const FOES := {
@@ -48,12 +48,12 @@ const FOES := {
 	"bandit": {"name": "Greywood Bandit", "arche": 2, "hp": 0.5, "dmg": 0.85, "level": 8, "style": "duelist", "scale": 1.15, "body": Color(0.3, 0.36, 0.26), "accent": Color(0.5, 0.75, 0.3), "drop": "hide"},
 	"wight": {"name": "Bog Wight", "arche": 4, "hp": 0.5, "dmg": 1.0, "level": 16, "style": "sentinel", "scale": 1.2, "body": Color(0.22, 0.32, 0.3), "accent": Color(0.4, 0.9, 0.7), "drop": "bone"},
 	"brute": {"name": "Stone Brute", "arche": 3, "hp": 0.6, "dmg": 1.0, "level": 24, "style": "brute", "scale": 1.5, "body": Color(0.45, 0.42, 0.38), "accent": Color(0.8, 0.5, 0.2), "drop": "hide"},
-	"keeper": {"name": "Ruin Keeper", "arche": 4, "hp": 1.0, "dmg": 1.45, "level": 38, "style": "knight", "scale": 1.4, "body": Color(0.3, 0.3, 0.4), "accent": Color(0.6, 0.7, 1.0), "drop": "cinder"},
+	"keeper": {"name": "Ruin Keeper", "arche": 4, "hp": 1.0, "dmg": 1.45, "level": 38, "style": "knight", "scale": 1.4, "body": Color("#A89F8A"), "accent": Color("#C9A24B"), "drop": "cinder"},
 
 	"poacher": {"name": "Greywood Poacher", "arche": 2, "hp": 0.4, "dmg": 0.85, "level": 12, "style": "duelist", "scale": 1.1, "body": Color(0.36, 0.3, 0.2), "accent": Color(0.6, 0.5, 0.2), "drop": "hide", "ranged": "archer"},
 	"hexer": {"name": "Mire Hexer", "arche": 4, "hp": 0.42, "dmg": 1.05, "level": 20, "style": "duelist", "scale": 1.15, "body": Color(0.28, 0.2, 0.34), "accent": Color(0.75, 0.4, 1.0), "drop": "bone", "ranged": "caster"},
-	"seer": {"name": "Ruin Seer", "arche": 4, "hp": 0.8, "dmg": 1.5, "level": 40, "style": "duelist", "scale": 1.3, "body": Color(0.2, 0.22, 0.34), "accent": Color(0.5, 0.8, 1.0), "drop": "cinder", "ranged": "caster"},
-	"pyre": {"name": "Pyre Guard", "arche": 5, "hp": 0.75, "dmg": 1.6, "level": 46, "style": "boss", "scale": 1.3, "body": Color(0.16, 0.14, 0.16), "accent": Color(1.0, 0.45, 0.1), "drop": "cinder"},
+	"seer": {"name": "Ruin Seer", "arche": 4, "hp": 0.8, "dmg": 1.5, "level": 40, "style": "duelist", "scale": 1.3, "body": Color("#6A5A7A"), "accent": Color("#BF99FF"), "drop": "cinder", "ranged": "caster"},
+	"pyre": {"name": "Pyre Guard", "arche": 5, "hp": 0.75, "dmg": 1.6, "level": 46, "style": "boss", "scale": 1.3, "body": Color("#7A4030"), "accent": Color("#FF731A"), "drop": "cinder"},
 }
 
 const NODES := {

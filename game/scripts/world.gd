@@ -16,8 +16,8 @@ const STUCK_AFTER := 0.5
 ## Art Bible section 4, Tower column (G1). Ambient is the tier's flat colour (Tiers.THEMES amb).
 const LIGHT_AMBIENT := 0.4
 const LIGHT_FOG_DENSITY := 0.03
-const LIGHT_MOON := 0.2
-const LIGHT_MOON_OPEN := 0.45  # the Rookery, which is open to the sky
+const LIGHT_MOON := 0.35
+const LIGHT_MOON_OPEN := 0.6  # the Rookery, which is open to the sky
 const LIGHT_SHADOW_DISTANCE := 24.0
 const LIGHT_TORCH_ENERGY := 2.8
 const LIGHT_TORCH_RANGE := 7.0

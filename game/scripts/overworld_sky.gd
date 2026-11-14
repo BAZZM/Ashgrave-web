@@ -3,15 +3,15 @@ extends Node
 ## Art Bible section 4 (G1): the sky is always overcast, so there is no blue noon. Each table below is
 ## [night, dusk, day]; `light` (0 to 1, from the time of day) runs night -> dusk at DUSK_AT -> day.
 const DUSK_AT := 0.35
-const SUN_ENERGY := [0.15, 0.3, 0.36]
+const SUN_ENERGY := [0.15, 0.3, 0.32]
 const SUN_PITCH := [-25.0, -12.0, -50.0]  # degrees; the day key stands at 50 degrees at most
 const SUN_NIGHT := Color("#99B2FF")
 const SUN_DUSK := Color("#FF9A5A")  # the day key is the region's own colour (Land.BIOMES key)
-const AMB_ENERGY := [0.3, 0.4, 0.55]
+const AMB_ENERGY := [0.3, 0.4, 0.75]
 const AMB_NIGHT := Color("#3A4064")
 const AMB_DUSK := Color("#5A5F86")  # the day ambient is the region's own colour (Land.BIOMES amb)
 const FOG_MULT := [0.16, 0.5, 0.8]  # region fog colour times this
-const FOG_DENSITY := 0.008
+const FOG_DENSITY := 0.006
 const FOG_SKY_AFFECT := 0.7
 const SKY_TOP := [Color(0.02, 0.03, 0.08), Color("#3A3550"), Color("#56637A")]
 ## Rain: sun x 0.6, fog denser and half way to a wet grey, sky greyer, colour drained.
@@ -42,6 +42,7 @@ var _wet := 0.0
 var _r_fog := Color("#8A8F88")
 var _r_key := Color("#FFE2B8")
 var _r_amb := Color("#8795A8")
+var _r_ak := 1.0
 
 
 func _init(owner_world: Overworld) -> void:
@@ -68,6 +69,7 @@ func _build_sky() -> void:
 	ow.add_child(we)
 	_sun = DirectionalLight3D.new()
 	_sun.shadow_enabled = true
+	_sun.shadow_normal_bias = 3.0
 	_sun.directional_shadow_max_distance = 32.0
 	_sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
 	ow.add_child(_sun)
@@ -112,6 +114,7 @@ func _apply_light(k: float) -> void:
 	_r_fog = _r_fog.lerp(bio.fog, kr)
 	_r_key = _r_key.lerp(bio.key, kr)
 	_r_amb = _r_amb.lerp(bio.amb, kr)
+	_r_ak = lerpf(_r_ak, float(bio.get("amb_k", 1.0)), kr)
 	var day_w := clampf((light - DUSK_AT) / (1.0 - DUSK_AT), 0.0, 1.0)
 	var night_w := clampf(1.0 - light / DUSK_AT, 0.0, 1.0)
 	_sun.rotation_degrees = Vector3(_key(SUN_PITCH, light), 140.0 + _day * 60.0, 0)
@@ -120,7 +123,7 @@ func _apply_light(k: float) -> void:
 	_sun.light_color = SUN_DUSK.lerp(_r_key, day_w) if light >= DUSK_AT else low
 	var amb_low: Color = AMB_NIGHT.lerp(AMB_DUSK, 1.0 - night_w)
 	_env.ambient_light_color = AMB_DUSK.lerp(_r_amb, day_w) if light >= DUSK_AT else amb_low
-	_env.ambient_light_energy = _key(AMB_ENERGY, light)
+	_env.ambient_light_energy = _key(AMB_ENERGY, light) * lerpf(1.0, _r_ak, day_w)
 	var mult: float = _key(FOG_MULT, light)
 	var fog: Color = _r_fog * mult
 	fog = fog.lerp(RAIN_FOG_TO * (mult / FOG_MULT[2]), 0.5 * _wet)
@@ -129,6 +132,7 @@ func _apply_light(k: float) -> void:
 	_env.fog_density = lerpf(FOG_DENSITY, RAIN_FOG_DENSITY, _wet)
 	_env.fog_sky_affect = lerpf(FOG_SKY_AFFECT, RAIN_FOG_SKY_AFFECT, _wet)
 	var sky_top: Color = _key(SKY_TOP, light)
+	sky_top = sky_top.lerp(_r_fog * 0.9, 0.35 * day_w)  # the sky takes a little of the region fog: Hearthvale warm
 	_sky.sky_top_color = sky_top.lerp(RAIN_SKY_TOP, _wet * clampf(light * 2.0, 0.0, 1.0))
 	_sky.sky_horizon_color = fog
 	_sky.ground_horizon_color = fog

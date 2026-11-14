@@ -57,7 +57,7 @@ for (const a of process.argv.slice(2)) {
 // Region shots: `--shot=x --shot-when=pvp --at=X,Z` puts a fresh-save hero at a spot, by day, with no
 // movement; "pvp" makes the game wait instead of saving its own picture. Ready = terrain chunk count stable.
 const REGIONS = [
-  ['forest', -120, 20], ['marsh', -60, 120], ['quarry', 150, -20], ['ruins', 150, -170], ['ashlands', 0, -165],
+  ['forest', -120, 20], ['marsh', -60, 120], ['quarry', 205, 30], ['ruins', 150, -170], ['ashlands', 0, -165],
 ].map(([slug, x, z], i) => ({ slug, x, z, id: `r${i + 1}-${slug}` }));
 const ORIENTATIONS = ALL_ORIENTATIONS.filter(([o]) => o === (portrait ? 'portrait' : 'landscape'));
 if (list) {
