@@ -59,3 +59,6 @@ The orchestrator owns this file.
 | 13 Nov 2026 | Usage while away | 2 lanes / 1 lane / 3 lanes | Two lanes at a time. |
 | 13 Nov 2026 | Automatic safe mode after two memory deaths | Yes with a menu toggle / no | Yes. |
 | 13 Nov 2026 | Build 12 released | (record) | dev and main at 1a70c09; 14/14 scenarios on the pack. |
+| 14 Nov 2026 | Lighting (G1): a third fix round, past the plan's cap of two | Hold the lighting / one narrow extra pass | Orchestrator, owner away: one narrow pass on Greywood and Ashlands brightness and Ashlands saturation only, because both were measurable and hurt daylight play. Targets met; released as Build 13. |
+| 14 Nov 2026 | Release order | Performance first as planned / whichever is ready | Orchestrator, owner away: lighting was ready first and lowers draw calls, so it shipped as Build 13; performance follows as Build 14. |
+| 14 Nov 2026 | Build 13 released | (record) | Lighting, sky, fog, region colours, fighter rim and self-light per ART_BIBLE "Applied in G1". Visual Critic: ship after fixes; fixes verified by its own measures. 14/14 scenarios on the pack. |
