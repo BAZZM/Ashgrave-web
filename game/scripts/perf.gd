@@ -638,9 +638,9 @@ func _quality_state() -> String:
 			dir += 1
 		elif n is WorldEnvironment and n.environment != null and n.environment.sky != null:
 			rad.append(int(n.environment.sky.radiance_size))
-	return "q=%s scale3d=%.3f dirlights=%d shadowed=%d radiance=%s textures=%d models=%d" % [Run.quality_level(), get_viewport().scaling_3d_scale,
+	return "q=%s scale3d=%.3f dirlights=%d shadowed=%d radiance=%s textures=%d models=%d texheld=%d" % [Run.quality_level(), get_viewport().scaling_3d_scale,
 		dir, shadowed, ",".join(PackedStringArray(rad.map(func(x): return str(x)))) if not rad.is_empty() else "-",
-		int(Run.quality_allows("textures")), int(Run.quality_allows("models"))]
+		int(Run.quality_allows("textures")), int(Run.quality_allows("models")), preload("res://scripts/tex_kit.gd").loaded.size()]
 
 
 ## Which part of the scene a mesh node belongs to, for the breakdown.
