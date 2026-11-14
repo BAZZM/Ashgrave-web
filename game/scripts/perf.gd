@@ -38,7 +38,8 @@ const BANNER_MAX_AGE_S := 600
 ## banner) no more than this far apart, both since the level last changed. One unlucky crash does not count, and
 ## neither do two a day apart: it takes a loop. Wall clock, from the crumbs' own timestamps.
 const AUTO_SAFE_WINDOW_MS := 30 * 60 * 1000
-const AUTO_SAFE_NOTICE := "The game restarted twice, so it switched to a lighter mode. Change it any time: MAP, then QUALITY."
+const AUTO_SAFE_NOTICE := "The game restarted twice, so it switched to safe quality: no shadows and a smaller 3D view now, lower resolution from the next launch. To change it: MAP, then QUALITY."
+const AUTO_SAFE_CAPTION := "Safe quality is on after two restarts. MAP, then QUALITY, to change it."
 
 var enabled := false
 ## --perflog: print every mark and a stats line every few seconds to the console
@@ -79,6 +80,7 @@ var _dev := {}
 var _peak_heap := 0
 ## Set for one boot when this boot's death made the game drop to safe mode (shown in the banner).
 var _auto_notice := false
+var _notice_caption := false
 ## Memory deaths counted toward the automatic rule (since the level last changed), for the crumb.
 var _q_deaths := 0
 
@@ -164,6 +166,10 @@ func _process(_delta: float) -> void:
 		if ms >= _crumb_next_ms:
 			_crumb_next_ms = ms + int(CRUMB_EVERY * 1000.0)
 			_crumb_write()
+	if _notice_caption and get_tree().current_scene != null:
+		# The banner closes on the first tap: say it once more in the game's own caption line.
+		_notice_caption = false
+		Run.captions.append(AUTO_SAFE_CAPTION)
 	if _banner != null:
 		# The clock starts once the first scene is up: loading can take a long while on a phone.
 		if _banner_until == 0:
@@ -418,8 +424,9 @@ static func show_banner_for(kind: String, age: int) -> bool:
 
 
 ## A memory death for the automatic rule: the banner kinds only (not a background reload, not a shared tab, not an old one).
+## A death while the engine was still loading (phase "boot") is a slow download, not memory: it never counts.
 static func counts_as_memory_death(e: Dictionary) -> bool:
-	return show_banner_for(str(e.get("kind", "")), int(e.get("age", -1)))
+	return str(e.get("phase", "run")) == "run" and show_banner_for(str(e.get("kind", "")), int(e.get("age", -1)))
 
 
 ## After a death is logged: two memory deaths within the window, both since the level last changed, while the
@@ -429,7 +436,8 @@ func _auto_safe_check(entry: Dictionary) -> void:
 	_q_deaths = 0
 	Run.ensure_loaded()
 	var s: Dictionary = Run.data.settings
-	var mark := float(s.get("q_mark", 0.0))
+	# A mark in the future (the clock was set back) counts as now.
+	var mark := minf(float(s.get("q_mark", 0.0)), Time.get_unix_time_from_system() * 1000.0)
 	var hits: Array = []
 	for e in _log:
 		if e is Dictionary and counts_as_memory_death(e) and float(e.get("ts", 0)) > mark:
@@ -439,12 +447,14 @@ func _auto_safe_check(entry: Dictionary) -> void:
 		return
 	var a: Dictionary = hits[hits.size() - 2]
 	var b: Dictionary = hits[hits.size() - 1]
-	var close := float(b.get("ts", 0)) - float(a.get("ts", 0)) <= AUTO_SAFE_WINDOW_MS
+	var gap := float(b.get("ts", 0)) - float(a.get("ts", 0))
+	var close := gap >= 0.0 and gap <= AUTO_SAFE_WINDOW_MS
 	print("[crumb] auto-safe check: deaths=%d close=%d level=%s done=%d override=%s" % [hits.size(), int(close), Run.quality_saved(), int(bool(s.get("q_auto_done", false))), Run.quality_override])
 	if not close or Run.quality_saved() != "full" or bool(s.get("q_auto_done", false)) or Run.quality_override != "":
 		return
 	Run.set_quality("safe", true)
 	_auto_notice = true
+	_notice_caption = true
 	print("[crumb] auto-safe: switched to safe after %d memory deaths" % hits.size())
 
 
@@ -607,9 +617,9 @@ func _stats_line() -> String:
 	var sc := get_tree().current_scene
 	var pos: Variant = sc.get("hero_pos") if sc else null
 	var chunks: Variant = sc.get("_chunks") if sc else null
-	return "PERFLOG pos=%s chunks=%s draw=%d obj=%d prim=%d nodes=%d tex=%d vid=%d heap=%d %s" % [
+	return "PERFLOG pos=%s chunks=%s draw=%d obj=%d prim=%d nodes=%d tex=%d vid=%d buf=%d heap=%d %s" % [
 		"%d,%d" % [pos.x, pos.z] if pos is Vector3 else "-", chunks.size() if chunks is Dictionary else "-", m[0], m[1], m[2], m[3],
-		int(Performance.get_monitor(Performance.RENDER_TEXTURE_MEM_USED)), int(Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED)), _heap_bytes(), _quality_state()]
+		int(Performance.get_monitor(Performance.RENDER_TEXTURE_MEM_USED)), int(Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED)), int(Performance.get_monitor(Performance.RENDER_BUFFER_MEM_USED)), _heap_bytes(), _quality_state()]
 
 
 ## The quality levers actually in force, read back from the engine (logging only): level, 3D render scale,

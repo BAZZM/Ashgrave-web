@@ -36,6 +36,11 @@ const Quality := preload("res://scripts/quality.gd")
 ## it wins over the saved level and is never saved.
 static var quality_override := ""
 static var _q_read := false
+## Counts level changes, so later lanes can notice one (gated features still load only with a scene).
+static var quality_rev := 0
+## Set once the cheap levers have been applied as safe in this session: the level in force then stays safe until the next
+## launch even if the player picks Full (allocating full-size buffers on a phone that has been crashing is the wrong moment).
+static var _q_held_safe := false
 
 
 static func apply_web_settings(vp: Viewport) -> void:
@@ -45,7 +50,10 @@ static func apply_web_settings(vp: Viewport) -> void:
 ## One place that applies a quality level to a viewport and to the lights and skies already in the scene.
 ## Call again after the level changes: nothing needs a reload.
 static func quality_apply(vp: Viewport) -> void:
-	Quality.apply(vp, quality_level())
+	var level := quality_level()
+	if level == "safe":
+		_q_held_safe = true
+	Quality.apply(vp, level)
 
 
 static func _quality_read_override() -> void:
@@ -63,19 +71,27 @@ static func _quality_read_override() -> void:
 	quality_override = q if Quality.valid(q) else ""
 
 
-## The level in force: "full" or "safe".
+## The level in force: "full" or "safe". Going to Full from safe takes effect at the next launch (see _q_held_safe).
 static func quality_level() -> String:
 	_quality_read_override()
 	if quality_override != "":
 		return quality_override
-	return quality_saved()
+	var q := quality_saved()
+	return "safe" if _q_held_safe and q == "full" else q
+
+
+## What the player chose (the session override, else the save): what the QUALITY button shows.
+static func quality_choice() -> String:
+	_quality_read_override()
+	return quality_override if quality_override != "" else quality_saved()
 
 
 ## The level in the save (ignores the session override).
 static func quality_saved() -> String:
 	ensure_loaded()
 	var q := str(data.settings.get("quality", Quality.DEFAULT))
-	return q if Quality.valid(q) else Quality.DEFAULT
+	# A level this build does not know (a later build's) is read as the nearest safe choice, and left stored untouched.
+	return q if Quality.valid(q) else "safe"
 
 
 ## Ask before loading or showing anything heavy: Run.quality_allows("textures"), ("models"), ("shadows").
@@ -96,6 +112,12 @@ static func quality_tune_sky(sky: Sky) -> void:
 	Quality.tune_sky(sky, quality_level())
 
 
+## The small key the page reads before the engine starts (the pixel-ratio cap): kept in step with the saved level.
+static func _quality_store(level: String) -> void:
+	if OS.has_feature("web"):
+		JavaScriptBridge.eval("try{localStorage.setItem('ashgrave_quality','%s')}catch(e){}" % level, true)
+
+
 ## Change the saved level. auto=true only from the memory-death rule in perf.gd. A player's choice also
 ## ends the session override and re-arms the automatic rule (q_auto_done). q_mark: deaths before it are not counted again.
 static func set_quality(level: String, auto := false) -> void:
@@ -104,6 +126,8 @@ static func set_quality(level: String, auto := false) -> void:
 	ensure_loaded()
 	var s: Dictionary = data.settings
 	s.quality = level
+	quality_rev += 1
+	_quality_store(level)
 	s.q_auto = auto
 	s.q_mark = Time.get_unix_time_from_system() * 1000.0
 	if auto:
@@ -170,6 +194,7 @@ static func ensure_loaded() -> void:
 		data[k] = maxi(int(data[k]), 0 if k in ["loop", "xp", "kills", "gold", "cinders", "potions", "stamp", "pvp_w", "pvp_l"] else 1)
 	data.floor = clampi(int(data.floor), 1, FLOORS)
 	_migrate()
+	_quality_store(quality_saved())
 
 	if now() - int(data.stamp) < 240000 and int(data.stamp) > 0:
 		title_seen = true

@@ -20,9 +20,12 @@ function heap(){try{if(mem){return mem.buffer.byteLength;}}catch(e){}return -1;}
 // Canvas resolution: at most 2 device pixels per CSS pixel. The engine sizes its canvas and full-size render
 // buffers by devicePixelRatio; at 3 (iPhones) that is 2.25x the pixels of 2 for no visible gain (the 3D view is
 // scaled to about 640 rows either way). __ag.dpr() keeps the real ratio for the crumbs.
-var DPR_CAP=2,dpd=null;try{dpd=Object.getOwnPropertyDescriptor(window,'devicePixelRatio')||Object.getOwnPropertyDescriptor(Object.getPrototypeOf(window),'devicePixelRatio');
+// In safe quality the cap is lower (SAFE_DPR_CAP). It is read here, before the engine starts, from ?quality= or from the
+// small key 'ashgrave_quality' that the game writes whenever the level changes, so it applies from the first frame; a change
+// of level made in the game takes effect at the next launch.
+var DPR_CAP=2,SAFE_DPR_CAP=1.5,dpd=null;try{var ql=new URLSearchParams(location.search).get('quality')||(ls&&ls.getItem('ashgrave_quality'))||'';if(ql==='safe'){DPR_CAP=SAFE_DPR_CAP;}}catch(e){}
+try{dpd=Object.getOwnPropertyDescriptor(window,'devicePixelRatio')||Object.getOwnPropertyDescriptor(Object.getPrototypeOf(window),'devicePixelRatio');
 if(dpd&&dpd.get){Object.defineProperty(window,'devicePixelRatio',{configurable:true,get:function(){return Math.min(dpd.get.call(window)||1,DPR_CAP);}});}}catch(e){}
-function setcap(n){try{n=Number(n);if(n>=1&&n<=3&&n!==DPR_CAP){DPR_CAP=n;dispatchEvent(new Event('resize'));}}catch(e){}}
 function rdpr(){try{return dpd&&dpd.get?dpd.get.call(window):(window.devicePixelRatio||1);}catch(e){return 1;}}
 cur={phase:'boot',live:vis(),ts:t0,run:run};if(!cur.live){cur.hid_at=t0;}save();
 function hide(final){var t=Date.now();
@@ -37,7 +40,7 @@ D.addEventListener('visibilitychange',flip);
 function other(){shared=true;cur.shared=true;save();}
 try{var bc=new BroadcastChannel('ashgrave_tabs');
 bc.onmessage=function(e){if(vis()){other();if(e.data==='ping'){bc.postMessage('pong');}}};bc.postMessage('ping');}catch(e){}
-setInterval(function(){if(cur.phase==='boot'){cur.heap=heap();save();}},4000);
+setInterval(function(){if(cur.phase==='boot'){cur.heap=heap();cur.ts=Date.now();save();}},4000);
 window.__ag={
 w:function(s){try{var o=JSON.parse(s),t=Date.now(),q=null;
 try{q=JSON.parse(ls.getItem(K));}catch(e){}
@@ -45,7 +48,7 @@ if(q&&q.run!==run&&q.live===true&&t-q.ts<10000){shared=true;}
 o.run=run;o.live=cur.live;o.ts=t;o.heap=heap();if(shared){o.shared=true;}
 if(cur.hid_at){o.hid_at=cur.hid_at;}if(cur.left){o.left=true;}
 cur=o;save();}catch(e){}},
-heap:heap,dpr:rdpr,cap:setcap,
+heap:heap,dpr:rdpr,
 rep:function(){if(!p||typeof p!=='object'){return '';}var k='';
 if(p.live===true){k=(p.shared||shared)?'shared':p.stalled?'stalled':'died';}else if(p.hid_at&&!p.left){k='hidden';}
 return k?JSON.stringify({kind:k,c:p,age:Math.round((t0-(p.ts||t0))/1000),hid:Math.round((t0-(p.hid_at||t0))/1000)}):'';},
@@ -195,7 +198,7 @@ html,body{position:fixed;inset:0;width:100%;height:100%;overflow:hidden;overscro
 </style>
 <script src="index.js"></script>
 		<script>
-const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":732719,"index.wasm":43699190},"focusCanvas":true,"gdextensionLibs":[]};
+const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":810206,"index.wasm":43699190},"focusCanvas":true,"gdextensionLibs":[]};
 const GODOT_THREADS_ENABLED = false;
 const engine = new Engine(GODOT_CONFIG);
 
