@@ -61,6 +61,10 @@ var travel: OverworldTravel
 
 
 func _ready() -> void:
+	# Debug only: `--looktest=tex` replaces the world with the texture look-test scene (docs/TEXTURE_LOOK.md).
+	if "--looktest=tex" in OS.get_cmdline_user_args():
+		add_child((load("res://scripts/tex_looktest.gd") as GDScript).new())
+		return
 	terrain = OverworldTerrain.new(self)
 	places = OverworldPlaces.new(self)
 	sky = OverworldSky.new(self)
