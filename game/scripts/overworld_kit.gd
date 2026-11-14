@@ -6,7 +6,7 @@ static var _mats := {}
 ## Art Bible section 3 palette (G1): the colour a material key gets whatever the caller asked for, so
 ## houses, bridges and chests (built in several files) agree. Keys not listed keep their own colour.
 const PALETTE := {
-	"plaster": Color("#736A56"),
+	"plaster": Color("#8A7F68"),  # bible Plaster #736A56, lifted: shaded walls read V 0.24 otherwise
 	"thatch": Color("#5E4935"),
 	"wood": Color("#4A3A2A"),
 	"bark_solo": Color("#3D2E22"),

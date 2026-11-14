@@ -209,21 +209,22 @@ Golden Shots to improve first: 05, 06, then 03, then 01.
 
 ## Applied in G1
 
-Lighting, sky, fog, region colours and fighter metal, with before and after Golden Shots. Calibration found that Compatibility lights read about three times brighter than the bible's energies assume (a sun of 1.2 lit the ground to about 1.7 times its albedo), so energies were tuned to the bible's own test (ground reads its palette colour to +15%, shade at least `#303030`); colours, fog, shadows, rim and material numbers are as specified. Rain, dusk and night follow the bible's keys; region fog, key and ambient blend over about 2.5 s on a biome change.
+Lighting, sky, fog, region colours and fighter metal, with before and after Golden Shots. Compatibility lights read about three times brighter than the bible's energies assume, so energies were tuned against its own card test; colours, fog, shadows and tier values are as specified. Region fog, key and ambient blend over about 2.5 s on a biome change. Round 2 followed a Visual Critic review: fighters had read darker than the ground.
 
 |Value|Bible|Applied|Why|
 |---|---|---|---|
-|Land sun day, dusk, night|1.2, 0.8, 0.25|0.36, 0.3, 0.15|calibration|
-|Land ambient day, dusk, night|0.6, 0.45, 0.35|0.55, 0.4, 0.3|calibration; shade readable|
-|Tower moon, Rookery|0.5, 1.0|0.2, 0.45|calibration|
-|Tower ambient|0.5|0.4|calibration|
-|Duel moon, outdoor|0.6, 1.2|0.25, 0.5|calibration|
-|Duel ambient|0.55|0.45|calibration|
-|Ashlands key|`#FF9A6B`|`#DDB8A4`|ground read S 0.44, limit 0.20|
-|Quarry, Ruins, Meadows|no row|own rows in `land.gd`|derived|
-|Metal; blade; trim|0.45/0.60; 0.30/0.85|same; trim 0.40/0.70|trim is mine|
-|Rim|0.5 hero, 0.7 enemy|same; others 0.35|enemy told by scale 1.08 or more|
-|`adjustment_*`|on|off|adds a 2.3 MB buffer|
-|Ashlands `fog_height`|6 m, 0.08|off|no visible effect|
+|Land sun day, dusk, night|1.2, 0.8, 0.25|0.32, 0.3, 0.15|calibration|
+|Land ambient day|0.6|0.75 (x1.7 Greywood, Ashlands)|calibration; shade and forests playable|
+|Tower moon, Rookery|0.5, 1.0|0.35, 0.6|calibration; keeps the cool key|
+|Duel moon, outdoor; ambient|0.6, 1.2; 0.55|0.25, 0.5; 0.45|calibration|
+|Land fog density|0.008|0.006|tower against sky|
+|Metal metallic|0.60|0.35|metal mirrored the dark sky and read dark|
+|Rim hero, enemy|0.5, 0.7|0.9, 1.0|fighters first|
+|Fighter self-light|none|emission 0.5 x albedo|fighters 1.5x the ground; no light node|
+|Plaster|`#736A56`|`#8A7F68`|shaded walls read V 0.24|
+|Road|`#6B5A40`|`#8A7552`|value step from grass|
+|Ashlands key|`#FF9A6B`|`#DDD5D0`|ground saturation|
+|Keeper, Seer, Pyre bodies|n/a|bone and brass, purple, ember|not hero-blue, not brown on brown|
+|`adjustment_*`, `fog_height`|on|off|2.3 MB buffer; no visible effect|
 
-Skipped: lit torches 5 to 3 (no matching code), emissive halo quads, foliage and grain textures (other lanes). Time of day is kept with a dusk key; no blue sky at any hour.
+Skipped: lit torches, halo quads, grain textures. Not met: Ashlands median luminance and saturation (0.34 against 0.20), distant tower enemy against the floor.
