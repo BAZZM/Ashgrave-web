@@ -590,7 +590,8 @@ const SOAK_LIMITS = {
   // per cycle, after the warm-up
   heap: 2 * 1048576, nc: 25, orphan: 0, tex: 256 * 1024, oc: 150, res: 2,
   // JS heap after gc, and the Chromium renderer process (Pss; includes the JS heap and compiled wasm)
-  js: 3 * 1048576, pss_renderer: 40 * 1048576,
+  // (with sound running, a playback copy of a sound may be alive at a reading: single readings jump by ~5-18 MB)
+  js: 10 * 1048576, pss_renderer: 20 * 1048576,
   // absolute ceilings over the whole run (wasm heap; Godot video memory at the check's 320x180 viewport)
   peakHeap: 128 * 1048576, peakVid: 30 * 1048576,
   // the title on an iPhone-shaped page (844x390 CSS pixels at devicePixelRatio 3): Godot video memory
