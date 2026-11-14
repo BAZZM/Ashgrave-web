@@ -1688,6 +1688,15 @@ func _qs_main() -> void:
 ## `--autoplay=gather --questbot=touch`: a wild duel starts beside a quest NPC while the quest wants that NPC's
 ## answer, and taps land on the duel's dodge button and on the world HUD's act button. No quest state, material
 ## or gold from a quest may change, and no dialogue may open.
+## Quests, flags and lore as a string, without the one flag a duel itself may set: `execute_hint` (duel_posture.gd) is the
+## once-per-save tutorial hint shown the first time a foe's posture breaks, not quest state. A run in which the bot happens to
+## break a posture (execs=1) failed this check before; `--qtexec` forces that case.
+func _qt_state() -> String:
+	var flags: Dictionary = Run.data.flags.duplicate()
+	flags.erase("execute_hint")
+	return JSON.stringify([Run.data.quests, flags, Run.data.lore])
+
+
 func _qt_main() -> void:
 	for sk in Craft.COMBAT:
 		Run.data.skills[sk] = Craft.xp_for(45)
@@ -1697,7 +1706,7 @@ func _qt_main() -> void:
 	await _qb_stand("smith")
 	var hud: WorldHud = ow.hud
 	var snap := JSON.stringify([Run.data.quests, Run.data.mats, Run.data.flags, Run.data.lore])
-	var qsnap := JSON.stringify([Run.data.quests, Run.data.flags, Run.data.lore])
+	var qsnap := _qt_state()
 	qb_check(ow.near.get("id", "") == "smith", "the smith is the nearest thing when the duel begins")
 	var foe := _ar_foe(ow.hero_pos + Vector3(0, 0, 3.0))
 	ow.duels._start_duel(foe)
@@ -1718,11 +1727,18 @@ func _qt_main() -> void:
 		await _qb_frames(1)
 	qb_check(hud.screen == "", "no dialogue opened during the duel")
 	qb_check(snap == JSON.stringify([Run.data.quests, Run.data.mats, Run.data.flags, Run.data.lore]), "no quest state, material or lore changed by taps during the duel")
+	if "--qtexec" in OS.get_cmdline_user_args():
+		# Debug: break the foe's posture at once, as an execution opportunity does in the runs that failed (execs=1).
+		if ow.duel != null:
+			ow.duel.posture._e_full()
 	await _ar_wait_duel()
 	await _qb_frames(3)
 	qb_check(hud.screen == "", "no dialogue open after the duel")
 	# (a won duel may drop a material, so only quests, flags and lore are compared here)
-	qb_check(qsnap == JSON.stringify([Run.data.quests, Run.data.flags, Run.data.lore]), "quest state unchanged after the duel")
+	var qnow := _qt_state()
+	if qsnap != qnow:
+		print("TOUCH DIFF before=%s after=%s" % [qsnap, qnow])
+	qb_check(qsnap == qnow, "quest state unchanged after the duel")
 	# And a dialogue that is open when a duel starts is closed without paying anything.
 	await _qb_stand("smith")
 	ow.interact()
