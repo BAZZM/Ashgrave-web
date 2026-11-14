@@ -26,6 +26,12 @@ var _results: Array = []
 var _said_phase := {}
 var _fx: Sfx
 var _noeval := "--soak-noeval" in OS.get_cmdline_user_args()
+## Debug, for finding which part of a cycle grows: --soak-only=roam,win,gather,screens,travel,lose,tower plays only those parts.
+var _only: PackedStringArray = []
+
+
+func _part(name: String) -> bool:
+	return _only.is_empty() or name in _only
 
 
 func _ready() -> void:
@@ -41,6 +47,11 @@ func _ready() -> void:
 	Run.data.unlocked = 3
 	Run.data.visited = ["camp_fire", "scar_anvil", "shrine", "altar", "circle", "watch", "tower"]
 	Run.data.in_tower = false
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--soak-only="):
+			_only = arg.trim_prefix("--soak-only=").split(",")
+	if "--soak-hist" in OS.get_cmdline_user_args() and not _noeval:
+		JavaScriptBridge.eval("window.__agmHist=1", true)
 	_main.call_deferred()
 
 
@@ -90,7 +101,16 @@ func readings() -> String:
 		_mon(Performance.RENDER_TEXTURE_MEM_USED), _mon(Performance.RENDER_BUFFER_MEM_USED), _mon(Performance.RENDER_VIDEO_MEM_USED),
 		_mon(Performance.MEMORY_STATIC), _mon(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME), _mon(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME),
 		MeshKit._cache.size(), Kit._meshes.size() + Kit._mats.size(), str(chunks.size()) if chunks is Dictionary else "-", save_len,
-		Run.captions.size(), (Run.data.slain as Array).size()]
+		Run.captions.size(), (Run.data.slain as Array).size()] + _mallinfo()
+
+
+## dlmalloc's own figures (" mfp=... mused=... mfree=..."), from window.__agm, which tools/check.js adds to the page:
+## the 16 MB memory size cannot show growth inside a step. Empty when the page has no reader.
+func _mallinfo() -> String:
+	if _noeval:
+		return ""
+	var v: Variant = JavaScriptBridge.eval("window.__agm ? window.__agm() : ''", true)
+	return " " + str(v) if v is String and v != "" else ""
 
 
 func _phase(name: String) -> void:
@@ -217,11 +237,16 @@ func _main() -> void:
 		return
 	_land().begin()
 	print("SOAK start biomes=%s" % [_waypoints().size()])
-	while cycle < MIN_CYCLES or game_s < MIN_GAME_S:
+	# --soak-cycles=N plays more cycles than the minimum (longer soaks resolve slower growth).
+	var min_cycles := MIN_CYCLES
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--soak-cycles="):
+			min_cycles = maxi(MIN_CYCLES, int(arg.trim_prefix("--soak-cycles=")))
+	while cycle < min_cycles or game_s < MIN_GAME_S:
 		cycle += 1
 		if not await _land_part():
 			return
-		if not await _tower_part():
+		if _part("tower") and not await _tower_part():
 			return
 		# Back in the land after the death in the tower: idle at the hearth, then the cycle line.
 		doing = "settle"
@@ -231,6 +256,9 @@ func _main() -> void:
 		await _wait(3.0)
 		await _frames(3)
 		print("SOAK cycle=%d %s results=%s" % [cycle, readings(), ",".join(_results)])
+		if "--soak-hist" in OS.get_cmdline_user_args():
+			# Debug: in-use heap chunks by size at this reading (window.__agmLast, filled by the reading above).
+			print("SOAKHIST cycle=%d %s" % [cycle, str(JavaScriptBridge.eval("JSON.stringify(window.__agmLast||{})", true))])
 		_results.clear()
 	print("SOAK done cycles=%d gt=%d peak=%d" % [cycle, int(game_s), peak_heap])
 	get_tree().quit()
@@ -327,7 +355,7 @@ func _land_part() -> bool:
 	# Roam: five biomes, three to four game seconds each of running with the stick, a sprint
 	# and two dashes; chunks stream in and out on every hop.
 	var i := 0
-	for p in _waypoints():
+	for p in (_waypoints() if _part("roam") else []):
 		doing = "roam %d" % i
 		ow = _land()
 		if ow == null:
@@ -350,11 +378,11 @@ func _land_part() -> bool:
 	await _phase("land")
 	if cycle == 1 or cycle == MIN_CYCLES:
 		_mesh_census()
-	if not await _wild_duel("soak", "win"):
+	if _part("win") and not await _wild_duel("soak", "win"):
 		return false
 	# Gather from the nearest node the hero has the level for.
 	ow = _land()
-	if ow != null:
+	if ow != null and _part("gather"):
 		doing = "gather"
 		_put(ow, Vector3(Land.START.x, 0, Land.START.z))
 		var best := {}
@@ -376,7 +404,7 @@ func _land_part() -> bool:
 			_results.append("gather:%s" % ("ok" if JSON.stringify(Run.data.mats) != before else "nothing"))
 	# Every HUD screen, opened and closed.
 	ow = _land()
-	if ow != null:
+	if ow != null and _part("screens"):
 		doing = "screens"
 		_put(ow, Vector3(Land.START.x, 0, Land.START.z))
 		for s in SCREENS:
@@ -390,15 +418,17 @@ func _land_part() -> bool:
 		await _phase("screens")
 	# Fast travel from the hearth to a spot, alternating.
 	ow = _land()
-	if ow != null:
+	if ow != null and _part("travel"):
 		doing = "travel"
 		var dest: String = ["shrine", "camp_fire", "watch", "circle"][cycle % 4]
 		var why := ow.travel.request(dest)
 		if why == "":
 			await _until(func(): return _land() == null or (_land().travel._phase == 0 and not _land()._leaving), 60.0)
 		_results.append("travel:%s" % ("ok" if why == "" else why.replace(" ", "_")))
-	if not await _wild_duel("idle", "lose"):
+	if _part("lose") and not await _wild_duel("idle", "lose"):
 		return false
+	if not _part("tower"):
+		return true
 	# Into the tower by its gate.
 	ow = _land()
 	if ow == null:

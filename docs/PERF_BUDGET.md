@@ -42,11 +42,57 @@ resources (49), objects, textures and wasm heap are flat on dev and on the branc
 | Renderer growth per cycle | 46.6 MB: FAIL (limit 20) | 6.4 MB |
 | Cycles completed | 3 (a lost duel outlasted the 400 s limit in cycle 4; dev renders 4x the primitives) | 5, 1519 game s |
 
-Thresholds after the warm-up cycle, per cycle: wasm heap 2 MB, JS heap 10 MB, renderer
+Thresholds after the warm-up cycle, per cycle: wasm heap 2 MB (bytes in use since Build 16; see the heap step section), JS heap 10 MB, renderer
 20 MB, nodes 25, orphans 0, textures 0.25 MB, objects 150, resources 2. Ceilings: wasm heap
 128 MB, video 30 MB (320x180), phone title video 48 MB. The soak runs with sound on (as
 after a first tap): with a suspended audio context no sound ends and the engine keeps a
 copy of each, a headless artifact.
+
+## The wasm heap step (Build 16 candidate, 14 Nov 2026)
+
+**What the page can see.** The memory size (`heap`) only grows, in 16 MB steps, so "flat" meant "did not cross the
+next boundary". The soak now also reads dlmalloc itself: `tools/check.js` finds the address of dlmalloc's state in
+the stock engine (the first `i32.const; i32.load` in the exported `malloc`, 4055396 in part0-2.wasm) and the page walks
+the heap as `mallinfo()` does, read-only. Columns: `mfp` (bytes malloc has taken from sbrk: the real top), `mused`
+(bytes in live allocations), `mfree` (free bytes inside, top included). At the title: heap 79.8, mfp 67.9, mused 50.6,
+mfree 17.2 MB. `--soak-hist` (debug) prints in-use chunks by size each cycle.
+
+**What it showed: a slow, steady growth that is not new.** Full quality, cycle lines (MB):
+
+| tree | cycles | mused, cycle 2 -> last | per cycle | heap |
+|---|---|---|---|---|
+| Build 16 candidate (80d9791) | 12 | 56.4 -> 73.1 | 1.7 | one step, 79.8 -> 95.8, in cycle 5; flat after |
+| Build 15, live (733337c) | 6 | 56.1 -> 63.0 | 1.7 | one step, in cycle 5 |
+
+Same rate on both: the quality system did not cause it. The step at cycle 5 is where mused (about 61-62 MB, plus
+fragmentation) first needs more than the free space and the top: Build 15 passed its gate because its cycle-5 reading
+happened to come before the crossing. Not a one-time high-water mark: mused rises every cycle, linearly, through 12
+cycles (55.1, 56.4, 58.0, 59.3, 61.8, 63.2, 64.7, 67.7, 69.0, 70.0, 71.6, 73.1), with nodes, objects, resources and
+orphans flat. At this rate a phone gains one 16 MB step about every 9-10 cycles (45-60 minutes of play).
+
+**Where it is (partly found).** Probes of one part of the cycle (`--soak-only=`, sound on): screens, roaming, wild
+duels won, wild duels lost, gathering and fast travel each flat within about 0.3 MB a cycle; idle flat; a scene load
+every 6 s about 45 KB a load; sounds played or Sfx nodes made and freed flat; the tower part alone (tier 1 duel, pack
+duel on tier 2, death on tier 3, four scene loads) about 0.6-0.9 MB a cycle. The chunks that grow there are groups
+of three sizes in lockstep, about 32 groups a cycle: 8200, 6152 and two of 1032 bytes (8192, 6144 and 1024 bytes of
+payload), holding 256-entry tables with descending ids (an engine-side table that grows by 256 slots at a time).
+Not found: what owns them (no Godot object count moves, and no script calls a server directly). Loading the HUD
+font once per run instead of per scene was tried and changed nothing (not kept). Next step for whoever picks it
+up: `--soak-only=tower --soak-hist` with the tower duels and the tier travel split apart.
+
+**The gate.** Growth of the wasm heap is now judged on `mused`, the bytes in use, with the same limit, 2 MB a cycle
+from cycle 2 to the last; the memory size and `mfp` are reported (`info`) but not gated, and the 128 MB peak ceiling
+stays. Over 5 cycles the old gate read any single 16 MB step as 16/3 = 5.3 MB a cycle (or 4.0 over 4 intervals),
+whatever the real rate, so it failed or passed on where a boundary fell. If the reader is missing (another engine
+build: the pattern is not found and the columns read `-`), the memory size is gated as before. `SOAK_CYCLES=N` plays
+a longer soak (the time limit grows with it).
+
+Does it still catch Build 12? Yes, unchanged: Build 12 failed on JS heap 33.2 MB a cycle (limit 10) and renderer
+46.6 MB a cycle (limit 20), gates this change does not touch; its 4.6 MB per scene load sat in the page's audio
+buffers, not in the wasm heap. A wasm-side leak of that size would also fail the new gate: the soak makes at least
+four scene loads a cycle (tower in, two tier changes, death home), so 4.6 MB a load is at least 18 MB a cycle against
+2. Margin today: 1.7 against 2.0; the worst 3-interval window in the 12-cycle run was 1.96, so a 5-cycle run can come
+close. The leak is real and should be fixed, not the limit raised.
 
 ## Trade-offs for the quality setting (phone title, dpr capped at 2)
 
@@ -106,7 +152,7 @@ times: phone title video 28.8 MB (textures 13.5 against 22.0 in full); per-cycle
 phase about 40% lower. The buffer rise seen in the first safe run (17.6 MB) did not persist as a trend: it appeared only
 on the cycle where the wasm heap stepped. **Safe fails the soak's heap check** (twice with the shadow atlas released, once
 at 256): one 16 MB wasm heap step (79.8 -> 95.8 MB) in cycle 5, at the screens phase, then flat; full never stepped.
-Not a leak (a single step, under the 128 MB ceiling) and not the atlas size; cause unknown, open for a phone to show.
+Not a leak (a single step, under the 128 MB ceiling) and not the atlas size; cause unknown, open for a phone to show. (Later: full steps the same way, and Build 15 too; the step is a slow growth common to both levels, see the heap step section above.)
 
 **Automatic rule** (`perf.gd`, `_auto_safe_check`): when a boot reports a foreground death or a stall that is young
 enough to show the banner (not a background reload, a shared tab or an old death), and the previous such death is
