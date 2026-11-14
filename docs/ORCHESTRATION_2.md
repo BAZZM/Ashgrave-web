@@ -46,12 +46,12 @@ up. It sits on top of `docs/ORCHESTRATOR.md` (phases, gates, roles) and
 |---|---|---|---|---|---|
 | P1 | Perf | Memory and crash investigation by soak bot; fix leaks found; `perf-soak` scenario; `docs/PERF_BUDGET.md` | Opus | any script, minimal; `tools/` | DONE, released as Build 14 |
 | S1 | Story | `docs/STORY_BIBLE.md` and a fully written Act 1 from existing lore | Fable | docs only | DONE, merged (6010437) |
-| P2 | Perf | Safe mode and quality settings (pixel-ratio cap, shadows, auto-drop after two memory deaths, menu toggle) | Sonnet | `perf.gd`, `run.gd` settings, `world_hud.gd` | queued |
+| P2 | Perf | Safe mode and quality settings (pixel-ratio cap, shadows, auto-drop after two memory deaths, menu toggle) | Sonnet | `perf.gd`, `run.gd` settings, `world_hud.gd` | built, review fix round running |
 | G1 | Graphics | Lighting and atmosphere per `docs/ART_BIBLE.md` section 4; Golden Shots before and after | Sonnet | `overworld_sky.gd`, `arena.gd`, lights in `world.gd` | DONE, released as Build 13 |
-| S2 | Story | Quests as data; dialogue UI; Act 1 playable; quest bot scenario | Sonnet | `quests.gd`, `story.gd`, `world_hud.gd`, NPC hooks | queued |
-| G2 | Graphics | `tex_kit.gd`, texture import, look test with three treatments | Sonnet (Opus if the shader fights the renderer) | new files; debug hook in `overworld.gd` | queued |
+| S2 | Story | Quests as data; dialogue UI; Act 1 playable; quest bot scenario | Sonnet | `quests.gd`, `story.gd`, `world_hud.gd`, NPC hooks | DONE, released as Build 15 |
+| G2 | Graphics | `tex_kit.gd`, texture import, look test with three treatments | Sonnet (Opus if the shader fights the renderer) | new files; debug hook in `overworld.gd` | running |
 | G3 | Graphics | Visual Critic picks the treatment; apply ground and water behind the quality setting; memory measured | Fable, then Sonnet | `overworld_terrain.gd`, `overworld_kit.gd`, `land.gd` colours | queued |
-| S3 | Story | Acts 2 and 3 and region side quests filled against the schema | Haiku, Sonnet review | quest data | queued |
+| S3 | Story | Acts 2 and 3 and region side quests filled against the schema | Haiku, Sonnet review | quest data | drafts written (lane/s3-story-fill), awaiting narrative review |
 | G4 | Graphics | Walls and wood, then trees | Sonnet | `overworld_places.gd`, `world.gd`, terrain scatter | queued |
 | R1 | Graphics | Resume rig stage R1 (paused, work on `lane/p2-r1-rigvisual`) | Opus | see `docs/RIG_PLAN.md` | parked until the above are out |
 
