@@ -1,7 +1,8 @@
 extends RefCounted
 ## Texture kit (lane G2, docs/TEXTURE_LOOK.md): shared, cached materials and shader strings that put the
-## owner's textures on the world in one of three colour treatments. Nothing in normal play uses it yet:
-## only the debug look-test scene (tex_looktest.gd, `--looktest=tex`) builds materials from here.
+## owner's textures on the world in one of three colour treatments. The real game uses GRAIN for ground and water
+## only (overworld_terrain.gd, lane G3); everything else here is for the debug look-test scene
+## (tex_looktest.gd, `--looktest=tex`).
 ##
 ##   FLAT    today's look: flat or vertex colour, no texture is loaded (the control).
 ##   GRAIN   Art Bible 2: a luminance-only grain (channel-packed, res://assets/textures/packed/) recoloured
@@ -70,6 +71,9 @@ const D_GROUND := 0.18
 const D_FOREST := 0.20
 const D_MUD := 0.20
 const D_PATH := 0.28
+const D_PATH_EDGE := 0.18   # the trail's grain depth falls from D_PATH in its middle to this at its edges
+const D_ASH := 0.12         # Ashlands ground grain depth, with highlights capped at CAP_ASH (G3 critic fix 4)
+const CAP_ASH := 0.62
 const D_WATER := 0.15
 const D_STONE := 0.28
 const D_COBBLE := 0.22
@@ -77,6 +81,20 @@ const D_WOOD := 0.25
 const D_LEAF := 0.25
 const D_HERO := 0.30
 const D_ENEMY := 0.20
+
+## The real game's palette for textured ground and water (G3, critic fixes 2 to 5). Raw colours, like every tint here.
+const PATH_LIGHT := Color("#6B5A40")   # trail: light end; the dark end is the region's own ground tint
+const PATH_ASH := Color("#4A4648")     # the Ashlands' trail
+const WATER_DEEP := Color("#20343A")
+const WATER_SHALLOW := Color("#3E6A68")  # only within about 1 m of the shore
+const WORLD_FOG := Color("#6E7470")      # the ramp mixes 10% of this into the dark end; one material serves every region
+## Ground tints that differ from Land.BIOMES' flat colours when textured (docs/TEXTURE_LOOK.md, G3).
+## forest (Greywood): the flat colour renders a saturated emerald (rendered saturation about 0.39) under the region's green ambient;
+## this tint is less saturated (hue near the palette's #2F3F2C, rendered saturation about 0.28) at the luminance Greywood has
+## today, because an earlier lighting review required it bright enough to play in.
+## village 10% and meadow 18% darker, so that a fighter reads at 1.5 times the ground's luminance or more in the real duel
+## (measured with tools/g3_measure.py; the grain's mean is already a little below the flat colour's).
+const TINT_GRAIN := {"forest": Color("#505C4E"), "village": Color("#556032"), "meadow": Color("#4A5831")}
 
 static var _tex := {}
 static var _shaders := {}
@@ -97,10 +115,30 @@ static func tex(rel: String) -> Texture2D:
 		return _tex[rel]
 	if not Run.quality_allows("textures"):
 		return null
+	# The release pack holds only what ground and water sample (tools/build.py); the look test's other textures are
+	# absent there, and its materials then fall back to flat.
+	if not ResourceLoader.exists(DIR + rel + ".png"):
+		_tex[rel] = null
+		return null
 	var t := load(DIR + rel + ".png") as Texture2D
 	_tex[rel] = t
 	loaded.append(rel)
 	return t
+
+
+## The textures the real game's ground samples are loaded (false when the level forbids textures or the pack lacks them).
+static func ground_ready() -> bool:
+	return tex("packed/terrain_a") != null and tex("packed/terrain_b") != null
+
+
+## Likewise for the water (ripple map and the shared terrain_b grain).
+static func water_ready() -> bool:
+	return tex("packed/ripple") != null and tex("packed/terrain_b") != null
+
+
+## The palette dictionary of the real game's ground and water materials (one material of each serves every region).
+static func world_pal() -> Dictionary:
+	return {"path": PATH_LIGHT, "path_ash": PATH_ASH, "mud": Land.SHORE_COLOR, "fog": WORLD_FOG, "deep": WATER_DEEP, "shallow": WATER_SHALLOW}
 
 
 static func _shader(key: String, code: String) -> Shader:
@@ -170,12 +208,13 @@ const SAMP_REPEAT_SRGB := ": filter_linear_mipmap_anisotropic, repeat_enable"
 
 
 ## ---- terrain: world-space, four layers by per-vertex weights --------------------------------------------
-## Vertex data (build_ground): COLOR.rgb = the biome tint, UV = (path weight, mud weight), UV2.x = forest weight.
+## Vertex data (build_ground): COLOR.rgb = the biome tint, UV = (path weight, mud weight), UV2 = (forest weight, Ashlands weight).
 ## GRAIN reads terrain_a and terrain_b twice (two scales) = 4 reads; SOURCE reads grass, forest floor, trail, mud once = 4.
 static func _terrain_code(t: int) -> String:
 	var head := "shader_type spatial;\nrender_mode specular_disabled;\n" + COMMON + """
 varying vec3 wp;
 uniform vec3 path_col;
+uniform vec3 path_ash;
 uniform vec3 mud_col;
 uniform vec3 fog_col;
 uniform float tile = 4.0;
@@ -189,7 +228,14 @@ uniform sampler2D tex_b""" + SAMP_REPEAT + """;
 uniform float d_base = 0.18;
 uniform float d_forest = 0.20;
 uniform float d_path = 0.28;
+uniform float d_path_edge = 0.18;
 uniform float d_mud = 0.20;
+uniform float d_ash = 0.12;
+uniform float cap_ash = 0.62;
+// Vertex data (TexKit.build_ground): COLOR = the region's ground tint, UV = (trail weight, mud weight),
+// UV2 = (forest-floor weight, Ashlands weight). The trail is mix(region ground, trail colour, grain): its grain depth is
+// d_path at the trail's middle and falls to d_path_edge at its edges; the Ashlands use their own trail colour, a shallower
+// ground grain (d_ash) and no grain highlights above cap_ash (the pale scratch lines of the forest-floor map read as frost).
 void fragment() {
 	vec2 p = wp.xz;
 	vec2 u1 = p / tile;
@@ -198,12 +244,17 @@ void fragment() {
 	vec4 b1 = texture(tex_b, u1); vec4 b2 = texture(tex_b, u2);
 	float nm = smoothstep(0.35, 0.65, 0.5 + 0.5 * sin(p.x * 0.071 + sin(p.y * 0.053) * 2.0) * sin(p.y * 0.047 + 1.0));
 	float g_grass = both(mix(a1.r, a1.g, nm), mix(a2.r, a2.g, nm));
+	float ash = UV2.y;
 	float g_forest = both(b1.r, b2.r);
+	g_forest = mix(g_forest, min(g_forest, cap_ash), ash);
 	float g_path = both(a1.b, a2.b);
 	float g_mud = both(a1.a, a2.a);
 	vec3 tint = COLOR.rgb;
-	vec3 col = mix(ramp(tint, g_grass, d_base, fog_col), ramp(tint, g_forest, d_forest, fog_col), UV2.x);
-	col = mix(col, ramp(path_col, g_path, d_path, fog_col), UV.x);
+	vec3 col = mix(ramp(tint, g_grass, d_base, fog_col), ramp(tint, g_forest, mix(d_forest, d_ash, ash), fog_col), UV2.x);
+	float dp = mix(d_path_edge, d_path, UV.x);
+	float tp = clamp(0.5 + (g_path - 0.5) * dp / d_path, 0.0, 1.0);
+	vec3 pcol = mix(mix(tint, fog_col, 0.10), mix(path_col, path_ash, ash), tp);
+	col = mix(col, pcol, UV.x);
 	col = mix(col, ramp(mud_col, g_mud, d_mud, fog_col), UV.y);
 	ALBEDO = col * macro(p);
 	ROUGHNESS = 1.0;
@@ -239,9 +290,9 @@ static func _m(name: String) -> Vector3:
 	return _vec(TEX_MEAN[name])
 
 
-## pal: {path: Color, mud: Color, fog: Color}. The mesh must come from build_ground().
+## pal: {path: Color, mud: Color, fog: Color, path_ash: Color (optional)}. The mesh must come from build_ground().
 static func terrain(t: int, pal: Dictionary) -> Material:
-	var key := "terrain|%d|%s|%s|%s" % [t, pal.path.to_html(), pal.mud.to_html(), pal.fog.to_html()]
+	var key := "terrain|%d|%s|%s|%s|%s" % [t, pal.path.to_html(), pal.mud.to_html(), pal.fog.to_html(), pal.get("path_ash", pal.path).to_html()]
 	if _mats.has(key):
 		return _mats[key]
 	var m: Material
@@ -251,6 +302,7 @@ static func terrain(t: int, pal: Dictionary) -> Material:
 	else:
 		var sm := _sm(_shader("terrain%d" % t, _terrain_code(t)))
 		sm.set_shader_parameter("path_col", _vec(pal.path))
+		sm.set_shader_parameter("path_ash", _vec(pal.get("path_ash", pal.path)))
 		sm.set_shader_parameter("mud_col", _vec(pal.mud))
 		sm.set_shader_parameter("fog_col", _vec(pal.fog))
 		sm.set_shader_parameter("tile", TILE_GROUND)
@@ -261,7 +313,10 @@ static func terrain(t: int, pal: Dictionary) -> Material:
 			sm.set_shader_parameter("d_base", D_GROUND)
 			sm.set_shader_parameter("d_forest", D_FOREST)
 			sm.set_shader_parameter("d_path", D_PATH)
+			sm.set_shader_parameter("d_path_edge", D_PATH_EDGE)
 			sm.set_shader_parameter("d_mud", D_MUD)
+			sm.set_shader_parameter("d_ash", D_ASH)
+			sm.set_shader_parameter("cap_ash", CAP_ASH)
 		else:
 			for pair in [["grass", "grass_lush", "ground/"], ["forest", "forest_floor", "ground/"], ["path", "dirt_trail", "ground/"], ["mud", "mud_wetland", "ground/"]]:
 				sm.set_shader_parameter("t_" + pair[0], tex(pair[2] + pair[1]))
@@ -272,7 +327,7 @@ static func terrain(t: int, pal: Dictionary) -> Material:
 	return m
 
 
-## A ground mesh over [origin, origin + size] with n.x by n.y cells. f(x, z) -> [height, tint Color, w_path, w_mud, w_forest].
+## A ground mesh over [origin, origin + size] with n.x by n.y cells. f(x, z) -> [height, tint Color, w_path, w_mud, w_forest, w_ash (optional)].
 static func build_ground(origin: Vector2, size: Vector2, n: Vector2i, f: Callable) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -285,7 +340,7 @@ static func build_ground(origin: Vector2, size: Vector2, n: Vector2i, f: Callabl
 			var r: Array = f.call(x, z)
 			st.set_color(r[1])
 			st.set_uv(Vector2(r[2], r[3]))
-			st.set_uv2(Vector2(r[4], 0.0))
+			st.set_uv2(Vector2(r[4], r[5] if r.size() > 5 else 0.0))
 			st.add_vertex(Vector3(x, r[0], z))
 	for iz in n.y:
 		for ix in n.x:
@@ -316,15 +371,26 @@ void vertex() { wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
 	var body := """
 	float T = time_override < 0.0 ? TIME : time_override;
 	vec2 p = wp.xz;
+	// Two ripple samples turned to different non-right angles against each other and to the texture's own diagonal
+	// (its lines run at 45 degrees; two samples 20 degrees apart made a regular crosshatch, which stretched to horizontal
+	// stripes on far water). The normals are turned back with their samples. Ripples fade out by 15 m from the camera.
+	const float A1 = -0.35;
+	const float A2 = 0.12;
+	mat2 r1 = mat2(vec2(cos(A1), -sin(A1)), vec2(sin(A1), cos(A1)));
+	mat2 r2 = mat2(vec2(cos(A2), -sin(A2)), vec2(sin(A2), cos(A2)));
 	vec2 d1 = vec2(0.94, 0.34) * 0.04 * T;
 	vec2 d2 = vec2(0.77, 0.64) * 0.025 * T;
-	vec2 pr = mat2(vec2(0.94, -0.34), vec2(0.34, 0.94)) * p;
-	vec2 n1 = (texture(ripple, (p + d1) / 3.0).rg - 0.5) * 2.0;
-	vec2 n2 = (texture(ripple, (pr + d2) / 4.7).ba - 0.5) * 2.0;
-	vec2 nxy = (n1 + n2) * ripple_k;
+	vec2 pr = r2 * (p * vec2(1.0, 1.0));
+	vec2 pq = r1 * p;
+	float dist = length(VERTEX);
+	float rf = 1.0 - smoothstep(6.0, 15.0, dist);
+	vec2 n1 = (texture(ripple, (pq + d1) / 3.0).rg - 0.5) * 2.0 * r1;
+	vec2 n2 = (texture(ripple, (pr + d2) / 4.7).ba - 0.5) * 2.0 * r2;
+	vec2 nxy = (n1 + n2) * ripple_k * rf;
 	vec3 nw = normalize(vec3(-nxy.x, 1.0, -nxy.y));
 	NORMAL = normalize((VIEW_MATRIX * vec4(nw, 0.0)).xyz);
-	float s = clamp(UV.x, 0.0, 1.0);
+	// Shallow tint only at the shore: the baked factor reaches 1 at the shore line and 0 about a metre out.
+	float s = smoothstep(0.35, 0.95, clamp(UV.x, 0.0, 1.0));
 	ALPHA = mix(a_deep, a_shallow, s);
 	ROUGHNESS = 0.10;
 	METALLIC = 0.0;
@@ -336,11 +402,12 @@ uniform sampler2D tex_b""" + SAMP_REPEAT + """;
 uniform float d = 0.15;
 void fragment() {
 """ + body + """
-	vec2 w1 = (p + d1) / tile;
+	vec2 w1 = (pq + d1) / tile;
 	vec2 w2 = (pr + d2) / tile2;
 	vec4 b1 = texture(tex_b, w1); vec4 b2 = texture(tex_b, w2);
-	float g_deep = both(b1.b, b2.b);
-	float g_sh = both(b1.g, b2.g);
+	float gf = 1.0 - smoothstep(25.0, 60.0, dist);   // far water: the mean, not a pattern
+	float g_deep = mix(0.5, both(b1.b, b2.b), gf);
+	float g_sh = mix(0.5, both(b1.g, b2.g), gf);
 	ALBEDO = mix(ramp(deep_col, g_deep, d, fog_col), ramp(shallow_col, g_sh, d, fog_col), s);
 }
 """

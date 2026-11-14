@@ -14,6 +14,13 @@ const GOLDEN := {
 	"hero-close": {"at": Vector2(-3, 14), "hero_yaw": PI, "cam": Vector3(1.0, 1.45, 3.4), "look": Vector3(0, 1.05, 0), "hud": false},
 	"terrain-graze": {"at": Vector2(40, -45), "hero_yaw": 0.0, "cam": Vector3(1.2, 0.45, 7.0), "look": Vector3(0, 0.7, -40.0), "hud": false},
 	"wall-close": {"at": Vector2(26, -2), "rot": -0.868, "hero": Vector3(-3.0, 0, 5.0), "hero_yaw": PI, "cam": Vector3(1.1, 1.5, 7.6), "look": Vector3(1.1, 1.5, 3.0), "hud": false},
+	# Lane G3 (textured ground and water, docs/TEXTURE_LOOK.md): the three regions, the water edge and the trails.
+	"g3-hearthvale": {"at": Vector2(12, 62), "hero": Vector3(-0.5, 0, -7.0), "hero_yaw": PI, "cam": Vector3(0, 2.2, 0), "look": Vector3(-12, 3.5, -42), "hud": false},
+	"g3-greywood": {"at": Vector2(-112, 40), "hero": Vector3(0.5, 0, -6.0), "hero_yaw": PI, "cam": Vector3(0, 2.2, 0), "look": Vector3(-8, 3.5, -28), "hud": false},
+	"g3-ashlands": {"at": Vector2(0, -138), "hero": Vector3(3.0, 0, -7.0), "hero_yaw": PI, "cam": Vector3(0, 2.5, 0), "look": Vector3(0, 3.0, -37), "hud": false},
+	"g3-water": {"at": Vector2(80, 40), "hero": Vector3(3.0, 0, -1.5), "hero_yaw": PI * 0.5, "cam": Vector3(2.0, 1.5, 6.0), "look": Vector3(22, -0.3, 0), "hud": false},
+	"g3-trail": {"at": Vector2(0, -50), "hero": Vector3(0.3, 0, -5.0), "hero_yaw": PI, "cam": Vector3(1.8, 1.6, 2.5), "look": Vector3(0, 0.3, -30), "hud": false},
+	"g3-trail-ash": {"at": Vector2(0, -150), "hero": Vector3(0.3, 0, -5.0), "hero_yaw": PI, "cam": Vector3(1.8, 1.6, 2.5), "look": Vector3(0, 0.3, -30), "hud": false},
 }
 var golden := ""
 var _g := {}
@@ -177,9 +184,36 @@ static func golden_world(w: Node3D, shot_name: String) -> void:
 			print("GOLDEN ready ", shot_name))
 
 
+## Debug (lane G3): `--g3duel=YAW --at=X,Z --shot=PATH --shot-when=pvp [--g3empty]` starts a real duel on the land at that spot with a
+## Field Thrall 3.2 m ahead of the hero (YAW radians; forward is (sin, cos)); the duel takes its usual picture at the enemy's wind-up
+## and, with --g3empty, a second one (PATH with _empty before .png) of the same frame with both fighters hidden, for measuring
+## fighter against ground luminance.
+var _g3_yaw := INF
+var _g3_started := false
+
+
+func _g3_tick() -> void:
+	if _g3_yaw == INF:
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--g3duel="):
+				_g3_yaw = float(a.trim_prefix("--g3duel="))
+		if _g3_yaw == INF:
+			_g3_yaw = -INF
+	if _g3_yaw == -INF or _g3_started or ow._t < 1.5 or not ow.terrain._queue.is_empty() or not ow.terrain._job.is_empty():
+		return
+	_g3_started = true
+	ow.hero_yaw = _g3_yaw
+	ow.cam_yaw = _g3_yaw
+	ow.hero.rotation.y = _g3_yaw
+	var foe := _ar_foe(ow.hero_pos + Vector3(sin(_g3_yaw), 0, cos(_g3_yaw)) * 3.2)
+	ow.mover._update_camera(1.0)
+	ow.duels._start_duel(foe)
+
+
 func _take_shot_if_due() -> void:
 	if golden != "":
 		_golden_tick()
+	_g3_tick()
 	if ow._shot_path == "":
 		return
 	if ow._shot_when == "pvp":

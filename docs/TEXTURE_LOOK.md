@@ -1,8 +1,8 @@
 # Texture look test (lane G2)
 
-Nothing in normal play loads a texture. The look test is behind a debug argument; `game/scripts/tex_kit.gd` holds the shared materials, `tex_looktest.gd` the scene.
+In normal play only the ground and water load textures (Full quality only; see "Decision and what shipped"). The look test is behind a debug argument; `game/scripts/tex_kit.gd` holds the shared materials, `tex_looktest.gd` the scene.
 
-**Run:** `python3 tools/build.py`, then `node tools/tex_shots.js [--treatments=flat,grain,source] [--cams=v1,w2] [--single] [--scale=2]`. Pictures land in `/home/claude/screens/g2/<treatment>/NN-name.png` (844x390, device scale 2), the memory lines in `mem.txt`, and the flat | grain | source sheets in `compare/`. One client: `node tools/check.js --probe "--looktest=tex --treatment=grain --ltcam=v6b-duel-armour --ltmem"`. Textures: `python3 tools/pack_textures.py`, then `python3 tools/import_assets.py`.
+**Run:** `python3 tools/build.py --looktest` (the release pack leaves out the look test's extra textures), then `node tools/tex_shots.js [--treatments=flat,grain,source] [--cams=v1,w2] [--single] [--scale=2]`. Pictures land in `/home/claude/screens/g2/<treatment>/NN-name.png` (844x390, device scale 2), the memory lines in `mem.txt`, and the flat | grain | source sheets in `compare/`. One client: `node tools/check.js --probe "--looktest=tex --treatment=grain --ltcam=v6b-duel-armour --ltmem"`. Textures: `python3 tools/pack_textures.py`, then `python3 tools/import_assets.py`.
 
 ## The treatments
 - **FLAT**: today's flat and vertex colour; the control, and the fallback whenever `Run.quality_allows("textures")` is false (nothing is loaded then).
@@ -32,3 +32,14 @@ Texture arrays not used (two packs read twice instead). `source_color` dropped: 
 
 ## Trade-off
 GRAIN costs 5 MB, matches the palette and the Art Bible, and gives subtle surface; it throws away the owner's colour. SOURCE costs 12.8 MB (about 2.5 MB compressed), keeps recognisable textures and gives the strongest surface detail; it looks busier and sits closer to the photographic risk.
+
+## Decision and what shipped (lane G3)
+The Visual Critic compared the three treatments and chose **GRAIN for ground and water**. Later lane decisions: trees GRAIN; walls and wood are decided after an iPhone test of compressed textures; the banner texture and the armour overlay are dropped (fighters stay flat). So the real game today textures ground and water only; everything else stays flat.
+
+**Quality gate.** `overworld_terrain.gd` builds ground and water textured only when `Run.quality_allows("textures")` is true (Full) and the textures are in the pack; otherwise it builds today's flat ground (vertex colour) and flat water plane and loads no texture (`TexKit.tex` asks first). The gate is live: when `Run.quality_rev` changes, the loaded chunks are re-meshed one per frame, and after the last swap to flat `TexKit.clear()` frees the textures. (Full after Safe still waits for the next launch, as the QUALITY button says.) `--flatground` keeps the flat look at Full, for before pictures.
+
+**Pack.** Release pack ships only `packed/terrain_a`, `packed/terrain_b`, `packed/ripple` (lossless, 2.63 MB): `tools/build.py` leaves the other imported textures out unless `--looktest`; the look test then falls back to flat. Pack 732,719 B before, 3,509,934 B after (+2.78 MB, code included).
+
+**Critic fixes applied.** (1) Water: two ripple samples at -20 and +7 degrees (the ripple map's own lines run at 45), normals turned back with them, ripples fade 6 to 15 m, water grain fades to its mean 25 to 60 m. (2) Shallow tint #3E6A68 only within about 1 m of the shore (baked from water depth, 1.25 m cells, tightened in the shader); elsewhere Deep #20343A; water is darker than the adjacent ground. (3) Trail: light #6B5A40, dark = the region's ground tint, grain depth 0.28 in the trail's middle falling to 0.18 at its edges. (4) Ashlands: trail #4A4648; ground grain depth 0.12 with highlights capped at 0.62. (5) Greywood ground tint #505C4E (was #445A40): rendered saturation 0.38 to 0.27, hue unchanged, luminance within 2% of today. The hex #2F3F2C has the same hue and saturation as today's tint, so "toward it" could only mean less saturated under the region's green ambient; it was not matched exactly because playability (6) and the lighting review come first. (6) Fighter / ground luminance (linear, real duel, `tools/g3_shots.js` + `tools/g3_measure.py`): grass (Hearthvale) 1.82, mud 2.66, trail 1.84, Greywood 3.32, Ashlands 2.90. To get there Hearthvale's ground tint is 10% darker (#556032) and the Meadows' 18% (#4A5831) when textured; fighters untouched.
+
+**Memory** (real game, 844x390, Full): texture memory +3.15 MB on land (4.32 to 7.47) and in a duel (6.27 to 9.41), video +3.6 MB; Safe adds 0.

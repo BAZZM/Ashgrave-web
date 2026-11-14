@@ -138,9 +138,9 @@ func _noise(x: float, z: float) -> float:
 
 
 func _stage_f(x: float, z: float) -> Array:
-	var vg: Color = Land.BIOMES.village.ground
-	var mg: Color = Land.BIOMES.meadow.ground
-	var fg: Color = Land.BIOMES.forest.ground
+	var vg: Color = TexKit.TINT_GRAIN.get("village", Land.BIOMES.village.ground)
+	var mg: Color = TexKit.TINT_GRAIN.get("meadow", Land.BIOMES.meadow.ground)
+	var fg: Color = TexKit.TINT_GRAIN.get("forest", Land.BIOMES.forest.ground)
 	var wf := smoothstep(14.0, 18.0, x)
 	var c := vg.lerp(mg, smoothstep(-2.0, 2.0, x)).lerp(fg, wf)
 	c = c.darkened(0.12 * _noise(x, z))
@@ -156,7 +156,7 @@ func _stage_f(x: float, z: float) -> Array:
 
 func _pal(b: String) -> Dictionary:
 	var fog: Color = Land.BIOMES[b].fog
-	return {"path": Land.ROAD_COLOR, "mud": Land.SHORE_COLOR, "fog": fog, "deep": DEEP, "shallow": SHALLOW}
+	return {"path": TexKit.PATH_LIGHT, "path_ash": TexKit.PATH_ASH, "mud": Land.SHORE_COLOR, "fog": fog, "deep": DEEP, "shallow": SHALLOW}
 
 
 func _group(name: String, parent: Node3D = self) -> Node3D:
@@ -296,7 +296,7 @@ func _build_vista(name: String, biome_key: String, centre: Vector2) -> void:
 			var f := func(x: float, z: float) -> Array:
 				var b := Land.biome(x, z)
 				var flat: Color = Land.ground_color_with(x, z, b, segs)
-				var base: Color = Land.BIOMES[b].ground.darkened(0.12 * _noise(x, z))
+				var base: Color = TexKit.TINT_GRAIN.get(b, Land.BIOMES[b].ground).darkened(0.12 * _noise(x, z))
 				var p := Vector2(x, z)
 				var rd := 9999.0
 				for seg in segs:
@@ -307,7 +307,7 @@ func _build_vista(name: String, biome_key: String, centre: Vector2) -> void:
 				var wd := minf(Land.river_dist(x, z) - 5.0, Land.lake_dist(x, z) - Land.LAKE_R + 3.0)
 				var wf := 0.0 if b in ["village", "meadow"] else 1.0
 				return [Land.height_in(x, z, b), flat if treatment == TexKit.FLAT else base, smoothstep(3.2, 1.2, rd) if rd < 3.2 else 0.0,
-					smoothstep(3.0, 0.0, wd) if wd < 3.0 else 0.0, wf]
+					smoothstep(3.0, 0.0, wd) if wd < 3.0 else 0.0, wf, 1.0 if b == "ashlands" else 0.0]
 			_mi(root, TexKit.build_ground(o, Vector2(Land.CHUNK, Land.CHUNK), Vector2i(12, 12), f), tm, Vector3.ZERO)
 			# Scatter on a 5 x 5 grid like the land's, deterministic.
 			for cz in 5:

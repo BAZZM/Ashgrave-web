@@ -1,6 +1,7 @@
 extends Node
 
 const Kit := preload("res://scripts/overworld_kit.gd")
+const TexKit := preload("res://scripts/tex_kit.gd")
 const LOAD_R := 2
 ## Script time one frame may spend building terrain while the hero walks. A chunk is
 ## built in small steps (ground, each row of scatter, each house or place, the batches);
@@ -27,10 +28,19 @@ var _queue: Array = []
 ## It joins ow._chunks only when whole, so nothing else ever sees half a chunk.
 var _job: Dictionary = {}
 var _warmed := false
+## Textured ground and water (lane G3): on while Run.quality_allows("textures") and the textures exist. A change of quality
+## level (Run.quality_rev) re-meshes the loaded chunks one per frame; the textures are released after the last swap to flat.
+var _q_rev := -1
+var _remesh: Array = []
+var _tex_state := false
+const WATER_N := 32
+## Debug: `--flatground` keeps the flat look at Full quality (before pictures; docs/TEXTURE_LOOK.md).
+var _flat_debug := "--flatground" in OS.get_cmdline_user_args()
 
 
 func _init(owner_world: Overworld) -> void:
 	ow = owner_world
+	_q_rev = Run.quality_rev
 
 
 func _chunk_of(p: Vector3) -> Vector2i:
@@ -48,6 +58,7 @@ func _update_chunks(build_all := false) -> void:
 	var t_all := Time.get_ticks_usec()
 	if not _warmed:
 		_warm()
+	_follow_quality(build_all)
 	var c := _chunk_of(ow.hero_pos)
 	if not _job.is_empty() and not _in_range(_job.k, c):
 		(_job.root as Node).queue_free()
@@ -137,16 +148,19 @@ func _ground_arrays(origin: Vector2) -> Array:
 	return [verts, cols]
 
 
-func _ground_mesh(origin: Vector2) -> ArrayMesh:
+func _ground_mesh(origin: Vector2, textured := false) -> ArrayMesh:
 	var n := GROUND_N
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	st.set_smooth_group(0)
-	var arrays := _ground_arrays(origin)
+	var arrays := _ground_arrays(origin) if not textured else _ground_arrays_tex(origin)
 	var verts: PackedVector3Array = arrays[0]
 	var cols: PackedColorArray = arrays[1]
 	for i in verts.size():
 		st.set_color(cols[i])
+		if textured:
+			st.set_uv(arrays[2][i])
+			st.set_uv2(arrays[3][i])
 		st.add_vertex(verts[i])
 	if _ground_index.is_empty():
 		for iz in n:
@@ -159,6 +173,115 @@ func _ground_mesh(origin: Vector2) -> ArrayMesh:
 	return st.commit()
 
 
+## _ground_arrays for the textured look (TexKit GRAIN): COLOR = the region's ground tint (not the flat colour with the road and
+## shore already mixed in), UV = (trail weight, mud weight), UV2 = (forest-floor grain weight, Ashlands weight).
+func _ground_arrays_tex(origin: Vector2) -> Array:
+	var n := GROUND_N
+	var step := Land.CHUNK / n
+	var segs := Land.road_segments_near(Rect2(origin, Vector2(Land.CHUNK, Land.CHUNK)), 3.2)
+	var verts := PackedVector3Array()
+	var cols := PackedColorArray()
+	var uv := PackedVector2Array()
+	var uv2 := PackedVector2Array()
+	verts.resize((n + 1) * (n + 1))
+	cols.resize((n + 1) * (n + 1))
+	uv.resize((n + 1) * (n + 1))
+	uv2.resize((n + 1) * (n + 1))
+	var i := 0
+	for iz in n + 1:
+		for ix in n + 1:
+			var x := origin.x + ix * step
+			var z := origin.y + iz * step
+			var b := Land.biome(x, z)
+			var base: Color = TexKit.TINT_GRAIN.get(b, Land.BIOMES[b].ground)
+			cols[i] = base.darkened(0.12 * (0.5 + 0.5 * sin(x * 0.7 + sin(z * 0.9)) * sin(z * 0.6)))
+			var p := Vector2(x, z)
+			var rd := 9999.0
+			for seg in segs:
+				var a: Vector2 = seg[0]
+				var d: Vector2 = seg[1] - a
+				var t := clampf((p - a).dot(d) / d.length_squared(), 0.0, 1.0)
+				rd = minf(rd, p.distance_to(a + d * t))
+			var wd := minf(Land.river_dist(x, z) - 5.0, Land.lake_dist(x, z) - Land.LAKE_R + 3.0)
+			uv[i] = Vector2(smoothstep(3.2, 1.2, rd) if rd < 3.2 else 0.0, smoothstep(3.0, 0.0, wd) if wd < 3.0 else 0.0)
+			uv2[i] = Vector2(0.0 if b in ["village", "meadow"] else 1.0, 1.0 if b == "ashlands" else 0.0)
+			verts[i] = Vector3(x, Land.height_in(x, z, b), z)
+			i += 1
+	return [verts, cols, uv, uv2]
+
+
+## True when ground and water should be textured now: the quality level allows it and the textures are in the pack.
+## Nothing is loaded when the level says no (TexKit.tex asks first).
+func _textured() -> bool:
+	return Run.quality_allows("textures") and not _flat_debug and TexKit.ground_ready()
+
+
+func _ground_material(textured: bool) -> Material:
+	if textured:
+		return TexKit.terrain(TexKit.GRAIN, TexKit.world_pal())
+	return Kit.mat("ground", Color.WHITE, 0.95, 0.0, true)
+
+
+## Textured water for the chunk (TexKit GRAIN): the baked shallow factor is 1 at the shore line and falls to 0 within about 1.2 m of water depth; WATER_N cells a side keep that band narrow without many triangles.
+func _water_mesh(origin: Vector2) -> ArrayMesh:
+	return TexKit.build_water(origin, Land.CHUNK, WATER_N, Land.WATER_Y, func(x: float, z: float) -> float:
+		return 1.0 - smoothstep(0.0, 1.2, Land.WATER_Y - Land.height(x, z)))
+
+
+func _flat_water_material() -> Material:
+	if not Kit._mats.has("water"):
+		var wm := StandardMaterial3D.new()
+		wm.albedo_color = Color(0.12, 0.32, 0.42, 0.72)
+		wm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		wm.metallic = 0.5
+		wm.roughness = 0.08
+		Kit._mats["water"] = wm
+	return Kit._mats["water"]
+
+
+## Put a chunk's ground and water (if any) into the current look.
+func _apply_look(chunk: Dictionary, textured: bool) -> void:
+	var origin: Vector2 = chunk.origin
+	var g: MeshInstance3D = chunk.ground
+	chunk.tex = textured
+	g.mesh = _ground_mesh(origin, textured)
+	g.material_override = _ground_material(textured)
+	var w: Variant = chunk.get("water")
+	if w != null:
+		var wi: MeshInstance3D = w
+		if textured and TexKit.water_ready():
+			wi.mesh = _water_mesh(origin)
+			wi.position = Vector3.ZERO
+			wi.material_override = TexKit.water(TexKit.GRAIN, TexKit.world_pal())
+		else:
+			var plane := PlaneMesh.new()
+			plane.size = Vector2(Land.CHUNK, Land.CHUNK)
+			wi.mesh = plane
+			wi.position = Vector3(origin.x + Land.CHUNK * 0.5, Land.WATER_Y, origin.y + Land.CHUNK * 0.5)
+			wi.material_override = _flat_water_material()
+
+
+## Follow a change of quality level: re-mesh the loaded chunks (one per frame, all at once when build_all), then free the
+## textures if the level no longer allows them.
+func _follow_quality(build_all: bool) -> void:
+	if Run.quality_rev != _q_rev:
+		_q_rev = Run.quality_rev
+		_remesh = ow._chunks.keys()
+	var want := _textured()
+	if _remesh.is_empty():
+		if _tex_state and not want:
+			_tex_state = false
+			TexKit.clear()
+		return
+	while not _remesh.is_empty():
+		var k: Vector2i = _remesh.pop_back()
+		if ow._chunks.has(k) and ow._chunks[k].has("ground") and is_instance_valid(ow._chunks[k].ground):
+			_apply_look(ow._chunks[k], want)
+		if not build_all:
+			break
+	_tex_state = want or _tex_state
+
+
 func _start_chunk(k: Vector2i) -> Dictionary:
 	var origin := Vector2(k.x * Land.CHUNK, k.y * Land.CHUNK)
 	var root := Node3D.new()
@@ -166,7 +289,7 @@ func _start_chunk(k: Vector2i) -> Dictionary:
 	ow.add_child(root)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(Vector2i(k.x * 7919 + 13, k.y * 104729 + 7))
-	var job := {"k": k, "origin": origin, "root": root, "chunk": {"root": root, "ents": [], "obstacles": []}, "multi": {}, "rng": rng,
+	var job := {"k": k, "origin": origin, "root": root, "chunk": {"root": root, "ents": [], "obstacles": [], "origin": origin}, "multi": {}, "rng": rng,
 		"steps": [[STEP_GROUND]], "next": 0, "usec": 0}
 	var centre := origin + Vector2(Land.CHUNK, Land.CHUNK) * 0.5
 	if not Land.in_bounds(clampf(centre.x, -Land.X_MAX - 30, Land.X_MAX + 30), centre.y) and absf(centre.x) > Land.X_MAX + 30:
@@ -196,6 +319,8 @@ func _finish_chunk() -> void:
 	_job = {}
 	(job.root as Node3D).visible = true
 	ow._chunks[job.k] = job.chunk
+	if bool(job.chunk.get("tex", false)) != _textured():
+		_remesh.append(job.k)
 	ow._collect_ents()
 	Perf.mark("chunk build %d,%d" % [job.k.x, job.k.y], job.usec)
 
@@ -228,18 +353,19 @@ func _step_ground() -> void:
 	var origin: Vector2 = _job.origin
 	var root: Node3D = _job.root
 	var centre := origin + Vector2(Land.CHUNK, Land.CHUNK) * 0.5
-	Kit._part(root, _ground_mesh(origin), Vector3.ZERO, Kit.mat("ground", Color.WHITE, 0.95, 0.0, true))
+	var textured := _textured()
+	_tex_state = _tex_state or textured
+	_job.chunk.tex = textured
+	_job.chunk.ground = Kit._part(root, _ground_mesh(origin, textured), Vector3.ZERO, _ground_material(textured))
 	if Land.river_dist(centre.x, centre.y) < 44.0 or Land.lake_dist(centre.x, centre.y) < Land.LAKE_R + 30.0:
-		var wm := StandardMaterial3D.new() if not Kit._mats.has("water") else null
-		if wm:
-			wm.albedo_color = Color(0.12, 0.32, 0.42, 0.72)
-			wm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-			wm.metallic = 0.5
-			wm.roughness = 0.08
-			Kit._mats["water"] = wm
-		var plane := PlaneMesh.new()
-		plane.size = Vector2(Land.CHUNK, Land.CHUNK)
-		Kit._part(root, plane, Vector3(centre.x, Land.WATER_Y, centre.y), Kit._mats["water"])
+		var wi: MeshInstance3D
+		if textured and TexKit.water_ready():
+			wi = Kit._part(root, _water_mesh(origin), Vector3.ZERO, TexKit.water(TexKit.GRAIN, TexKit.world_pal()))
+		else:
+			var plane := PlaneMesh.new()
+			plane.size = Vector2(Land.CHUNK, Land.CHUNK)
+			wi = Kit._part(root, plane, Vector3(centre.x, Land.WATER_Y, centre.y), _flat_water_material())
+		_job.chunk.water = wi
 	var steps: Array = _job.steps
 	for cz in 5:
 		steps.append([STEP_ROW, cz])

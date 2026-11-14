@@ -8,7 +8,7 @@
 // Output: DIR/<treatment>/NN-name.png, DIR/<treatment>/mem.txt (the game's memory lines), DIR/compare/NN-name.png.
 // --cams (substrings of camera ids) takes only those cameras, in one page load; --single loads one page per camera.
 // Default DIR /home/claude/screens/g2, 844x390 CSS pixels, device scale 2 (use --scale=3 for the phone-shaped
-// memory measurement: the game page caps the ratio at 2 itself, see docs/PERF_BUDGET.md). Needs `python3 tools/build.py`
+// memory measurement: the game page caps the ratio at 2 itself, see docs/PERF_BUDGET.md). Needs `python3 tools/build.py --looktest`
 // first and Playwright with Chromium (as tools/shots.js). Each client points at a dead relay.
 const http = require('http');
 const fs = require('fs');
