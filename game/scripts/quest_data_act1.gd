@@ -491,7 +491,15 @@ const IDLE := {
 		"if": [
 			[
 				"loop>=1",
-				"You reached the top, and the fire still burns. Sit. I am not surprised. Only sorry."
+				{
+					"if": [
+						[
+							"flag:throne=true",
+							"You reached the top, and the fire still burns. Sit. I am not surprised. Only sorry."
+						]
+					],
+					"else": "You reached the top. Sit. I am not surprised. Only sorry."
+				}
 			],
 			[
 				"bloodline>=2",

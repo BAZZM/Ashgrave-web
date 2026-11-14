@@ -1,16 +1,20 @@
 class_name Quests
 extends RefCounted
 
-## Quests as data. The tables live in quest_data_core.gd (the five that shipped first) and
-## quest_data_act1.gd (Act 1, pasted from docs/story/ACT1.md); the schema is docs/STORY_BIBLE.md
-## section 9. This file only runs them. A quest's save entry stays {step, count, done}.
+## Quests as data. The tables live in quest_data_core.gd (the five that shipped first),
+## quest_data_act1.gd (Act 1, pasted from docs/story/ACT1.md), quest_data_act2.gd (Act 2 part one,
+## docs/story/ACT2.md) and quest_data_side.gd (side quests, docs/story/SIDE_QUESTS.md); the schema is
+## docs/STORY_BIBLE.md section 9. This file only runs them. A quest's save entry stays {step, count, done}.
 
 const CoreData := preload("res://scripts/quest_data_core.gd")
 const Act1Data := preload("res://scripts/quest_data_act1.gd")
+const Act2Data := preload("res://scripts/quest_data_act2.gd")
+const SideData := preload("res://scripts/quest_data_side.gd")
 
 const NPCS := {
 	"smith": "Brannoc the Smith", "elder": "Elder Maren", "alchemist": "Sister Wren",
 	"fisher": "Old Tam", "ranger": "Warden Isolde", "villager": "Villager",
+	"nan": "Nan Harrow", "oswin": "Keeper Oswin",
 }
 
 const ACT_NAMES := {1: "The Thirty-First", 2: "Send No One", 3: "A Keeper"}
@@ -22,7 +26,7 @@ static var rev := 0
 ## Quests that advanced this session, latest first (the tracker shows these first).
 static var recent: Array = []
 ## The main line: shown ahead of side quests when nothing has advanced yet (after a reload).
-const MAIN := ["a1_thirty_first", "oath", "a1_hand", "a1_stair"]
+const MAIN := ["a1_thirty_first", "oath", "a1_hand", "a1_stair", "a2_flood", "a2_ending", "a2_mark", "a2_rune", "a2_letter"]
 
 const SMALL_TALK := [
 	"The tower was quieter when I was young. Or I was.",
@@ -37,6 +41,8 @@ static func _build() -> Dictionary:
 	var all := {}
 	all.merge(CoreData.QUESTS)
 	all.merge(Act1Data.QUESTS)
+	all.merge(Act2Data.QUESTS)
+	all.merge(SideData.QUESTS)
 	return all
 
 
@@ -197,7 +203,9 @@ static func track_text(id: String) -> String:
 static func journal_text(id: String) -> String:
 	var q: Dictionary = QUESTS[id]
 	if q.has("journal"):
-		return q.journal
+		var j := lines(q.journal)
+		if not j.is_empty():
+			return j[0]
 	var f := lines(q.get("finish", []))
 	return f[0] if not f.is_empty() else "Complete"
 
@@ -349,10 +357,20 @@ static func talk(npc: String) -> Dictionary:
 			out.lines = [progress(id)]
 			return out
 	# 4. Nothing asked: an idle line from data, then the villagers' small talk.
-	out.lines = lines(Act1Data.IDLE.get(npc, ""))
+	out.lines = idle_lines(npc)
 	if out.lines.is_empty() and npc == "villager":
 		out.lines = [SMALL_TALK[randi() % SMALL_TALK.size()]]
 	return out
+
+
+## What an NPC says with nothing asked: the first of Act 2's and the side quests' idle variants that matches,
+## else Act 1's (an empty result falls through to the villagers' small talk).
+static func idle_lines(npc: String) -> Array:
+	for src in [Act2Data.IDLE, SideData.IDLE]:
+		var l := lines(src.get(npc, ""))
+		if not l.is_empty():
+			return l
+	return lines(Act1Data.IDLE.get(npc, ""))
 
 
 static func act(action: String) -> Array:

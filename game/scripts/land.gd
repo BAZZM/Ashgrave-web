@@ -89,6 +89,8 @@ const PLACES := [
 	{"id": "alchemist", "type": "npc", "pos": Vector2(23, 25), "label": "Sister Wren", "r": 2.5},
 	{"id": "fisher", "type": "npc", "pos": Vector2(88, 113.5), "label": "Old Tam", "r": 2.5},
 	{"id": "ranger", "type": "npc", "pos": Vector2(-146, -7), "label": "Warden Isolde", "r": 3.0},
+	{"id": "nan", "type": "npc", "pos": Vector2(-50, 4), "label": "Nan Harrow", "r": 2.5},
+	{"id": "oswin", "type": "npc", "pos": Vector2(116, -166), "label": "Keeper Oswin", "r": 2.5},
 	{"id": "shrine", "type": "spot", "pos": Vector2(-92, 143), "label": "Mire shrine", "r": 4.0},
 	{"id": "altar", "type": "spot", "pos": Vector2(126, -174), "label": "Broken altar", "r": 4.0},
 	{"id": "circle", "type": "spot", "pos": Vector2(44, 104), "label": "Standing stones", "r": 7.0},
