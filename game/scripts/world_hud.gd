@@ -32,6 +32,9 @@ var _jr_rev := -1
 var _jr_size := Vector2.ZERO
 var _trk: Array = []
 var _trk_rev := -1
+var _mk := {}
+var _mk_rev := -1
+var _talk_size := Vector2.ZERO
 var sell_mode := false
 var _banner := ""
 var _banner_age := 9.0
@@ -64,7 +67,7 @@ func open_craft(skill: String) -> void:
 
 
 func talk(d: Dictionary) -> void:
-	if d.lines.is_empty():
+	if d.lines.is_empty() or world.duel != null:
 		return
 	_talk = d
 	_talk.i = 0
@@ -185,6 +188,15 @@ func _close_rect() -> Rect2:
 
 
 func _input(event: InputEvent) -> void:
+	# The duel has its own buttons, some where ours are: while it runs, or while this HUD is hidden, ignore taps.
+	if not is_visible_in_tree() or world.duel != null:
+		if event is InputEventScreenTouch and not event.pressed:
+			if event.index == _stick_touch:
+				_stick_touch = -1
+				world.stick = Vector2.ZERO
+			if event.index == _look_touch:
+				_look_touch = -1
+		return
 	if event is InputEventScreenTouch:
 		if event.pressed:
 			_press(event.index, event.position)
@@ -624,7 +636,7 @@ func _draw_explore(s: Vector2) -> void:
 				col = Color(1.0, 0.35, 0.3) if gap > 8 else (Color(1.0, 0.85, 0.4) if gap > -4 else Color(0.5, 1.0, 0.55))
 		col.a = clampf(((22.0 if world.is_land else 11.0) - d) / 4.0, 0.0, 1.0)
 		_text(e.label, world.cam.unproject_position(wp), 20, col)
-		if e.type in ["npc", "smith"] and Quests.marker(e.id) != "":
+		if e.type in ["npc", "smith"] and _marked(e.id):
 			_text("!", world.cam.unproject_position(wp) + Vector2(0, -26), 38, Color(1.0, 0.85, 0.3, col.a))
 
 	_text(world.place_name(), Vector2(56, 52), 30, GOLD, false)
@@ -674,14 +686,13 @@ func _draw_explore(s: Vector2) -> void:
 	if _banner_age < 3.0 and _banner != "":
 		var ba := clampf(minf(_banner_age * 2.0, 3.0 - _banner_age), 0.0, 1.0)
 		_text(_banner, Vector2(s.x * 0.5, s.y * 0.24), 60, Color(GOLD.r, GOLD.g, GOLD.b, ba))
-	if world.is_land:
-		if _trk_rev != Quests.rev:
-			_trk_rev = Quests.rev
-			_trk = tracker_lines()
-		var qy := 166.0 if not Run.data.task.is_empty() else 140.0
-		for line in _trk:
-			_text(line, Vector2(58, qy), 15, Color(1.0, 0.9, 0.6, 0.85), false, 520.0)
-			qy += 22.0
+	if _trk_rev != Quests.rev:
+		_trk_rev = Quests.rev
+		_trk = tracker_lines()
+	var qy := 166.0 if world.is_land and not Run.data.task.is_empty() else 140.0
+	for line in _trk:
+		_text(line, Vector2(58, qy), 15, Color(1.0, 0.9, 0.6, 0.85), false, 520.0)
+		qy += 22.0
 	if world.is_land and not Run.data.task.is_empty():
 		var tk: Dictionary = Run.data.task
 		_text("Hunt: %s %d of %d" % [Land.FOES[tk.foe].name, tk.have, tk.need], Vector2(58, 140), 17, Color(1, 1, 1, 0.75), false)
@@ -694,16 +705,21 @@ func _draw_explore(s: Vector2) -> void:
 		_draw_dash(b.dash)
 
 
-## Tracker: the three most recently started open quests, each as "name: step".
+## Whether an NPC carries the "!" (cached; rebuilt when quest state changes).
+func _marked(npc: String) -> bool:
+	if _mk_rev != Quests.rev:
+		_mk_rev = Quests.rev
+		_mk.clear()
+	if not _mk.has(npc):
+		_mk[npc] = Quests.marker(npc) != ""
+	return _mk[npc]
+
+
+## Tracker: up to three open quests, each as "name: step" (see Quests.tracker_ids).
 func tracker_lines() -> Array:
 	var out: Array = []
-	var keys: Array = Run.data.quests.keys()
-	keys.reverse()
-	for qid in keys:
-		if Quests.QUESTS.has(qid) and Quests.active(qid):
-			out.append(Quests.track_text(qid))
-			if out.size() >= 3:
-				break
+	for qid in Quests.tracker_ids():
+		out.append(Quests.track_text(qid))
 	return out
 
 
@@ -855,7 +871,8 @@ func _draw_talk(s: Vector2) -> void:
 	var lines: Array = _talk.lines
 	var last: bool = int(_talk.i) >= lines.size() - 1
 	var choices: Array = _talk.choices if last else []
-	if _talk_rows_i != int(_talk.i):
+	if _talk_rows_i != int(_talk.i) or _talk_size != size:
+		_talk_size = size
 		_talk_rows_i = int(_talk.i)
 		_talk_rows = _wrap(lines[_talk_rows_i], 22, talk_width(not choices.is_empty()))
 	var y := p.position.y + 82.0

@@ -823,46 +823,117 @@ scenario('act1', 'quest bot plays Act 1 start to finish: every quest started and
   return { ok, notes };
 }, true);
 
-// Loads saves exported from Build 13 at several points in the five old quests and checks that each quest is at
-// the same step with the same text, and that the open ones can still be finished.
-scenario('quest-save', 'saves made on the previous build keep their quest progress step for step', async (ctx) => {
+// The same act with the page reloaded three times on the way (after a talk step, in the middle of a kill count,
+// after the tablet is found in the tower), the game continuing from what it saved. With WRITE_FIXTURES=1 the saves
+// it printed before each reload are kept as tools/fixtures/played-*.json.
+scenario('act1-reload', 'Act 1 with saving on and three page reloads mid-act, continuing from the save', async (ctx) => {
+  const res = await solo(ctx, {
+    args: ['--autoplay=gather', '--questbot=act1', '--reload'], finish: /^ACT1 (DONE|FAILED)/, seconds: 2400,
+    verify: (lines) => {
+      const bad = lines.filter((l) => /^ACT1 FAIL /.test(l));
+      if (bad.length) return bad.slice(0, 3).join(' | ');
+      const fin = lines.find((l) => /^ACT1 DONE quests=12\/12 /.test(l));
+      if (!fin) return 'did not finish 12 of 12 Act 1 quests';
+      const m = fin.match(/reloads=(\d+)/);
+      if (!m || Number(m[1]) < 3) return `only ${m && m[1]} reloads`;
+      const dumps = lines.filter((l) => /^SAVEDUMP /.test(l));
+      if (dumps.length < 3) return `only ${dumps.length} saves dumped`;
+      if (process.env.WRITE_FIXTURES) {
+        for (const d of dumps) { const [, name, json] = d.match(/^SAVEDUMP (\w+) (.*)$/); fs.writeFileSync(path.join(ROOT, 'tools', 'fixtures', `played-${name}.json`), json); }
+      }
+      return null;
+    },
+  });
+  return res;
+}, true);
+
+// Dying in the tower with a1_stair open (a weak hero: a new heir starts, nothing is paid, the quest can still be
+// finished and pays once), and the veteran who already holds the tablet and beat the Warden before a1_stair.
+scenario('act1-die', 'a1_stair open, the hero dies in the tower: new heir, quest kept, paid once when finished', (ctx) => solo(ctx, {
+  args: ['--autoplay=gather', '--questbot=act1', '--seed=die'], finish: /^ACT1 (DONE|FAILED)/, seconds: 1500,
+  verify: (lines) => {
+    const bad = lines.filter((l) => /^ACT1 FAIL /.test(l));
+    if (bad.length) return bad.slice(0, 3).join(' | ');
+    if (!lines.some((l) => /^CHECK ok died in the tower/.test(l))) return 'the hero did not die in the tower';
+    return lines.some((l) => /^ACT1 DONE quests=12\/12 .*bloodline=2/.test(l)) ? null : 'did not finish as the second heir';
+  },
+}), true);
+
+scenario('act1-vet', 'relic held and Warden beaten before a1_stair is offered: steps pass at once, one line of dialogue', (ctx) => solo(ctx, {
+  args: ['--autoplay=gather', '--questbot=act1', '--seed=vet'], finish: /^ACT1 (DONE|FAILED)/, seconds: 300,
+  verify: (lines) => {
+    const bad = lines.filter((l) => /^ACT1 FAIL /.test(l));
+    if (bad.length) return bad.slice(0, 3).join(' | ');
+    return lines.some((l) => /^CHECK ok veteran: the box shows only/.test(l)) ? null : 'veteran checks did not run';
+  },
+}));
+
+// A wild duel starts beside a quest NPC; taps on the duel's dodge buttons and the world act button must not talk.
+scenario('duel-touch', 'taps during a duel next to a quest NPC change no quest state and open no dialogue', (ctx) => solo(ctx, {
+  args: ['--autoplay=gather', '--questbot=touch'], finish: /^TOUCH (DONE|FAILED)/, seconds: 240,
+  verify: (lines) => {
+    const bad = lines.filter((l) => /^ACT1 FAIL /.test(l));
+    return bad.length ? bad.slice(0, 3).join(' | ') : (lines.some((l) => /^TOUCH DONE/.test(l)) ? null : 'touch test failed');
+  },
+}));
+
+// Loads saves from other builds (hand-made then exported from Build 13: tools/fixtures/old-*.json; and played ones
+// from the act1-reload run: played-*.json) and checks that each quest is at the same step with the same text, that
+// the open old quests can be finished by walking, talking and fighting as a player does (with gold and items paid),
+// and that an unknown quest id in the save is ignored and kept.
+scenario('quest-save', 'saves from earlier builds keep their quest progress step for step and play on', async (ctx) => {
   const dir = path.join(ROOT, 'tools', 'fixtures');
   const texts = JSON.parse(fs.readFileSync(path.join(dir, 'old_step_texts.json'), 'utf8'));
+  const OLD = ['forge', 'line', 'poach', 'mire', 'oath'];
   const notes = [];
   let ok = true;
-  for (const f of fs.readdirSync(dir).filter((n) => /^old-.*\.json$/.test(n)).sort()) {
+  for (const f of fs.readdirSync(dir).filter((n) => /^(old|played)-.*\.json$/.test(n)).sort()) {
     const raw = fs.readFileSync(path.join(dir, f), 'utf8');
     const save = JSON.parse(raw);
+    const wantQ = save.quests || {};
     const relay = await ctx.newRelay();
     const c = await ctx.client('save');
-    c.seed = raw;
+    // The fixture's own stamp is old; a recent one makes the game treat the save as a session in progress.
+    c.seed = JSON.stringify({ ...save, stamp: Date.now() });
     c.stopRe = /^QSAVE END/;
-    await c.start(ctx.base, ['--questbot=save'], [relay.url]);
-    const r = await waitUntil([c], () => c.find(/^QSAVE END/), 150);
+    await c.start(ctx.base, ['--autoplay=gather', '--questbot=save'], [relay.url]);
+    const r = await waitUntil([c], () => c.find(/^QSAVE END/), 400);
     const problems = [...errorNotes([c])];
     if (r !== 'ok') problems.push(`no QSAVE END (${r})`);
     else {
-      for (const id of ['forge', 'line', 'poach', 'mire', 'oath']) {
-        const want = save.quests[id];
+      for (const id of c.lines.filter((l) => /^QSAVE state /.test(l)).map((l) => l.split(' ')[2])) {
+        const want = wantQ[id];
         const got = c.lines.find((l) => l.startsWith(`QSAVE state ${id} `));
-        if (!want) { if (!/ none$/.test(got || '')) problems.push(`${id}: expected no entry, got ${got}`); continue; }
-        const m = (got || '').match(/step=(\d+) count=(\d+) done=(\w+) text=(.*)$/);
-        if (!m) { problems.push(`${id}: no state line`); continue; }
+        if (!want) { if (OLD.includes(id) && !/ none$/.test(got)) problems.push(`${id}: expected no entry, got ${got}`); continue; }
+        const m = got.match(/step=(\d+) count=(\d+) done=(\w+) text=(.*)$/);
+        if (!m) { problems.push(`${id}: no state line: ${got}`); continue; }
         if (Number(m[1]) !== want.step || Number(m[2]) !== want.count || (m[3] === 'true') !== want.done) problems.push(`${id}: saved step ${want.step}/${want.count}/${want.done}, loaded ${m[1]}/${m[2]}/${m[3]}`);
-        const wantText = want.done ? 'Complete' : texts[id][want.step];
-        if (m[4] !== wantText) problems.push(`${id}: step text changed: ${m[4].slice(0, 50)}`);
-        if (!want.done && !c.lines.some((l) => l.startsWith(`QSAVE finished ${id} done=true`))) problems.push(`${id}: could not be finished from step ${want.step}`);
+        if (OLD.includes(id)) {
+          const wantText = want.done ? 'Complete' : texts[id][want.step];
+          if (m[4] !== wantText) problems.push(`${id}: step text changed: ${m[4].slice(0, 50)}`);
+        }
+        if (OLD.includes(id) && !want.done && !save.in_tower) {
+          if (!c.lines.some((l) => l.startsWith(`QSAVE finished ${id} done=true paid=true item=true`))) problems.push(`${id}: could not be finished from step ${want.step} (${c.lines.find((l) => l.startsWith(`QSAVE finished ${id} `))})`);
+        }
       }
       const gl = c.lines.find((l) => l.startsWith('QSAVE gold='));
-      if (!gl || !gl.startsWith(`QSAVE gold=${save.gold} `)) problems.push(`gold changed: ${gl}`);
-      if (c.lines.some((l) => /^QSAVE state \w+ none/.test(l)) === false && false) problems.push('x');
+      if (!gl || !gl.startsWith(`QSAVE gold=${save.gold} `)) problems.push(`gold changed on load: ${gl}`);
+      if (save.in_tower !== undefined && !gl.includes(`in_tower=${!!save.in_tower}`)) problems.push(`in_tower changed on load: ${gl}`);
+      if (save.loop !== undefined && !gl.includes(`loop=${save.loop} `)) problems.push(`loop changed on load: ${gl}`);
+      if (save.bloodline !== undefined && !gl.includes(`bloodline=${save.bloodline} `)) problems.push(`bloodline changed on load: ${gl}`);
+      const after = JSON.parse(await c.page.evaluate(() => localStorage.getItem('ashgrave_save_v1')));
+      for (const id of Object.keys(wantQ)) {
+        if (OLD.includes(id) || /^a\d_/.test(id)) continue;
+        if (JSON.stringify(after.quests[id]) !== JSON.stringify(wantQ[id])) problems.push(`unknown quest ${id} was not kept: ${JSON.stringify(after.quests[id])}`);
+      }
+      if (!Array.isArray(after.lore)) problems.push('lore key missing after save');
     }
     await c.close();
     notes.push(`${f}: ${problems.length ? 'FAILED' : 'ok'}`);
     for (const p of problems) { notes.push(`  ${p}`); ok = false; }
   }
   return { ok, notes };
-});
+}, true);
 
 scenario('pvp', 'two players duel through one relay', (ctx) => pvp(ctx, 1), true);
 scenario('pvp-2relay', 'two players duel through the same two relays, duplicates dropped', (ctx) => pvp(ctx, 2), true);

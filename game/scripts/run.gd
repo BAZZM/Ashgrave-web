@@ -174,6 +174,7 @@ static func ensure_loaded() -> void:
 	if now() - int(data.stamp) < 240000 and int(data.stamp) > 0:
 		title_seen = true
 		resumed = true
+	Story.backfill_lore()
 	Quests.sync()
 
 
@@ -510,6 +511,7 @@ static func on_win(bonus_gold: int) -> Dictionary:
 
 
 static func on_lose() -> void:
+	Quests.touch()
 	if data.in_tower:
 		captions.append(Story.heir_letter(int(data.bloodline)))
 		data.bloodline += 1

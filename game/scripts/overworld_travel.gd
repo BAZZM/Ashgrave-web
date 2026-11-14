@@ -136,8 +136,7 @@ func _arrival(id: String, origin: Vector3) -> Dictionary:
 	var from := Vector2(origin.x, origin.z) - c
 	var base := atan2(from.y, from.x) if from.length() > 1.0 else PI * 0.5
 	var r := float(pl.r)
-	# The fisher's fire stands in the lake (Land.height is below the water line there), so the
-	# search reaches out to the nearest dry shore.
+	# The search reaches out to the nearest dry ground, for any place that stands near water.
 	for rad in [r + 1.8, r + 3.2, r + 5.0, r + 8.0, r + 11.0, r + 14.0, r + 18.0]:
 		for i in 16:
 			var off := ceili(i / 2.0) * (TAU / 16.0) * (1.0 if i % 2 == 0 else -1.0)
