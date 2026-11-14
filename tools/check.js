@@ -727,10 +727,10 @@ scenario('quality', 'safe mode: land, tower duel, duel and tower play clean with
       if (!rest.length) { ok = false; notes.push(`FAIL: ${level} ${what}: no PERFLOG lines`); await c.close(); continue; }
       const wrong = rest.filter((x) => x.q !== level || x.textures !== (level === 'full' ? 1 : 0) || x.models !== (level === 'full' ? 1 : 0));
       const scene = rest.filter((x) => x.dirlights > 0);
-      const want = level === 'safe' ? 0.75 : 1.0;
+      const want = 1.0; // safe keeps the full render scale and sky radiance (see docs/PERF_BUDGET.md); its levers are the cap and shadows
       const badScale = rest.filter((x) => Math.abs(x.scale3d - want) > 0.011);
       const badShadow = scene.filter((x) => (level === 'safe' ? x.shadowed !== 0 : x.shadowed < 1));
-      const badRad = scene.filter((x) => String(x.radiance).split(',').some((v) => Number(v) !== (level === 'safe' ? 1 : 3)));
+      const badRad = scene.filter((x) => String(x.radiance).split(',').some((v) => Number(v) !== 3));
       const problems = [];
       if (wrong.length) problems.push(`level or gates wrong in ${wrong.length} lines (${wrong[0].q})`);
       if (badScale.length) problems.push(`3D scale ${badScale[0].scale3d}, wanted ${want}`);

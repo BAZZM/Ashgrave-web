@@ -106,21 +106,22 @@ func _buttons() -> Dictionary:
 ## on the main HUD.
 func _unstuck_rect() -> Rect2:
 	var p := _panel()
-	return Rect2(p.end.x - 190, p.position.y + 12, 170, 48)
+	return Rect2(p.end.x - 190, p.position.y + 4, 170, 84)
 
 
 ## The Quality entry: left of Unstuck on the map screen (two taps: MAP, then QUALITY). One tap switches
-## between Full and Safe and takes effect at once; the button names the level in force.
+## between Full and Safe: safe applies its cheap levers at once (resolution at the next launch), Full waits for the next launch. The button names the level chosen.
 func _quality_rect() -> Rect2:
 	var p := _panel()
-	return Rect2(p.end.x - 190 - 250, p.position.y + 12, 230, 48)
+	return Rect2(p.end.x - 450, p.position.y + 4, 230, 84)
 
 
 func _toggle_quality() -> void:
-	var next := "full" if Run.quality_level() == "safe" else "safe"
+	var next := "full" if Run.quality_choice() == "safe" else "safe"
 	Run.set_quality(next)
 	Run.quality_apply(get_viewport())
-	_say("Quality: %s." % ("Safe, lighter graphics" if next == "safe" else "Full"))
+	# Safe applies its cheap levers at once and the lower resolution at the next launch; Full waits for the next launch.
+	_say("Safe quality on. Lower resolution from next launch." if next == "safe" else "Full quality from next launch.")
 
 
 func _do_unstuck() -> void:
@@ -252,6 +253,8 @@ func _press(index: int, pos: Vector2) -> void:
 	if screen == "map" and _quality_rect().has_point(pos):
 		_toggle_quality()
 		return
+	if screen == "map" and not _unstuck_rect().has_point(pos) and Rect2(_quality_rect().position, Vector2(_unstuck_rect().end.x - _quality_rect().position.x, _quality_rect().size.y)).has_point(pos):
+		return  # the gap between the two buttons does nothing (a miss closes the map)
 	if screen == "map" and _unstuck_rect().has_point(pos):
 		_do_unstuck()
 		return
@@ -1201,7 +1204,7 @@ func _draw_unstuck() -> void:
 	_text("UNSTUCK", r.get_center() + Vector2(0, 8), 22, Color.WHITE)
 	var q := _quality_rect()
 	_box(q)
-	_text("QUALITY: %s" % Run.quality_level().to_upper(), q.get_center() + Vector2(0, 7), 20, Color.WHITE)
+	_text("QUALITY: %s" % Run.quality_choice().to_upper(), q.get_center() + Vector2(0, 7), 20, Color.WHITE)
 
 
 func _draw_land_map(s: Vector2) -> void:
@@ -1209,7 +1212,7 @@ func _draw_land_map(s: Vector2) -> void:
 	var p := _panel()
 	_box(p)
 	_text("THE LAND", p.position + Vector2(28, 60), 38, GOLD, false)
-	_text("Tap a place to travel. Tap elsewhere to close.", Vector2((p.position.x + 250 + p.end.x - 445) * 0.5, p.position.y + 54), 18, Color(1, 1, 1, 0.6), true, p.end.x - 445 - p.position.x - 260)
+	_text("Tap a place to travel. Tap elsewhere to close.", Vector2((p.position.x + 250 + p.end.x - 470) * 0.5, p.position.y + 54), 18, Color(1, 1, 1, 0.6), true, p.end.x - 470 - p.position.x - 260)
 	_draw_unstuck()
 	var tex: ImageTexture = Overworld.build_map()
 	var xf := _map_xform()

@@ -351,6 +351,10 @@ const getLog = (page) => page.evaluate(() => JSON.parse(localStorage.getItem('as
     await q6.page.screenshot({ path: path.join(OUT, 'quality-map-full.png') });
     const sv6q = await waitFor(async () => { const v = await savedSettings(q6.page); return v && v.quality === 'full' ? v : null; }, 20);
     check(!!sv6q && sv6q.q_auto === false, `QUALITY on the map screen switches to Full and saves it (${JSON.stringify(sv6q)})`);
+    const keyFull = await q6.page.evaluate(() => localStorage.getItem('ashgrave_quality'));
+    const togglet = Date.now();
+    const still = await waitFor(async () => { const k = await crumb(q6.page); return k && k.ts > togglet + 1000 ? k : null; }, 30);
+    check(!!still && still.q === 'safe' && keyFull === 'full', `Full chosen in the menu takes effect only after a reload (running level ${still && still.q}, stored key ${keyFull})`);
     await q6.page.reload();
     const kq6 = await runCrumb(q6.page);
     check(!!kq6 && kq6.q === 'full' && kq6.qa === 0, `Full sticks across a reload (q=${kq6 && kq6.q})`);
@@ -370,46 +374,90 @@ const getLog = (page) => page.evaluate(() => JSON.parse(localStorage.getItem('as
     await qctx.close();
 
     // Q5. Deaths that must not count: a shared tab, a hidden-then-gone page, an old death, and a first death hours earlier.
+    // A context of its own: the first part left a tab answering the shared-tab ping, which would mark every boot here shared.
+    const nctx = await browser.newContext({ deviceScaleFactor: 1 });
+    await nctx.route(base + BLANK, (r) => r.fulfill({ contentType: 'text/html', body: '<!doctype html><title>x</title>' }));
     const NOW = () => Date.now();
     const fresh = (extra) => Object.assign({ phase: 'run', live: true, ts: NOW() - 20000, run: 'x' + Math.random(), mode: 'land', place: 'Hearthvale', t: 300, heap: 90 << 20 }, extra);
     const prior = (ts) => ({ phase: 'run', live: true, ts, run: 'p', mode: 'land', t: 200, kind: 'died', age: 5 });
-    const cases = [
+    const cases = () => [
       ['a shared-tab death', fresh({ shared: true }), [prior(NOW() - 120000)]],
       ['a background reload', { phase: 'run', live: false, hid_at: NOW() - 30000, ts: NOW() - 30000, run: 'h', mode: 'land' }, [prior(NOW() - 120000)]],
       ['a death older than the banner age limit', fresh({ ts: NOW() - 11 * 60 * 1000 }), [prior(NOW() - 12 * 60 * 1000)]],
       ['two deaths three hours apart', fresh({}), [prior(NOW() - 3 * 3600 * 1000)]],
+      ['two deaths 31 minutes apart', fresh({ ts: NOW() - 20000 }), [prior(NOW() - 20000 - 31 * 60000)]],
+      ['a death during the engine load (phase boot)', fresh({ phase: 'boot' }), [prior(NOW() - 120000)]],
+      ['a clock set backwards (the earlier death is stamped later)', fresh({ ts: NOW() - 20000 }), [prior(NOW() + 300000)]],
     ];
-    for (const [what, crumbObj, log] of cases) {
-      await prime(ctx, base, crumbObj, log, null);
-      const p = await open(ctx, base, V); allErrors.push(p.errors);
+    for (const [what, crumbObj, log] of cases()) {
+      await prime(nctx, base, crumbObj, log, null);
+      const p = await open(nctx, base, V, [], { plain: true }); allErrors.push(p.errors);
       await waitFor(async () => died(p) || p.lines.find((l) => l.startsWith('[crumb] note:')), 150);
       const k = await runCrumb(p.page);
       const sv = await savedSettings(p.page);
       check(!autoLine(p) && !!k && k.q === 'full' && !(sv && sv.quality === 'safe'), `${what} does not count (q=${k && k.q})`);
-      await kill(ctx, p.page);
+      await kill(nctx, p.page);
+    }
+
+    const pos = [
+      ['two deaths 29 minutes apart', fresh({ ts: NOW() - 20000 }), [prior(NOW() - 20000 - 29 * 60000)]],
+      ['a stall and a death', fresh({ stalled: true }), [prior(NOW() - 120000)]],
+    ];
+    for (const [what, crumbObj, log] of pos) {
+      await prime(nctx, base, crumbObj, log, null);
+      const p = await open(nctx, base, V, [], { plain: true }); allErrors.push(p.errors);
+      await waitFor(async () => died(p), 150);
+      const k = await runCrumb(p.page, 'safe');
+      check(!!autoLine(p) && !!k, `${what} switch to safe (q=${k && k.q})`);
+      await kill(nctx, p.page);
     }
 
     // Q6. ?quality=safe applies for the session and is not saved; ?quality=full beats a saved safe, also unsaved.
-    await prime(ctx, base, null, null, null);
-    const o1 = await open(ctx, base, V, [], { query: { quality: 'safe' } }); allErrors.push(o1.errors);
+    await prime(nctx, base, null, null, null);
+    const o1 = await open(nctx, base, V, [], { query: { quality: 'safe' } }); allErrors.push(o1.errors);
     const kq1o = await runCrumb(o1.page);
     await sleep(8000);
     const sv1o = await savedSettings(o1.page);
     check(!!kq1o && kq1o.q === 'safe' && kq1o.qa === 0 && !(sv1o && sv1o.quality === 'safe'), `?quality=safe applies without saving (q=${kq1o && kq1o.q}, saved ${JSON.stringify(sv1o)})`);
-    await kill(ctx, o1.page);
-    await prime(ctx, base, null, null, { version: 3, settings: { quality: 'safe', q_auto: false } });
-    const o2 = await open(ctx, base, V, [], { query: { quality: 'full' } }); allErrors.push(o2.errors);
+    await kill(nctx, o1.page);
+    await prime(nctx, base, null, null, { version: 3, settings: { quality: 'safe', q_auto: false } });
+    const o2 = await open(nctx, base, V, [], { query: { quality: 'full' } }); allErrors.push(o2.errors);
     const kq2o = await runCrumb(o2.page);
     await sleep(8000);
     const sv2o = await savedSettings(o2.page);
     check(!!kq2o && kq2o.q === 'full' && !!sv2o && sv2o.quality === 'safe', `?quality=full overrides a saved safe for the session only (q=${kq2o && kq2o.q}, saved ${sv2o && sv2o.quality})`);
-    await kill(ctx, o2.page);
+    await kill(nctx, o2.page);
     // A save from before the settings existed loads as Full.
-    await prime(ctx, base, null, null, { version: 3, gold: 7 });
-    const o3 = await open(ctx, base, V); allErrors.push(o3.errors);
+    await prime(nctx, base, null, null, { version: 3, gold: 7 });
+    const o3 = await open(nctx, base, V); allErrors.push(o3.errors);
     const kq3o = await runCrumb(o3.page);
     check(!!kq3o && kq3o.q === 'full', `an old save without settings loads as full (q=${kq3o && kq3o.q})`);
-    await kill(ctx, o3.page);
+    await kill(nctx, o3.page);
+
+    // Q7. The pixel-ratio cap is read before the engine starts: 1.5 in safe, 2 in full, from the first frame, on a 3x screen.
+    const c3 = await browser.newContext({ deviceScaleFactor: 3 });
+    await c3.route(base + BLANK, (r) => r.fulfill({ contentType: 'text/html', body: '<!doctype html><title>x</title>' }));
+    const capOf = async (page) => page.evaluate(() => [window.devicePixelRatio, document.getElementById('canvas').width]);
+    for (const [what, query, want] of [['full', { quality: 'full' }, 2], ['safe (?quality=safe)', { quality: 'safe' }, 1.5]]) {
+      await prime(c3, base, null, null, null);
+      const p = await open(c3, base, V, [], { plain: true, query }); allErrors.push(p.errors);
+      const first = await capOf(p.page);
+      await runCrumb(p.page);
+      await sleep(4000);
+      const later = await capOf(p.page);
+      check(first[0] === want && later[0] === want && Math.abs(later[1] - 844 * want) <= 2, `${what}: devicePixelRatio ${first[0]} at load, canvas ${later[1]} px wide (wanted ratio ${want})`);
+      await kill(c3, p.page);
+    }
+    // A level stored by the game (no query) gives the cap from the first frame of the next launch.
+    await prime(c3, base, null, null, { version: 3, settings: { quality: 'safe', q_auto: false } });
+    const st1 = await open(c3, base, V, [], { plain: true }); allErrors.push(st1.errors);
+    await runCrumb(st1.page, 'safe');
+    const keyed = await st1.page.evaluate(() => localStorage.getItem('ashgrave_quality'));
+    await st1.page.reload();
+    const stc = await capOf(st1.page);
+    check(keyed === 'safe' && stc[0] === 1.5, `the stored level gives the cap at the next launch (key ${keyed}, ratio ${stc[0]})`);
+    await kill(c3, st1.page);
+    await c3.close();
 
     const errors = allErrors.flat();
     check(errors.length === 0, `no script errors${errors.length ? ': ' + errors[0] : ''}`);
