@@ -61,6 +61,9 @@ const ENEMY_MIN_SCALE := 1.08
 ## Fighters only: a small self-light so they stay lighter than the ground they stand on (no extra light node).
 const FIGHTER_LIFT := 0.5
 var _rim_amt := RIM_OTHER
+## Spheres and tori shared by every figure, by size. The engine's defaults (64 x 32 segments, 4096
+## triangles each, even for a 4 cm pommel) cost about 0.1 MB of vertex buffer per part per figure.
+static var _prims := {}
 var _trail_pts: Array = []
 var _trail_time := 0.0
 var _trail_color := Color(1, 0.9, 0.7)
@@ -86,6 +89,30 @@ func configure(cfg: Dictionary) -> void:
 	var s: float = cfg.get("scale", absf(scale.y))
 	scale = Vector3(signf(scale.x) * s, s, signf(scale.z) * s)
 	_build()
+
+
+static func _sphere(r: float, h: float) -> SphereMesh:
+	var key := "s%.4f/%.4f" % [r, h]
+	if not _prims.has(key):
+		var m := SphereMesh.new()
+		m.radius = r
+		m.height = h
+		m.radial_segments = 24
+		m.rings = 12
+		_prims[key] = m
+	return _prims[key]
+
+
+static func _torus(inner: float, outer: float) -> TorusMesh:
+	var key := "t%.4f/%.4f" % [inner, outer]
+	if not _prims.has(key):
+		var m := TorusMesh.new()
+		m.inner_radius = inner
+		m.outer_radius = outer
+		m.rings = 32
+		m.ring_segments = 12
+		_prims[key] = m
+	return _prims[key]
 
 
 func _metal(color: Color, rough := METAL_ROUGH, metallic := METAL_METALLIC) -> StandardMaterial3D:
@@ -158,9 +185,7 @@ func _build() -> void:
 	var fauld := _metal(body_color.darkened(0.15))
 	fauld.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_part(_body, MeshKit.lathe([[0.215 * b, HIP_Y + 0.07], [0.25 * b, HIP_Y - 0.02], [0.31 * b, HIP_Y - 0.2], [0.33 * b, HIP_Y - 0.3]], 14, 1.0, 0.82), Vector3.ZERO, fauld)
-	var belt := TorusMesh.new()
-	belt.inner_radius = 0.2 * b
-	belt.outer_radius = 0.25 * b
+	var belt := _torus(0.2 * b, 0.25 * b)
 	_part(_body, belt, Vector3(0, HIP_Y + 0.06, 0), trim).scale = Vector3(1, 0.7, 0.82)
 	if st.get("tabard", false):
 		var tab := QuadMesh.new()
@@ -177,14 +202,10 @@ func _build() -> void:
 
 	if not st.get("core", false):
 		_part(_torso, MeshKit.lathe([[0.0, 0.1], [0.05, 0.14], [0.07, 0.4], [0.05, 0.58], [0.0, 0.6]], 8, 1.0, 0.6), Vector3(0, 0, -0.2 * b), trim)
-	var collar := TorusMesh.new()
-	collar.inner_radius = 0.1
-	collar.outer_radius = 0.16
+	var collar := _torus(0.1, 0.16)
 	_part(_torso, collar, Vector3(0, 0.69, 0), trim)
 	if st.get("core", false):
-		var core := SphereMesh.new()
-		core.radius = 0.09
-		core.height = 0.18
+		var core := _sphere(0.09, 0.18)
 		_part(_torso, core, Vector3(0, 0.44, -0.23 * b), glow)
 	if st.get("fur", false):
 		var fur := _metal(Color(0.16, 0.12, 0.1), 1.0, 0.0)
@@ -267,9 +288,7 @@ func _build() -> void:
 		for k in 3:
 			_part(_body, MeshKit.blade(0.2, 0.035, 0.012, 0.07), Vector3(0.1 + k * 0.07, HIP_Y - 0.16, -0.2 * b), _metal(Color(0.85, 0.87, 0.9), BLADE_ROUGH, BLADE_METALLIC), Vector3(180, 0, 0))
 	if st.has("focus"):
-		var orb := SphereMesh.new()
-		orb.radius = 0.07
-		orb.height = 0.14
+		var orb := _sphere(0.07, 0.14)
 		var fm := StandardMaterial3D.new()
 		fm.albedo_color = Color.BLACK
 		fm.emission_enabled = true
@@ -299,9 +318,7 @@ func _build() -> void:
 			_:
 				_part(_shield, MeshKit.shield(0.62, 0.86, 0.12), Vector3.ZERO, sm)
 				_part(_shield, MeshKit.shield(0.68, 0.93, 0.12), Vector3(0, 0, 0.012), rimm)
-		var boss_m := SphereMesh.new()
-		boss_m.radius = 0.09
-		boss_m.height = 0.12
+		var boss_m := _sphere(0.09, 0.12)
 		_part(_shield, boss_m, Vector3(0, 0.08, -0.13), trim)
 
 	var ar := 0.075 * b * (0.85 if slim else 1.0)
@@ -311,17 +328,11 @@ func _build() -> void:
 		_limbs["fa%d" % side] = _free_part(MeshKit.limb(ar * 0.95, ar * 1.25, ar * 1.05), _armour)
 		_limbs["th%d" % side] = _free_part(MeshKit.limb(lr * 1.2, lr * 1.1, lr * 0.85), dark)
 		_limbs["sh%d" % side] = _free_part(MeshKit.limb(lr * 0.85, lr * 1.15, lr * 0.75), _armour)
-		var cap := SphereMesh.new()
-		cap.radius = ar * 1.05
-		cap.height = ar * 2.1
+		var cap := _sphere(ar * 1.05, ar * 2.1)
 		_joints["el%d" % side] = _free_part(cap, trim)
-		var knee := SphereMesh.new()
-		knee.radius = lr * 0.95
-		knee.height = lr * 1.9
+		var knee := _sphere(lr * 0.95, lr * 1.9)
 		_joints["kn%d" % side] = _free_part(knee, _armour)
-		var fist := SphereMesh.new()
-		fist.radius = ar * 1.2
-		fist.height = ar * 2.4
+		var fist := _sphere(ar * 1.2, ar * 2.4)
 		var fist_mat: Material = _armour
 		if side > 0.0 and st.has("ring_glow"):
 			var rg := StandardMaterial3D.new()
@@ -391,14 +402,10 @@ func _build_weapon(st: Dictionary, trim: Material, dark: Material, glow: Materia
 		PackedFloat32Array([0.012, 0.024, 0.032, 0.024, 0.012]), 8)
 	_part(_sword, guard, Vector3.ZERO, trim)
 	if st.get("slim", false):
-		var ring := TorusMesh.new()
-		ring.inner_radius = 0.075
-		ring.outer_radius = 0.095
+		var ring := _torus(0.075, 0.095)
 		_part(_sword, ring, Vector3(0, 0.07, -0.02), trim, Vector3(70, 0, 0))
 	_part(_sword, MeshKit.lathe([[0.0, -0.17], [0.022, -0.16], [0.027, -0.02], [0.022, 0.1], [0.0, 0.11]], 8), Vector3.ZERO, dark)
-	var pommel := SphereMesh.new()
-	pommel.radius = 0.04
-	pommel.height = 0.08
+	var pommel := _sphere(0.04, 0.08)
 	_part(_sword, pommel, Vector3(0, -0.19, 0), trim)
 	_tip = Node3D.new()
 	_tip.position = Vector3(0, 0.12 + length, 0)

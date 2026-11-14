@@ -68,6 +68,10 @@ var _banner_font: Font
 var _banner_box: StyleBoxFlat
 var _crumb_on := false
 var _crumb_next_ms := 0
+## Device facts that do not change during a run (read once): device memory in GB and cores (-1 when the
+## browser does not say), and the WebGL renderer string.
+var _dev := {}
+var _peak_heap := 0
 
 
 func _ready() -> void:
@@ -84,6 +88,11 @@ func _ready() -> void:
 	_bench = "--terrainbench" in args
 	logging = "--perflog" in args or _dump or _world or _live or _bench
 	_crumb_start()
+	# Memory soak bot (tools/check.js perf-soak), debug only.
+	for a in args:
+		if a == "--soak" or a.begins_with("--soak="):
+			add_child(load("res://scripts/soak_bot.gd").new())
+			break
 	if on:
 		_enable()
 	elif logging:
@@ -231,6 +240,49 @@ func _mb(monitor: int) -> int:
 	return int(Performance.get_monitor(monitor) / 1048576.0)
 
 
+func _heap_bytes() -> int:
+	var h: Variant = JavaScriptBridge.eval("window.__ag ? window.__ag.heap() : -1", true)
+	return int(h) if h is float or h is int else -1
+
+
+## The GPU as the browser names it (unmasked where the browser allows), read from the engine's own context.
+func _gl_name() -> String:
+	var v: Variant = JavaScriptBridge.eval("(function(){try{var g=document.getElementById('canvas').getContext('webgl2');var e=g&&g.getExtension('WEBGL_debug_renderer_info');return String(e?g.getParameter(e.UNMASKED_RENDERER_WEBGL):(g?g.getParameter(g.RENDERER):''))}catch(x){return ''}})()", true)
+	var n: String = v if v is String and v != "" else RenderingServer.get_video_adapter_name()
+	return n.left(60)
+
+
+func _memory_deaths() -> int:
+	var n := 0
+	for e in _log:
+		if e is Dictionary and str(e.get("kind", "")) in ["died", "stalled"]:
+			n += 1
+	return n
+
+
+const CODE_MODES := ["boot", "title", "land", "tower", "duel"]
+
+## Six characters (Crockford base 32: no I, L, O or U, so nothing reads as 0 or 1) that pack the key numbers of a crumb, so the owner can report a death in one
+## line and the numbers can be read back (node tools/crumb_test.js --decode CODE). 30 bits, low to high:
+## heap MB (9, capped 511), video MB (7, capped 127), mode (3, CODE_MODES), minutes played (6, capped 63),
+## devicePixelRatio (2: 1, 2, 3, other = 0), nodes / 250 (3, capped 7).
+static func crumb_code(o: Dictionary) -> String:
+	var heap_mb := clampi(int(float(o.get("heap", 0)) / 1048576.0), 0, 511)
+	var vid_mb := clampi(int(float(o.get("vid", 0)) / 1048576.0), 0, 127)
+	var mode := maxi(CODE_MODES.find(str(o.get("mode", "boot"))), 0)
+	var mins := clampi(int(float(o.get("t", 0)) / 60.0), 0, 63)
+	var dpr := roundi(float(o.get("dpr", 0)))
+	var dcode := dpr if dpr >= 1 and dpr <= 3 and absf(float(o.get("dpr", 0)) - dpr) < 0.05 else 0
+	var nodes := clampi(int(o.get("nc", 0)) / 250, 0, 7)
+	var v := heap_mb | (vid_mb << 9) | (mode << 16) | (mins << 19) | (dcode << 25) | (nodes << 27)
+	var digits := "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+	var out := ""
+	for i in 6:
+		out = digits[v & 31] + out
+		v >>= 5
+	return out
+
+
 func _heap_mb() -> int:
 	if not OS.has_feature("web"):
 		return 0
@@ -251,6 +303,10 @@ func _crumb_start() -> void:
 		var parsed: Variant = JSON.parse_string(log_text)
 		if parsed is Array:
 			_log = parsed
+	var facts: Variant = JavaScriptBridge.eval("JSON.stringify([navigator.deviceMemory||-1,navigator.hardwareConcurrency||-1])", true)
+	var fa: Variant = JSON.parse_string(facts) if facts is String else null
+	_dev = {"dm": fa[0] if fa is Array else -1, "hc": int(fa[1]) if fa is Array else -1,
+		"gl": _gl_name()}
 	# Replace the old crumb at once, so a second crash before the first write does not report the same death twice.
 	_crumb_write()
 	_crumb_on = true
@@ -269,6 +325,16 @@ func _crumb_data() -> Dictionary:
 		"nc": int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)), "tex": int(Performance.get_monitor(Performance.RENDER_TEXTURE_MEM_USED)),
 		"vid": int(Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED)), "dc": int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)),
 		"fps": int(Engine.get_frames_per_second())}
+	# Peak wasm heap so far (the page adds the current one as "heap"), canvas size in device pixels,
+	# devicePixelRatio, device facts, and how many memory deaths the log holds before this run.
+	var h := _heap_bytes()
+	_peak_heap = maxi(_peak_heap, h)
+	var win := DisplayServer.window_get_size()
+	# The real ratio (the page caps the one the engine sees at 2; the canvas size shows what it used).
+	var dpr: Variant = JavaScriptBridge.eval("window.__ag && window.__ag.dpr ? window.__ag.dpr() : (window.devicePixelRatio || 1)", true)
+	d.merge({"pk": _peak_heap, "cw": win.x, "ch": win.y, "dpr": snappedf(float(dpr), 0.01) if dpr is float or dpr is int else -1.0,
+		"md": _memory_deaths()})
+	d.merge(_dev)
 	var sc := get_tree().current_scene
 	if sc == null:
 		return d
@@ -320,7 +386,7 @@ func _death_lines(o: Dictionary) -> Array:
 			doing = "fighting another player" if o.get("pvp", false) else "fighting %s" % (o.get("foe", "") if o.get("foe", "") != "" else "a foe")
 	var heap_mb := _crumb_heap_mb(o)
 	var mem := "Memory: heap %s MB, textures %d MB, video %d MB" % ["?" if heap_mb < 0 else str(heap_mb), int(float(o.get("tex", 0)) / 1048576.0), int(float(o.get("vid", 0)) / 1048576.0)]
-	return ["Where: " + where, "Doing: " + doing,
+	return ["Report: %s, %s, heap %s MB" % [crumb_code(o), where, "?" if heap_mb < 0 else str(heap_mb)], "Where: " + where, "Doing: " + doing,
 		"Played: %d min this run (build %s)" % [int(float(o.get("t", 0)) / 60.0), o.get("b", "?")], mem]
 
 
@@ -350,7 +416,9 @@ func _on_death(o: Dictionary, kind: String, age: int, hid: int) -> void:
 			int(o.get("tier", 0)), o.get("foe", ""), int(o.get("pvp", false)),
 			float(o.get("t", 0)) / 60.0, int(float(o.get("ms", 0)) / 1048576.0), int(float(o.get("tex", 0)) / 1048576.0), int(float(o.get("vid", 0)) / 1048576.0),
 			_crumb_heap_mb(o), int(o.get("oc", 0)), int(o.get("nc", 0)), int(o.get("dc", 0)), int(o.get("fps", 0)), int(o.get("pl", 0)),
-			o.get("b", ""), age])
+			o.get("b", ""), age] + " code=%s peak_mb=%d canvas=%dx%d dpr=%s devmem=%s cores=%d mdeaths=%d gl=%s" % [
+			crumb_code(o), int(float(o.get("pk", 0)) / 1048576.0), int(o.get("cw", 0)), int(o.get("ch", 0)), str(o.get("dpr", -1)),
+			str(o.get("dm", -1)), int(o.get("hc", -1)), int(o.get("md", 0)), str(o.get("gl", "")).replace(" ", "_")])
 		if show:
 			_show_banner(o, kind)
 	_log.append(entry)
