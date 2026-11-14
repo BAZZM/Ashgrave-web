@@ -106,6 +106,20 @@ func _unstuck_rect() -> Rect2:
 	return Rect2(p.end.x - 190, p.position.y + 12, 170, 48)
 
 
+## The Quality entry: left of Unstuck on the map screen (two taps: MAP, then QUALITY). One tap switches
+## between Full and Safe and takes effect at once; the button names the level in force.
+func _quality_rect() -> Rect2:
+	var p := _panel()
+	return Rect2(p.end.x - 190 - 250, p.position.y + 12, 230, 48)
+
+
+func _toggle_quality() -> void:
+	var next := "full" if Run.quality_level() == "safe" else "safe"
+	Run.set_quality(next)
+	Run.quality_apply(get_viewport())
+	_say("Quality: %s." % ("Safe, lighter graphics" if next == "safe" else "Full"))
+
+
 func _do_unstuck() -> void:
 	var msg := ""
 	if world.is_land:
@@ -222,6 +236,9 @@ func _press(index: int, pos: Vector2) -> void:
 		return
 	if screen == "players":
 		_press_players(pos)
+		return
+	if screen == "map" and _quality_rect().has_point(pos):
+		_toggle_quality()
 		return
 	if screen == "map" and _unstuck_rect().has_point(pos):
 		_do_unstuck()
@@ -1165,6 +1182,9 @@ func _draw_unstuck() -> void:
 	var r := _unstuck_rect()
 	_box(r)
 	_text("UNSTUCK", r.get_center() + Vector2(0, 8), 22, Color.WHITE)
+	var q := _quality_rect()
+	_box(q)
+	_text("QUALITY: %s" % Run.quality_level().to_upper(), q.get_center() + Vector2(0, 7), 20, Color.WHITE)
 
 
 func _draw_land_map(s: Vector2) -> void:
@@ -1172,7 +1192,7 @@ func _draw_land_map(s: Vector2) -> void:
 	var p := _panel()
 	_box(p)
 	_text("THE LAND", p.position + Vector2(28, 60), 38, GOLD, false)
-	_text("Tap a place to travel. Tap elsewhere to close.", Vector2((p.position.x + 250 + p.end.x - 205) * 0.5, p.position.y + 54), 18, Color(1, 1, 1, 0.6), true, p.end.x - 205 - p.position.x - 260)
+	_text("Tap a place to travel. Tap elsewhere to close.", Vector2((p.position.x + 250 + p.end.x - 445) * 0.5, p.position.y + 54), 18, Color(1, 1, 1, 0.6), true, p.end.x - 445 - p.position.x - 260)
 	_draw_unstuck()
 	var tex: ImageTexture = Overworld.build_map()
 	var xf := _map_xform()
@@ -1205,7 +1225,7 @@ func _draw_map(s: Vector2) -> void:
 	var p := _panel()
 	_box(p)
 	_text("THE TOWER", p.position + Vector2(28, 60), 38, GOLD, false)
-	_text("Tap to close", Vector2(p.end.x - 290, p.position.y + 54), 18, Color(1, 1, 1, 0.6))
+	_text("Tap to close", Vector2(p.end.x - 530, p.position.y + 54), 18, Color(1, 1, 1, 0.6))
 	_draw_unstuck()
 
 	for t in range(1, Run.FLOORS + 1):

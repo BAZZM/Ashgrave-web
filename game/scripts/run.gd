@@ -31,15 +31,88 @@ static var xp_log: Array = []
 static var resumed := false
 
 
+const Quality := preload("res://scripts/quality.gd")
+## Set for this session only by ?quality=safe|full on the page address (or --quality=safe as a user arg):
+## it wins over the saved level and is never saved.
+static var quality_override := ""
+static var _q_read := false
+
+
 static func apply_web_settings(vp: Viewport) -> void:
-	if not OS.has_feature("web"):
+	quality_apply(vp)
+
+
+## One place that applies a quality level to a viewport and to the lights and skies already in the scene.
+## Call again after the level changes: nothing needs a reload.
+static func quality_apply(vp: Viewport) -> void:
+	Quality.apply(vp, quality_level())
+
+
+static func _quality_read_override() -> void:
+	if _q_read:
 		return
-	# The shorter side: a load in portrait (before the phone is turned) must not pick a lower scale.
-	var sz := DisplayServer.window_get_size()
-	var px := float(mini(sz.x, sz.y))
-	vp.msaa_3d = Viewport.MSAA_DISABLED
-	vp.scaling_3d_scale = clampf(640.0 / maxf(px, 1.0), 0.45, 1.0)
-	RenderingServer.directional_shadow_atlas_set_size(1024, true)
+	_q_read = true
+	var q := ""
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--quality="):
+			q = a.substr(10)
+	if q == "" and OS.has_feature("web"):
+		var v: Variant = JavaScriptBridge.eval("new URLSearchParams(location.search).get('quality') || ''", true)
+		if v is String:
+			q = v
+	quality_override = q if Quality.valid(q) else ""
+
+
+## The level in force: "full" or "safe".
+static func quality_level() -> String:
+	_quality_read_override()
+	if quality_override != "":
+		return quality_override
+	return quality_saved()
+
+
+## The level in the save (ignores the session override).
+static func quality_saved() -> String:
+	ensure_loaded()
+	var q := str(data.settings.get("quality", Quality.DEFAULT))
+	return q if Quality.valid(q) else Quality.DEFAULT
+
+
+## Ask before loading or showing anything heavy: Run.quality_allows("textures"), ("models"), ("shadows").
+static func quality_allows(feature: String) -> bool:
+	return Quality.allows(quality_level(), feature)
+
+
+## True when the saved level was chosen by the game after repeated memory deaths (not by the player).
+static func quality_is_auto() -> bool:
+	return quality_saved() != Quality.DEFAULT and bool(data.settings.get("q_auto", false))
+
+
+static func quality_tune_light(l: Light3D) -> void:
+	Quality.tune_light(l, quality_level())
+
+
+static func quality_tune_sky(sky: Sky) -> void:
+	Quality.tune_sky(sky, quality_level())
+
+
+## Change the saved level. auto=true only from the memory-death rule in perf.gd. A player's choice also
+## ends the session override and re-arms the automatic rule (q_auto_done). q_mark: deaths before it are not counted again.
+static func set_quality(level: String, auto := false) -> void:
+	if not Quality.valid(level):
+		return
+	ensure_loaded()
+	var s: Dictionary = data.settings
+	s.quality = level
+	s.q_auto = auto
+	s.q_mark = Time.get_unix_time_from_system() * 1000.0
+	if auto:
+		s.q_auto_done = true
+		s.q_auto_n = int(s.get("q_auto_n", 0)) + 1
+	else:
+		s.q_auto_done = false
+		quality_override = ""
+	save()
 
 
 static func defaults() -> Dictionary:
@@ -62,6 +135,8 @@ static func defaults() -> Dictionary:
 		"lore": [], "respawn": {}, "tower_slain": [], "stamp": 0, "mastery": {}, "perks": {}, "quests": {}, "flags": {},
 
 		"pid": "", "pname": "", "online": true, "pvp_w": 0, "pvp_l": 0,
+
+		"settings": {},
 	}
 
 const WEB_KEY := "ashgrave_save_v1"

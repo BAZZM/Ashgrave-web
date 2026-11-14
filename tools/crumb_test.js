@@ -88,25 +88,27 @@ async function openPage(ctx, base, viewport, extra = [], opts = {}) {
   if (opts.hidden) await page.addInitScript(() => { Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' }); });
   await page.setViewportSize(viewport);
   const q = new URLSearchParams({ relay: 'ws://127.0.0.1:1' });
-  q.append('arg', '--autoplay=tour');
+  if (opts.query) for (const [k, v] of Object.entries(opts.query)) q.set(k, v);
+  if (!opts.plain) q.append('arg', '--autoplay=tour');
   for (const x of extra) q.append('arg', x);
   await page.goto(`${base}/index.html?${q}`);
   return { page, lines, errors };
 }
-const open = (ctx, base, viewport, extra = []) => openPage(ctx, base, viewport, extra);
+const open = (ctx, base, viewport, extra = [], opts = {}) => openPage(ctx, base, viewport, extra, opts);
 const died = (p) => p.lines.find((l) => l.startsWith('[crumb] died:'));
 const field = (line, k) => { const m = new RegExp(`${k}=(\\S+)`).exec(line || ''); return m ? m[1] : null; };
 
 // Same-origin scratch page: set (or clear, with null) the crumb and the log, then leave.
-async function prime(ctx, base, crumbObj, logArr) {
+async function prime(ctx, base, crumbObj, logArr, saveObj) {
   const page = await ctx.newPage();
   await page.goto(base + BLANK);
-  await page.evaluate(([c, l]) => {
+  await page.evaluate(([c, l, sv]) => {
+    if (sv !== '__keep') { localStorage.removeItem('ashgrave_save_v1'); if (sv) localStorage.setItem('ashgrave_save_v1', JSON.stringify(sv)); }
     localStorage.removeItem('ashgrave_crumb');
     localStorage.removeItem('ashgrave_crumb_log');
     if (c) localStorage.setItem('ashgrave_crumb', JSON.stringify(c));
     if (l) localStorage.setItem('ashgrave_crumb_log', JSON.stringify(l));
-  }, [crumbObj, logArr]);
+  }, [crumbObj, logArr, saveObj === undefined ? '__keep' : saveObj]);
   await page.close();
 }
 
@@ -287,6 +289,127 @@ const getLog = (page) => page.evaluate(() => JSON.parse(localStorage.getItem('as
     const pongd = await waitFor(async () => { const k = await crumb(k2.page); return k && k.shared === true ? k : null; }, 20);
     check(!!pongd, 'a live second tab answering the ping marks the crumb shared');
     await kill(ctx, k2.page);
+
+
+    // ---- (these boots run the plain page, no bot: the bots replace the loaded save, and with it the level)
+    // ---- Automatic safe mode (game/scripts/perf.gd, run.gd, quality.gd). A fresh browser context per part, so each has its own save.
+    const savedSettings = (page) => page.evaluate(() => { try { return (JSON.parse(localStorage.getItem('ashgrave_save_v1') || 'null') || {}).settings || null; } catch (e) { return null; } });
+    const runCrumb = (page, level) => waitFor(async () => { const k = await crumb(page); return k && k.phase === 'run' && k.live && 'q' in k && (!level || k.q === level) && (!level || k.t >= 0) ? k : null; }, 180);
+    const autoLine = (p) => p.lines.find((l) => l.startsWith('[crumb] auto-safe: switched'));
+    const noticeCount = (p) => p.lines.filter((l) => l.startsWith('[crumb] notice:')).length;
+    const V = { width: 844, height: 390 };
+    const qctx = await browser.newContext({ deviceScaleFactor: 1 });
+    await qctx.route(base + BLANK, (r) => r.fulfill({ contentType: 'text/html', body: '<!doctype html><title>x</title>' }));
+    const dieAfterRun = async (p) => { const k = await runCrumb(p.page); await sleep(500); await kill(qctx, p.page); return k; };
+
+    // Q1. Boot 1 (fresh save): full, no death. Boot 2 reports one foreground death: still full. Boot 3 the second: safe, notice once.
+    const q1 = await open(qctx, base, V, [], { plain: true }); allErrors.push(q1.errors);
+    const kq1 = await dieAfterRun(q1);
+    check(!!kq1 && kq1.q === 'full' && kq1.qa === 0 && kq1.qd === 0 && kq1.qn === 0, `crumb carries the level and counts on a fresh save (q=${kq1 && kq1.q} qa=${kq1 && kq1.qa} qd=${kq1 && kq1.qd} qn=${kq1 && kq1.qn})`);
+    const q2 = await open(qctx, base, V, [], { plain: true }); allErrors.push(q2.errors);
+    check(!!(await waitFor(async () => died(q2), 150)), 'quality: boot 2 reports the first death');
+    const kq2 = await dieAfterRun(q2);
+    check(!autoLine(q2) && !!kq2 && kq2.q === 'full' && kq2.qd === 1, `one memory death does not switch (q=${kq2 && kq2.q} qd=${kq2 && kq2.qd})`);
+    const q3 = await open(qctx, base, V, [], { plain: true }); allErrors.push(q3.errors);
+    check(!!(await waitFor(async () => died(q3), 150)), 'quality: boot 3 reports the second death');
+    const kq3 = await runCrumb(q3.page, 'safe');
+    check(!!autoLine(q3) && !!kq3 && kq3.q === 'safe' && kq3.qa === 1 && kq3.qn === 1, `the second death switches to safe on the third boot (q=${kq3 && kq3.q} qa=${kq3 && kq3.qa} qn=${kq3 && kq3.qn})`);
+    const sv3q = await savedSettings(q3.page);
+    check(!!sv3q && sv3q.quality === 'safe' && sv3q.q_auto === true, `the automatic switch is saved and marked automatic (${JSON.stringify(sv3q)})`);
+    check(noticeCount(q3) === 1, `the notice is shown once (${noticeCount(q3)})`);
+    await sleep(1500);
+    await q3.page.screenshot({ path: path.join(OUT, 'quality-auto-notice.png') });
+    await kill(qctx, q3.page);
+
+    // Q2. Two more deaths in safe: nothing more happens except the crumb.
+    const q4 = await open(qctx, base, V, [], { plain: true }); allErrors.push(q4.errors);
+    check(!!(await waitFor(async () => died(q4), 150)) && field(died(q4), 'q') === 'safe' && field(died(q4), 'qa') === '1', 'the death line says the dead run was in safe, set automatically');
+    check(noticeCount(q4) === 0, 'the notice is not shown again');
+    await dieAfterRun(q4);
+    const q5 = await open(qctx, base, V, [], { plain: true }); allErrors.push(q5.errors);
+    await waitFor(async () => died(q5), 150);
+    const kq5 = await runCrumb(q5.page, 'safe');
+    const sv5q = await savedSettings(q5.page);
+    check(!autoLine(q5) && !!kq5 && kq5.q === 'safe' && kq5.qd >= 2 && sv5q.q_auto_n === 1, `two more deaths in safe change nothing but the crumb (qd=${kq5 && kq5.qd}, auto switches ${sv5q && sv5q.q_auto_n})`);
+    await kill(qctx, q5.page);
+
+    // Q3. The player goes back to Full from the map screen (MAP, then QUALITY): it sticks across a reload.
+    const q6 = await open(qctx, base, V, [], { plain: true }); allErrors.push(q6.errors);
+    await q6.page.addStyleTag({ content: '#rotate{display:none !important}' });
+    await waitFor(async () => { const k = await crumb(q6.page); return k && k.mode === 'title' ? k : null; }, 180);
+    await sleep(2000);
+    await q6.page.mouse.click(422, 250);
+    await waitFor(async () => { const k = await crumb(q6.page); return k && k.mode === 'land' ? k : null; }, 120);
+    await sleep(2000);
+    await q6.page.keyboard.press('m');
+    await sleep(3000);
+    // The button: panel right edge minus 440 .. minus 210 in a 720-high game view that is 844x390 on the page.
+    const gw = 720 * 844 / 390, kx = 844 / gw;
+    await q6.page.screenshot({ path: path.join(OUT, 'quality-map-safe.png') });
+    await q6.page.mouse.click((gw - 50 - 325) * kx, 66 * (390 / 720));
+    await sleep(2500);
+    await q6.page.screenshot({ path: path.join(OUT, 'quality-map-full.png') });
+    const sv6q = await waitFor(async () => { const v = await savedSettings(q6.page); return v && v.quality === 'full' ? v : null; }, 20);
+    check(!!sv6q && sv6q.q_auto === false, `QUALITY on the map screen switches to Full and saves it (${JSON.stringify(sv6q)})`);
+    await q6.page.reload();
+    const kq6 = await runCrumb(q6.page);
+    check(!!kq6 && kq6.q === 'full' && kq6.qa === 0, `Full sticks across a reload (q=${kq6 && kq6.q})`);
+    await kill(qctx, q6.page);
+
+    // Q4. A further two deaths switch again (deaths before the player's choice no longer count).
+    const q7 = await open(qctx, base, V, [], { plain: true }); allErrors.push(q7.errors);
+    await waitFor(async () => died(q7), 150);
+    const kq7 = await dieAfterRun(q7);
+    check(!autoLine(q7) && !!kq7 && kq7.q === 'full', 'after going back to Full one death does not switch');
+    const q8 = await open(qctx, base, V, [], { plain: true }); allErrors.push(q8.errors);
+    await waitFor(async () => died(q8), 150);
+    const kq8 = await runCrumb(q8.page, 'safe');
+    const sv8q = await savedSettings(q8.page);
+    check(!!autoLine(q8) && !!kq8 && kq8.q === 'safe' && sv8q.q_auto_n === 2, `two further deaths switch to safe again (auto switches ${sv8q && sv8q.q_auto_n})`);
+    await kill(qctx, q8.page);
+    await qctx.close();
+
+    // Q5. Deaths that must not count: a shared tab, a hidden-then-gone page, an old death, and a first death hours earlier.
+    const NOW = () => Date.now();
+    const fresh = (extra) => Object.assign({ phase: 'run', live: true, ts: NOW() - 20000, run: 'x' + Math.random(), mode: 'land', place: 'Hearthvale', t: 300, heap: 90 << 20 }, extra);
+    const prior = (ts) => ({ phase: 'run', live: true, ts, run: 'p', mode: 'land', t: 200, kind: 'died', age: 5 });
+    const cases = [
+      ['a shared-tab death', fresh({ shared: true }), [prior(NOW() - 120000)]],
+      ['a background reload', { phase: 'run', live: false, hid_at: NOW() - 30000, ts: NOW() - 30000, run: 'h', mode: 'land' }, [prior(NOW() - 120000)]],
+      ['a death older than the banner age limit', fresh({ ts: NOW() - 11 * 60 * 1000 }), [prior(NOW() - 12 * 60 * 1000)]],
+      ['two deaths three hours apart', fresh({}), [prior(NOW() - 3 * 3600 * 1000)]],
+    ];
+    for (const [what, crumbObj, log] of cases) {
+      await prime(ctx, base, crumbObj, log, null);
+      const p = await open(ctx, base, V); allErrors.push(p.errors);
+      await waitFor(async () => died(p) || p.lines.find((l) => l.startsWith('[crumb] note:')), 150);
+      const k = await runCrumb(p.page);
+      const sv = await savedSettings(p.page);
+      check(!autoLine(p) && !!k && k.q === 'full' && !(sv && sv.quality === 'safe'), `${what} does not count (q=${k && k.q})`);
+      await kill(ctx, p.page);
+    }
+
+    // Q6. ?quality=safe applies for the session and is not saved; ?quality=full beats a saved safe, also unsaved.
+    await prime(ctx, base, null, null, null);
+    const o1 = await open(ctx, base, V, [], { query: { quality: 'safe' } }); allErrors.push(o1.errors);
+    const kq1o = await runCrumb(o1.page);
+    await sleep(8000);
+    const sv1o = await savedSettings(o1.page);
+    check(!!kq1o && kq1o.q === 'safe' && kq1o.qa === 0 && !(sv1o && sv1o.quality === 'safe'), `?quality=safe applies without saving (q=${kq1o && kq1o.q}, saved ${JSON.stringify(sv1o)})`);
+    await kill(ctx, o1.page);
+    await prime(ctx, base, null, null, { version: 3, settings: { quality: 'safe', q_auto: false } });
+    const o2 = await open(ctx, base, V, [], { query: { quality: 'full' } }); allErrors.push(o2.errors);
+    const kq2o = await runCrumb(o2.page);
+    await sleep(8000);
+    const sv2o = await savedSettings(o2.page);
+    check(!!kq2o && kq2o.q === 'full' && !!sv2o && sv2o.quality === 'safe', `?quality=full overrides a saved safe for the session only (q=${kq2o && kq2o.q}, saved ${sv2o && sv2o.quality})`);
+    await kill(ctx, o2.page);
+    // A save from before the settings existed loads as Full.
+    await prime(ctx, base, null, null, { version: 3, gold: 7 });
+    const o3 = await open(ctx, base, V); allErrors.push(o3.errors);
+    const kq3o = await runCrumb(o3.page);
+    check(!!kq3o && kq3o.q === 'full', `an old save without settings loads as full (q=${kq3o && kq3o.q})`);
+    await kill(ctx, o3.page);
 
     const errors = allErrors.flat();
     check(errors.length === 0, `no script errors${errors.length ? ': ' + errors[0] : ''}`);

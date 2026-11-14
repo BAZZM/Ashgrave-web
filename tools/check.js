@@ -177,6 +177,9 @@ class Client {
     if (this.seed) await this.page.addInitScript((t) => { if (!localStorage.getItem('ashgrave_save_v1')) localStorage.setItem('ashgrave_save_v1', t); }, this.seed);
     const q = new URLSearchParams();
     if (relays.length) q.set('relay', relays.join(','));
+    // ?quality=safe|full for this session (a client's own .quality, else AG_QUALITY for every client).
+    const quality = this.quality || process.env.AG_QUALITY;
+    if (quality) q.set('quality', quality);
     for (const a of gameArgs) q.append('arg', a);
     this.t0 = Date.now();
     await this.page.goto(`${base}/index.html?${q}`);
@@ -678,6 +681,76 @@ scenario('perf-soak', 'memory soak: 5+ cycles of the real journey; growth per cy
   const v = soakVerdict(c.lines);
   if (process.env.SOAK_LOG) fs.writeFileSync(process.env.SOAK_LOG, c.lines.join('\n'));
   return { ok: phoneOk && r === 'ok' && !c.find(/^SOAK fail/) && v.bad.length === 0 && c.errors.length === 0, notes: [...phoneNotes, ...notes, ...v.notes, ...v.bad.map((b) => `FAIL: ${b}`)] };
+}, true);
+
+// ---- 4c. quality levels (game/scripts/quality.gd)
+
+// Plays the land, a tower duel and a standalone duel (and, in safe, the tower itself) at each level with --perflog, which
+// prints the levers read back from the engine (q, scale3d, shadowed lights, sky radiance) next to draw calls and
+// memory. Safe must run clean with the levers in force; full is the reference for the side-by-side table.
+const QUALITY_RUNS = [
+  ['land', ['--autoplay=gather'], /^GATHER /, 150],
+  ['tower duel', ['--autoplay=x', '--kind=guardian', '--floor=1'], /^RESULT /, 200],
+  ['duel', ['--autoplay=x', '--wild=thrall'], /^RESULT /, 150],
+  ['tower', ['--autoplay=tour'], /^WORLD tier=2 /, 300],
+];
+function perfRows(lines) {
+  const rows = [];
+  for (const l of lines) {
+    if (!l.startsWith('PERFLOG ')) continue;
+    const kv = {};
+    for (const part of l.slice(8).split(' ')) {
+      const e = part.indexOf('=');
+      if (e > 0) kv[part.slice(0, e)] = isNaN(Number(part.slice(e + 1))) ? part.slice(e + 1) : Number(part.slice(e + 1));
+    }
+    if ('q' in kv) rows.push(kv);
+  }
+  return rows;
+}
+scenario('quality', 'safe mode: land, tower duel, duel and tower play clean with the levers in force; full and safe side by side', async (ctx) => {
+  const notes = [];
+  let ok = true;
+  const table = {};
+  for (const level of ['safe', 'full']) {
+    for (const [what, args, finish, secs] of QUALITY_RUNS) {
+      if (level === 'full' && what === 'tower') continue;
+      const relay = await ctx.newRelay();
+      const c = await ctx.client(`${level} ${what}`);
+      c.quality = level;
+      c.stopRe = finish;
+      await c.start(ctx.base, [...args, '--perflog'], [relay.url]);
+      const r = await waitUntil([c], () => c.find(finish), secs);
+      notes.push(...errorNotes([c]));
+      if (r !== 'ok') { ok = false; notes.push(`FAIL: ${level} ${what}: no ${finish} within ${secs}s (${r})`); }
+      const rows = perfRows(c.lines).filter((x) => x.draw > 0);
+      const rest = rows.slice(Math.min(2, rows.length - 1));
+      if (!rest.length) { ok = false; notes.push(`FAIL: ${level} ${what}: no PERFLOG lines`); await c.close(); continue; }
+      const wrong = rest.filter((x) => x.q !== level || x.textures !== (level === 'full' ? 1 : 0) || x.models !== (level === 'full' ? 1 : 0));
+      const scene = rest.filter((x) => x.dirlights > 0);
+      const want = level === 'safe' ? 0.75 : 1.0;
+      const badScale = rest.filter((x) => Math.abs(x.scale3d - want) > 0.011);
+      const badShadow = scene.filter((x) => (level === 'safe' ? x.shadowed !== 0 : x.shadowed < 1));
+      const badRad = scene.filter((x) => String(x.radiance).split(',').some((v) => Number(v) !== (level === 'safe' ? 1 : 3)));
+      const problems = [];
+      if (wrong.length) problems.push(`level or gates wrong in ${wrong.length} lines (${wrong[0].q})`);
+      if (badScale.length) problems.push(`3D scale ${badScale[0].scale3d}, wanted ${want}`);
+      if (!scene.length) problems.push('no directional light seen');
+      if (badShadow.length) problems.push(`shadowed lights ${badShadow[0].shadowed} at ${level}`);
+      if (badRad.length) problems.push(`sky radiance ${badRad[0].radiance} at ${level}`);
+      if (problems.length) { ok = false; notes.push(`FAIL: ${level} ${what}: ${problems.join('; ')}`); }
+      const mean = (k) => rest.reduce((a, x) => a + x[k], 0) / rest.length;
+      const mx = (k) => Math.max(...rest.map((x) => x[k]));
+      table[`${what}|${level}`] = { draw: mean('draw'), prim: mean('prim'), tex: mx('tex'), vid: mx('vid'), heap: mx('heap'), n: rest.length, scale: rest[0].scale3d, shadowed: mx('shadowed'), radiance: rest[0].radiance };
+      await c.close();
+    }
+  }
+  const mb = (b) => (b / 1048576).toFixed(1);
+  notes.push('phase        level  draws   prims   tex_MB  vid_MB  heap_MB  scale3d  shadowed  radiance  samples');
+  for (const [key, t] of Object.entries(table).sort()) {
+    const [what, level] = key.split('|');
+    notes.push(`${what.padEnd(12)} ${level.padEnd(5)}  ${t.draw.toFixed(0).padStart(5)}  ${t.prim.toFixed(0).padStart(6)}  ${mb(t.tex).padStart(6)}  ${mb(t.vid).padStart(6)}  ${mb(t.heap).padStart(7)}  ${t.scale.toFixed(2).padStart(7)}  ${String(t.shadowed).padStart(8)}  ${String(t.radiance).padStart(8)}  ${t.n}`);
+  }
+  return { ok, notes };
 }, true);
 
 // ---- 5 and 6. two players

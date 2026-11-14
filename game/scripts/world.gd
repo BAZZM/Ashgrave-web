@@ -199,6 +199,7 @@ func _build_env() -> void:
 	sky_mat.sun_angle_max = 0.0
 	var sky := Sky.new()
 	sky.sky_material = sky_mat
+	Run.quality_tune_sky(sky)
 	env.background_mode = Environment.BG_SKY
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
@@ -220,6 +221,7 @@ func _build_env() -> void:
 	moon.shadow_enabled = true
 	moon.directional_shadow_max_distance = LIGHT_SHADOW_DISTANCE
 	moon.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+	Run.quality_tune_light(moon)
 	add_child(moon)
 
 

@@ -58,6 +58,75 @@ copy of each, a headless artifact.
 | Sky radiance 64 instead of 256 | -0.65 MB; metal reflections duller |
 | Shadow atlas 512 | not visible in monitors (est. 1.5-3 MB) |
 
+## Quality levels (Build 15: `game/scripts/quality.gd`, `run.gd`)
+
+Two levels, saved in the save's `settings` key (`quality`, plus `q_auto`, `q_auto_done`, `q_auto_n`, `q_mark`).
+A save without the key loads as `full`; an older build ignores the key (it drops unknown save keys, so the level
+resets to full there). `?quality=safe|full` on the page address (or `--quality=` as a user arg) sets the level for
+that session only and is never saved; the QUALITY button on the map screen (MAP, then QUALITY) switches between
+Full and Safe at once and saves the choice.
+
+**What `safe` changes**: sun and moon shadows off (every light's shadow flag follows the level and comes back with
+it), the 3D render scale x0.75, sky radiance 64 instead of 256. Left alone on purpose: the pixel-ratio cap stays 2
+(at 1.5 the dodge ring and HUD edges were visibly softer in a 3x capture, and the saving is not needed: see the
+table), draw distance and chunk radius (no memory saving measured). `dpr_cap` is a row value in `LEVELS`, wired to
+`window.__ag.cap()` in `index.html`, for a later change.
+
+Measured, headless software WebGL, phone-shaped title (844x390 at dpr 3, canvas 1688x780), each lever alone then
+together (`--soak=title`, `--soak-variant=` for single levers; Godot monitors):
+
+| Lever | textures | video | draws | primitives |
+|---|---|---|---|---|
+| full | 23.0 MB | 39.1 MB | 424 | 124k |
+| shadows off | 23.0 | 39.1 | 247 | 84k |
+| render scale x0.75 | 20.3 (-2.7) | 36.4 (-2.7) | 424 | 124k |
+| sky radiance 64 | 22.4 (-0.65) | 38.4 (-0.65) | 424 | 124k |
+| **safe (all three)** | **19.7 (-3.4)** | **35.7 (-3.4)** | **247** | **84k** |
+| pixel ratio cap 1.5 (not used) | 12.2 | 23.7 | | |
+
+Shadows cost draws and primitives, not measured memory (the atlas is not in the monitors; estimated 2-4 MB);
+the scale lever is the memory one and grows with screen size. Wasm heap is the same in both (79.8 MB).
+
+Full versus safe through the first soak cycle at 320x180 (single-frame samples; draw counts wobble, so take
+the ratio): title 2.5/18.6 MB tex/video, 368 draws -> 2.1/18.1, 195; land 3.9/19.9, 145 -> 3.7/19.8, 99;
+tower 2.5/18.9, 495 -> 2.0/18.5, 242; pack duel 4.0/20.6, 511 -> 3.6/20.1, 296. At 844x390 dpr 3: screens open
+38.7/55.0 -> 35.4/51.7; safe tower 15.0/31.5 and duel 16.6/33.1 (full tower and duel did not finish in the
+headless time limit at that size, so no pair); the land reading was noisy (full 29.1-31.4 against safe 33.6,
+a heap growth and map texture landed in the safe sample) and should not be read as a result. `check.js quality`
+(PERFLOG means at 320x180, `--perflog` also prints the levers read back from the engine):
+
+| Phase | level | draws | primitives | scale | shadowed lights | radiance |
+|---|---|---|---|---|---|---|
+| land | full / safe | 379 / 224 | 113k / 55k | 1.00 / 0.75 | 1 / 0 | 256 / 64 |
+| tower duel | full / safe | 235 / 133 | 56k / 19k | 1.00 / 0.75 | 1 / 0 | 256 / 64 |
+| duel | full / safe | 228 / 114 | 55k / 27k | 1.00 / 0.75 | 1 / 0 | 256 / 64 |
+
+`perf-soak` (320x180, 5 cycles, sound on): passes in both levels. Full: phone title video 37.3 MB, peak video 22.3 MB,
+renderer growth 12.9 MB per cycle, heap 79.8 flat. Safe (`AG_QUALITY=safe`): phone title video 34.1 MB (textures 18.8
+against 22.0), peak video 24.0 MB, renderer growth 3.8 MB per cycle, heap 79.8 flat, draws per phase about 40% lower
+(title 368 -> 195, tower 429 -> 209, duel 550 -> 294). Caution: from cycle 2 on, safe held 2 MB more buffer memory
+(17.6 against 15.5 MB), so at this small size safe's peak video memory is higher than full's; the saving is real only
+where the 3D target is large (the phone-shaped title). The GPU process (software GL) was 20-35 MB lower in safe.
+A phone must settle whether the buffer rise is the engine's or only software GL.
+
+**Automatic rule** (`perf.gd`, `_auto_safe_check`): when a boot reports a foreground death or a stall that is young
+enough to show the banner (not a background reload, a shared tab or an old death), and the previous such death is
+no more than 30 minutes before it, and both came after the level last changed, and the level is `full`, and the
+game has not already switched by itself, the level becomes `safe` (saved, marked automatic) and the banner says so
+once. Why: one unlucky crash does not count; two a day apart do not count; two in half an hour is a loop. In `safe`
+nothing further happens but the crumb. The player choosing Full (or Safe) resets the mark and re-arms the rule.
+Every crumb carries `q` (level in force), `qa` (set by the game), `qd` (deaths counted since the last change) and
+`qn` (automatic switches); the restart banner prints `Quality:` and the death line `q= qa= qd= qn=`. The six-
+character report code already uses all 30 bits (heap 9, video 7, mode 3, minutes 6, dpr 2, nodes 3), so it is
+unchanged: the level is on the banner line next to it.
+
+**Hooks for texture and model lanes**: ask `Run.quality_allows("textures")` / `("models")` / `("shadows")` before
+loading, creating or showing anything heavy, and skip the `load()` itself when it is false (a gated resource must
+never be loaded, not loaded and hidden). `Run.quality_level()` names the level; to add a level or switch, add a row
+or a key to `Quality.LEVELS` (a missing key counts as allowed). `Run.quality_tune_light(light)` and
+`Run.quality_tune_sky(sky)` apply the level to lights and skies built in code; `Run.quality_apply(viewport)`
+re-applies the level to a running scene (it walks the tree once). Nothing in the live game uses textures or models yet.
+
 ## Budget for textures and skinned characters
 
 Estimated iPhone footprint today, after the fixes: wasm heap 80 MB, compiled 43.7 MB

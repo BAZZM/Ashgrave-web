@@ -55,6 +55,7 @@ func _build_sky() -> void:
 	_sky.sun_angle_max = 0.0
 	var sky := Sky.new()
 	sky.sky_material = _sky
+	Run.quality_tune_sky(sky)
 	_env.background_mode = Environment.BG_SKY
 	_env.sky = sky
 	_env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
@@ -72,6 +73,7 @@ func _build_sky() -> void:
 	_sun.shadow_normal_bias = 3.0
 	_sun.directional_shadow_max_distance = 32.0
 	_sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+	Run.quality_tune_light(_sun)
 	ow.add_child(_sun)
 	_apply_light(1.0)
 

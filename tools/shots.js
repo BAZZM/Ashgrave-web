@@ -5,6 +5,7 @@
 //   node tools/shots.js [outdir] [name...]    capture the named shots (all by default), landscape
 //   node tools/shots.js --portrait [...]      capture portrait instead (the game is played landscape-only;
 //                                              portrait shows the game's own framing, not what players see)
+//   node tools/shots.js --quality=safe [...]  capture at that quality level (full or safe; default is the saved level, full on a fresh save)
 //   node tools/shots.js --list                print the shot names
 //   node tools/shots.js --regions [outdir]    one landscape shot per land region the seven shots do not
 //                                              cover (forest, marsh, quarry, ruins, ashlands), at fixed spots
@@ -44,11 +45,13 @@ let timeout = 300;
 let list = false;
 let portrait = false;
 let regions = false;
+let quality = '';
 const pos = [];
 for (const a of process.argv.slice(2)) {
   if (a === '--list') list = true;
   else if (a === '--portrait') portrait = true;
   else if (a === '--regions') regions = true;
+  else if (a.startsWith('--quality=')) quality = a.slice(10);
   else if (a.startsWith('--scale=')) scale = Number(a.slice(8));
   else if (a.startsWith('--timeout=')) timeout = Number(a.slice(10));
   else if (a.startsWith('-')) { console.error(`unknown option ${a}`); process.exit(2); }
@@ -118,7 +121,7 @@ async function captureRegion(browser, base, r) {
   });
   const t0 = Date.now();
   const args = [`--shot=/tmp/none.png`, '--shot-when=pvp', `--at=${r.x},${r.z}`, '--perflog'];
-  await page.goto(`${base}/index.html?relay=ws://127.0.0.1:9&${args.map((a) => 'arg=' + encodeURIComponent(a)).join('&')}`);
+  await page.goto(`${base}/index.html?relay=ws://127.0.0.1:9${quality ? '&quality=' + quality : ''}&${args.map((a) => 'arg=' + encodeURIComponent(a)).join('&')}`);
   let ok = false;
   while ((Date.now() - t0) / 1000 < timeout) {
     await page.waitForTimeout(3000);
@@ -151,7 +154,7 @@ async function capture(browser, base, shot, [orient, w, h]) {
     if (m.type() === 'error' || /SCRIPT ERROR|Parse Error/.test(text)) errors.push(text);
   });
   const t0 = Date.now();
-  const q = `relay=ws://127.0.0.1:9&arg=${encodeURIComponent('--golden=' + shot.slug)}`;
+  const q = `relay=ws://127.0.0.1:9${quality ? '&quality=' + quality : ''}&arg=${encodeURIComponent('--golden=' + shot.slug)}`;
   await page.goto(`${base}/index.html?${q}`);
   // The page covers a portrait screen with "Turn your phone sideways to play". Hide that so the
   // portrait shot shows the game's own portrait framing (not what a player sees on a phone).
