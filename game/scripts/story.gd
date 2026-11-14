@@ -68,11 +68,25 @@ static func found(id: String) -> bool:
 static func lore_entry(id: String) -> Dictionary:
 	if id.begins_with("insc"):
 		var p := id.substr(4).split("_")
-		var pool: Array = INSCRIPTIONS.get(int(p[0]), [""])
-		return {"name": "Inscription: %s" % Tiers.THEMES[int(p[0])].name, "text": pool[int(p[1]) % pool.size()]}
+		var t := int(p[0])
+		var pool: Array = INSCRIPTIONS.get(t, [""])
+		var n := int(p[1]) if p.size() > 1 else 0
+		return {"name": "Inscription: %s" % Tiers.THEMES.get(t, {}).get("name", "the tower"), "text": pool[n % pool.size()]}
 	if id.begins_with("relic"):
 		return RELICS.get(int(id.substr(5)), {"name": id, "text": ""})
 	return Act1.LORE.get(id, {"name": id, "text": ""})
+
+
+## Rebuild lore that a save made without the key (an older build) should have: held relics, and the lore of
+## finished quests. Only ever adds.
+static func backfill_lore() -> void:
+	for r in Run.data.relics:
+		if RELICS.has(int(r)):
+			found("relic%d" % int(r))
+	for id in Quests.QUESTS:
+		if Quests.state(id).get("done", false):
+			for lid in Quests.QUESTS[id].get("reward", {}).get("lore", []):
+				found(lid)
 
 
 ## Record a tower inscription as read.

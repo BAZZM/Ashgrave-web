@@ -72,6 +72,16 @@ func tick(delta: float) -> void:
 	if mode == "act1":
 		_quest_tick()
 		return
+	if mode == "save":
+		if phase == "setup":
+			phase = "done"
+			w.started = true
+			Run.title_seen = true
+			QBot.qs_report()
+			Run.save()
+			print("QSAVE END")
+			w.get_tree().quit()
+		return
 	match phase:
 		"setup":
 			_t0 = Time.get_ticks_msec()
@@ -616,6 +626,12 @@ func _quest_tick() -> void:
 		Run.title_seen = true
 		print("QBOT tower tier=%d relic=%s guardian_slain=%s" % [w.tier, str(Run.data.relics), str(Run.is_slain("t1_guardian"))])
 	QBot.qb_poll()
+	if phase == "reloading":
+		return
+	if "--reload" in OS.get_cmdline_user_args() and Run.data.relics.has(1) and QBot.qb_rl_count() == 2:
+		phase = "reloading"
+		QBot.qb_reload("find")
+		return
 	if not _q_checked and Run.data.relics.has(1) and Quests.state("a1_stair").get("step", 0) >= 1:
 		_q_checked = true
 		var tier_done := Quests.cond("tier:1")
