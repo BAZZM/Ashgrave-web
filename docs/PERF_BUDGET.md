@@ -140,6 +140,39 @@ tree, no fix: `mused` 57.8, 59.2, 61.0, 63.2, 65.0 MB, 1.9 MB a cycle against th
 names, `shadows`, `noprocess:<class>`, `no3d`, `noauto`), `--soak-tower-idle=S`, `--soak-quiet`, `--soak-pin`,
 `SOAKG` counts and `window.__agmPeek(size, stride, n)` in `tools/check.js`; all off by default.
 
+## Leak hunt, part 2 (14 Nov 2026): the physics servers' step
+
+Same tower idle (`--soak --soak-only=tower --soak-hist --soak-tower-idle=S`), with new debug switches on the idle:
+`--soak-idle-ts=X` (time scale held for the idle; the bot otherwise forces 4 in the tower too, because `World` has an
+`is_land` property), `--soak-idle-real`, `--soak-idle-steps=N` (`Engine.max_physics_steps_per_frame`),
+`--soak-idle-detach` (the tower scene is taken out of the tree for the idle), `--soak-idle-off=phys3d,phys2d,nav3d`
+(servers `set_active(false)`; NavigationServer2D has no `set_active` here). The `idle-end` line now also prints real
+ms, frames and physics ticks. Headless Chromium draws the tower at about 5 fps, so the engine runs its cap of 8 physics
+ticks a frame and the game clock runs slower than real time x scale.
+
+| idle | real s | frames | physics ticks | groups |
+|---|---|---|---|---|
+| 60 game s, scale 4 (as before) | 21 | 112 | 896 | 14 |
+| 60 game s, scale 1 | 85 | 446 | 3568 | 56 |
+| 10 game s, scale 1, 1 physics step a frame | 108 | 568 | 568 | 9 |
+| 60 game s, scale 4, tower scene detached | 15 | 887 | 892 | 14 |
+| 60 game s, scale 4, PhysicsServer3D, PhysicsServer2D, NavigationServer3D stopped | 22 | 112 | 896 | **0** |
+| 60 game s, scale 4, NavigationServer3D alone stopped | 21 | 112 | 896 | 14 |
+
+So: one group (about 16 KB) every 64 physics ticks, in every run; not real seconds, not game seconds, not frames, and
+a rate, not a fixed cost of a visit. Not the scene at all (still there with the scene out of the tree), not
+navigation: the stepping of the physics servers, which the game never uses (no bodies, areas, shapes or queries in
+any script or scene). Not a soak artefact: at time scale 1 and 60 ticks a second a player would gain about 0.94
+groups a second, about 54 MB an hour, wherever physics steps. Which of the two physics servers, and why the land
+idle on Build 16 read flat, were not settled (budget spent); the 4-slots-a-tick, 256-slot pages look like an engine
+pool that hands out entries each step and never takes them back, not confirmed.
+
+Fix: `perf.gd` `_ready` stops both physics servers (`--physics-on`, debug, keeps them). Full `perf-soak` after
+(5 cycles, whole journey, land included): `mused` 59.70, 59.71, 59.91, 59.91, 59.91 MB, 0.1 MB a cycle (was 1.9:
+57.8 -> 65.0); every other gate passes, peak heap 95.8 MB. The land part's own 0.8-1.1 MB a cycle went too, so the
+land was leaking the same way. Tower idle with both physics servers off: 0 groups in 896 ticks (the run above; not
+rerun with the shipped switch, the soak stands for it). `load duel-win duel-tower tower-walls quality` pass.
+
 ## Trade-offs for the quality setting (phone title, dpr capped at 2)
 
 | Change | Saving |

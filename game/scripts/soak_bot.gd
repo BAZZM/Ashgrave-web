@@ -39,6 +39,8 @@ var _pinned := {}
 var _pin_t := 0.0
 ## Debug, for finding which part of a cycle grows: --soak-only=roam,win,gather,screens,travel,lose,tower plays only those parts.
 var _only: PackedStringArray = []
+## Debug (--soak-idle-ts=X): the time scale held during the tower idle (-1: not held).
+var _idle_ts := -1.0
 
 
 func _part(name: String) -> bool:
@@ -99,7 +101,7 @@ func _process(delta: float) -> void:
 			d._bot = want_bot
 			d._base_time = SPEED
 			Engine.time_scale = SPEED
-	elif sc.get("is_land") != null and Engine.time_scale != SPEED:
+	elif sc.get("is_land") != null and Engine.time_scale != SPEED and _idle_ts < 0.0:
 		Engine.time_scale = SPEED
 
 
@@ -133,6 +135,17 @@ func _strip_tower() -> void:
 						(n as CanvasItem).visible = false
 			elif cls != "shadows" and n.is_class(cls) and not n.is_queued_for_deletion():
 				n.queue_free()
+
+
+func _servers_active(which: PackedStringArray, on: bool) -> void:
+	var map := {"phys3d": "PhysicsServer3D", "phys2d": "PhysicsServer2D", "nav3d": "NavigationServer3D", "nav2d": "NavigationServer2D"}
+	for k in map:
+		if k in which:
+			var srv: Object = Engine.get_singleton(map[k])
+			if srv != null and srv.has_method("set_active"):
+				srv.call("set_active", on)
+			elif not on:
+				print("SOAK no set_active on %s" % map[k])
 
 
 func _pin_materials() -> void:
@@ -578,10 +591,48 @@ func _tower_part() -> bool:
 				print("SOAKG cycle=%d idle-start %s" % [cycle, str(JavaScriptBridge.eval("window.__agmCount ? window.__agmCount([8200,6152,1032]) : ''", true))])
 			# --soak-quiet: the bot's own per-frame work stops during the wait.
 			set_process(not ("--soak-quiet" in OS.get_cmdline_user_args()))
-			await _wait(float(arg.trim_prefix("--soak-tower-idle=")))
+			# --soak-idle-ts=X: Engine.time_scale during the idle; --soak-idle-real: the length is real seconds.
+			var ts0 := Engine.time_scale
+			var idle_real := "--soak-idle-real" in OS.get_cmdline_user_args()
+			for a2 in OS.get_cmdline_user_args():
+				if a2.begins_with("--soak-idle-ts="):
+					_idle_ts = float(a2.trim_prefix("--soak-idle-ts="))
+					Engine.time_scale = _idle_ts
+			# --soak-idle-steps=N: Engine.max_physics_steps_per_frame during the idle (frames against physics ticks).
+			var steps0 := Engine.max_physics_steps_per_frame
+			for a2 in OS.get_cmdline_user_args():
+				if a2.begins_with("--soak-idle-steps="):
+					Engine.max_physics_steps_per_frame = int(a2.trim_prefix("--soak-idle-steps="))
+			# --soak-idle-detach: the tower scene is taken out of the tree for the idle (scene or not?).
+			var detached: Node = null
+			if "--soak-idle-detach" in OS.get_cmdline_user_args():
+				detached = get_tree().current_scene
+				get_tree().root.remove_child(detached)
+			# --soak-idle-off=phys3d,phys2d,nav3d,nav2d: those servers are stopped (set_active false) for the idle.
+			var off: PackedStringArray = []
+			for a2 in OS.get_cmdline_user_args():
+				if a2.begins_with("--soak-idle-off="):
+					off = a2.trim_prefix("--soak-idle-off=").split(",")
+			_servers_active(off, false)
+			var f0 := Engine.get_process_frames()
+			var p0 := Engine.get_physics_frames()
+			var m0 := Time.get_ticks_msec()
+			var len_s := float(arg.trim_prefix("--soak-tower-idle="))
+			if idle_real:
+				await _wait(len_s * Engine.time_scale)
+			else:
+				await _wait(len_s)
+			var ts1 := Engine.time_scale
+			_idle_ts = -1.0
+			Engine.time_scale = ts0
+			Engine.max_physics_steps_per_frame = steps0
+			_servers_active(off, true)
+			if detached != null:
+				get_tree().root.add_child(detached)
+				get_tree().current_scene = detached
 			set_process(true)
 			if _hist:
-				print("SOAKG cycle=%d idle-end %s" % [cycle, str(JavaScriptBridge.eval("window.__agmCount ? window.__agmCount([8200,6152,1032]) : ''", true))])
+				print("SOAKG cycle=%d idle-end %s ts=%.2f real_ms=%d frames=%d phys=%d" % [cycle, str(JavaScriptBridge.eval("window.__agmCount ? window.__agmCount([8200,6152,1032]) : ''", true)), ts1, Time.get_ticks_msec() - m0, Engine.get_process_frames() - f0, Engine.get_physics_frames() - p0])
 			doing = "tower idled"
 			if _hist:
 				print("SOAKPEEK6 %s" % str(JavaScriptBridge.eval("window.__agmPeek ? window.__agmPeek(6152, 24, 4) : ''", true)))
