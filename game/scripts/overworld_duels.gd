@@ -17,6 +17,8 @@ func _init(owner_world: Overworld) -> void:
 func _start_duel(e: Dictionary) -> void:
 	if ow.duel != null:
 		return
+	if ow.hud.screen != "":
+		ow.hud._close()
 	ow._gather = {}
 	ow.gather_progress = -1.0
 	ow.stick = Vector2.ZERO

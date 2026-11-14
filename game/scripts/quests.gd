@@ -19,6 +19,10 @@ static var QUESTS: Dictionary = _build()
 static var _sorted: Array = []
 ## Bumped whenever quest state changes; the HUD rebuilds its cached journal and tracker text on it.
 static var rev := 0
+## Quests that advanced this session, latest first (the tracker shows these first).
+static var recent: Array = []
+## The main line: shown ahead of side quests when nothing has advanced yet (after a reload).
+const MAIN := ["a1_thirty_first", "oath", "a1_hand", "a1_stair"]
 
 const SMALL_TALK := [
 	"The tower was quieter when I was young. Or I was.",
@@ -46,6 +50,25 @@ static func ids() -> Array:
 
 static func touch() -> void:
 	rev += 1
+
+
+static func _recent(id: String) -> void:
+	recent.erase(id)
+	recent.push_front(id)
+
+
+## Up to three open quests for the tracker: the ones that advanced this session (latest first), then the
+## main line in order, then the rest in the defined order.
+static func tracker_ids() -> Array:
+	var out: Array = []
+	var pools: Array = [recent, MAIN, ids()]
+	for pool in pools:
+		for id in pool:
+			if active(id) and not out.has(id):
+				out.append(id)
+				if out.size() >= 3:
+					return out
+	return out
 
 
 # ---------------------------------------------------------------- conditions and variants
@@ -133,11 +156,11 @@ static func state(id: String) -> Dictionary:
 
 
 static func started(id: String) -> bool:
-	return Run.data.quests.has(id)
+	return QUESTS.has(id) and Run.data.quests.has(id)
 
 
 static func active(id: String) -> bool:
-	return Run.data.quests.has(id) and not state(id).get("done", false)
+	return QUESTS.has(id) and Run.data.quests.has(id) and not state(id).get("done", false)
 
 
 static func step(id: String) -> Dictionary:
@@ -207,6 +230,7 @@ static func _state_ok(st: Dictionary) -> bool:
 static func _begin(id: String) -> void:
 	Run.data.quests[id] = {"step": 0, "count": 0, "done": false}
 	Run.captions.append("Quest started: %s." % QUESTS[id].name)
+	_recent(id)
 	touch()
 	Run.save()
 
@@ -238,6 +262,7 @@ static func _advance(id: String, choice := "") -> Array:
 	var qs := state(id)
 	qs.step = int(qs.step) + 1
 	qs.count = 0
+	_recent(id)
 	touch()
 	if int(qs.step) >= QUESTS[id].steps.size():
 		return said + _complete(id)
@@ -335,9 +360,14 @@ static func act(action: String) -> Array:
 	match parts[0]:
 		"accept":
 			_begin(parts[1])
-			var first: Array = [step(parts[1]).text]
-			if step(parts[1]).do in ["find", "win"] and _state_ok(step(parts[1])):
-				first.append_array(_advance(parts[1]))
+			var id := parts[1]
+			var first: Array = [step(id).text]
+			# A veteran already holds the relic or has beaten the tier: those steps pass at once, and what they
+			# say goes to the captions, not into Maren's mouth. The box shows the step the player is now on.
+			while active(id) and step(id).do in ["find", "win"] and _state_ok(step(id)):
+				for line in _advance(id):
+					Run.captions.append(line)
+				first = [step(id).text] if active(id) else []
 			return first
 		"choose":
 			var id := parts[1]
@@ -358,6 +388,7 @@ static func on_kill(foe: String) -> void:
 	for id in ids():
 		if active(id) and step(id).do == "kill" and foe in step(id).foes:
 			state(id).count = int(state(id).get("count", 0)) + 1
+			_recent(id)
 			touch()
 			if int(state(id).count) >= int(step(id).need):
 				for line in _advance(id):

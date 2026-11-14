@@ -22,7 +22,7 @@ const ROADS := [
 	[Vector2(126, -14), Vector2(132, -90), Vector2(124, -170)],
 	[Vector2(0, 20), Vector2(-70, 6), Vector2(-150, -10)],
 	[Vector2(0, 24), Vector2(-30, 90), Vector2(-90, 140)],
-	[Vector2(8, 30), Vector2(70, 90), Vector2(96, 118)],
+	[Vector2(8, 30), Vector2(70, 90), Vector2(89, 114)],
 ]
 
 ## Region colour scripts, Art Bible section 3 (G1). Colours are sRGB hex. ground: vertex colour of the

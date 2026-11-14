@@ -96,6 +96,10 @@ func _ready() -> void:
 			GoldenBot.golden_world(self, a.trim_prefix("--golden="))
 		elif a.begins_with("--towerbot="):
 			_wbot = WallBot.new(self, a.trim_prefix("--towerbot="))
+		elif a.begins_with("--questbot=") and a.trim_prefix("--questbot=") == "save":
+			# A save made inside the tower: report it (world_bot.gd, mode save) and stop.
+			_wbot = WallBot.new(self, "save")
+			direct_duel = false
 		elif a.begins_with("--questbot=") and a.trim_prefix("--questbot=") == "act1":
 			# The quest bot (world_bot.gd, mode act1) drives the tower with the tour bot's movement.
 			_wbot = WallBot.new(self, "act1")
