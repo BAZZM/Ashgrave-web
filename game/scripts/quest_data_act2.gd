@@ -49,13 +49,13 @@ const QUESTS := {
 				"text": "Return to Sister Wren in Hearthvale.",
 				"track": "Return to Sister Wren",
 				"say": [
-					"Worn bright, and never let out. A child wore it for years and did not grow. Nothing grows in that tower, it seems.",
+					"Worn bright, and never let out. Years on one small head. Think on that as you climb. I have.",
 					"My order dug as far as a sluice and stopped. It opens with a key, and I want that key more than I wanted the crown."
 				]
 			}
 		],
 		"finish": [
-			"The thirtieth wrote of a Sworn who sells on the stair, to anyone who climbs. If any man holds that key, it is he.",
+			"The thirtieth wrote of a Sworn who sells on the stair. If any man holds that key, it is he. Leave him be for now. I am not ready.",
 			"They crowned him so the fire would have a keeper. A keeper who cannot lift a sword cannot put it out."
 		],
 		"reward": {
@@ -65,7 +65,7 @@ const QUESTS := {
 			},
 			"item": "ward"
 		},
-		"journal": "Wren wants the key to a sluice below the pyre. The Drowned Crown was made for a child, and worn for years."
+		"journal": "Wren wants the key to a sluice below the pyre, but not yet. The Drowned Crown was made for a child, worn for years."
 	},
 	"a2_ending": {
 		"name": "No Ending",
@@ -81,7 +81,7 @@ const QUESTS := {
 			{
 				"do": "choose",
 				"to": "elder",
-				"text": "Take the Duelist's last words to Elder Maren in Hearthvale.",
+				"text": "The Duelist's last words: ask him why the oath has no ending. Take them to Elder Maren.",
 				"track": "Take the Duelist's words to Maren",
 				"say": [
 					{
@@ -125,10 +125,10 @@ const QUESTS := {
 				"if": [
 					[
 						"flag:a2_ending=keep",
-						"Whatever it asked, it asked about the oath. They always do. I did not write it. I swore it, and I counted."
+						"Whatever it asked, it asked about the oath. I did not write it. I swore it, and I counted."
 					]
 				],
-				"else": "As to the ending, I did not write the oath. I swore it, and I counted. I never read it close."
+				"else": "As to the ending, I did not write the oath. I swore it, and I counted. I never asked what else the words would bear."
 			},
 			"A Keeper at the altar in the Old Ruins still talks. Ask him the wording, and tell me what he says."
 		],
@@ -160,7 +160,7 @@ const QUESTS := {
 				"else": "There is a mark under the grip of every blade that comes down the stair. Small, struck deep. I never cut it."
 			},
 			"I have refitted what the tower sends and called it my work. It is not. Somebody strikes that mark, and it is not me.",
-			"Find where it is struck. And see what is done with the blades too broken to come down."
+			"Find where it is struck. See what is done with the blades too broken to come down. Then bring me three ember ore."
 		],
 		"accept": "I will look.",
 		"decline": "Not now.",
@@ -196,7 +196,7 @@ const QUESTS := {
 		],
 		"finish": [
 			"Cold. This ore has lain cold since the Burning, and a forge has to wake it. Mine will, if I do not hurry her.",
-			"Years I fitted what came down and did not ask who struck it. Now I have asked, and I will make one blade with no mark.",
+			"Years I fitted what came down and did not ask who struck it. Now I have asked. Wait by the fire. This one I make with no mark.",
 			"Take it up the stair. If the tower wants it back, it can come down and ask me."
 		],
 		"reward": {
@@ -206,7 +206,7 @@ const QUESTS := {
 			},
 			"item": "pyre_greatsword"
 		},
-		"journal": "The family's mark is under every grip, and on the Gravemaul's plates. Brannoc is making one blade with no mark."
+		"journal": "The family's mark is under every grip, and on the Gravemaul's plates. Brannoc has made one blade with no mark."
 	},
 	"a2_rune": {
 		"name": "The Wording",
@@ -217,7 +217,7 @@ const QUESTS := {
 			"quest:a2_ending"
 		],
 		"offer": [
-			"The elder sent you. He has never sent me anyone. Two hundred years, and he has only cut his names and gone home.",
+			"The elder sent you with a question. In two hundred years he has sent me heirs to swear, and never once a question.",
 			"I would read the oath aloud, exactly, from the stone. Two of my fellows stand over it and will not allow a reading.",
 			"Put two of them down. Then read the stone as it stands, and come back and tell me what you read."
 		],
@@ -252,7 +252,7 @@ const QUESTS := {
 				"track": "Return to Keeper Oswin",
 				"say": [
 					"One of us tends the fire. We have read that for two hundred years to mean one of us must.",
-					"Read it as it is cut. It says one may tend. It does not say only one may stop. Whoever may keep may also let go."
+					"Read it as it is cut. It says one of us may tend. It does not say that one must. Whoever may keep may also let go."
 				]
 			}
 		],
@@ -261,7 +261,7 @@ const QUESTS := {
 				"if": [
 					[
 						"flag:a2_ending=keep",
-						"He will not have told you who swore here first. His own child, who held a sword better than any Keeper. I corrected one word. She swore again, exactly."
+						"The elder will not have said who swore here first. His own child. I corrected one word, and she swore again, exactly."
 					]
 				],
 				"else": "He told you who swore here first. I add only this. I corrected one word, and she swore again, exactly. They all swore exactly."
@@ -277,7 +277,7 @@ const QUESTS := {
 				"oath_plain"
 			]
 		},
-		"journal": "Oswin reads the oath plainly: one of us may tend the fire, and it does not say only one may stop."
+		"journal": "Oswin reads the oath as it is cut: one of us may tend the fire. It does not say that one must."
 	},
 	"a2_letter": {
 		"name": "Rook's Letter",
@@ -293,7 +293,7 @@ const QUESTS := {
 			{
 				"do": "find",
 				"relic": 4,
-				"text": "Find the Rook's Letter in the Rookery, up the fourth stair.",
+				"text": "You hold the Rook's Letter, taken from the Rookery up the fourth stair.",
 				"track": "Find the Rook's Letter",
 				"say": [
 					"It is still tied for a rook's leg. The roost above it is empty, and has been for an age."
@@ -337,7 +337,7 @@ const QUESTS := {
 						"'Send no one after me.' Five words. I sent thirty."
 					],
 					"give": [
-						"Give it here. Hold the light still. My eyes are not what they were.",
+						"Give it here. Hold the light still. I have not seen this hand on paper since we were boys.",
 						"He wrote small, even then. Five words at the end, and I sent thirty."
 					],
 					"keep": [
@@ -348,15 +348,15 @@ const QUESTS := {
 			}
 		],
 		"finish": [
-			"I sent a rook up before each of you. None came back, and none answered. I took the silence for a busy man, and sent help.",
+			"I sent a rook up before each of you. Not one came back. I took the silence for a busy man, and sent help.",
 			{
 				"if": [
 					[
 						"flag:a2_letter=keep",
-						"Paper from the fourth stair can only be his. His name was Ansel. I have not said it aloud since the first of you went up."
+						"Paper out of that tower can only be his. His name is Ansel. I have not said it aloud since the first of you went up."
 					]
 				],
-				"else": "His name was Ansel. I have not said it aloud since the first of you went up."
+				"else": "His name is Ansel. I have not said it aloud since the first of you went up."
 			},
 			{
 				"if": [
@@ -371,10 +371,10 @@ const QUESTS := {
 				"if": [
 					[
 						"quest:a2_rune",
-						"I counted the oath for two hundred years and never read it. The Keeper says it lets one of us stop. I do not know which of us he means."
+						"Two hundred years I counted by that oath and never asked what it allowed. The Keeper says one of us may stop. I do not know which he means."
 					]
 				],
-				"else": "A Keeper at the altar reads the oath exactly. Ask him what it permits. I have only ever counted it."
+				"else": ""
 			}
 		],
 		"reward": {
@@ -393,11 +393,11 @@ const QUESTS := {
 const LORE := {
 	"oath_plain": {
 		"name": "The Oath, Read Plain",
-		"text": "'While one of us tends the fire, none of us need burn.' It says one may tend. It does not say only one may stop."
+		"text": "'While one of us tends the fire, none of us need burn.' It says one of us may tend. It does not say that one must."
 	},
 	"rooks_sent": {
 		"name": "A Rook for Each",
-		"text": "Maren sent a rook up before every heir. None came back and none was answered. The one answer written was never sent."
+		"text": "Maren sent a rook up before every heir. Not one came back. The one answer ever written was never sent."
 	}
 }
 
@@ -436,12 +436,8 @@ const IDLE := {
 	"elder": {
 		"if": [
 			[
-				"loop>=1",
-				""
-			],
-			[
 				"flag:a2_letter=read",
-				"It is a short letter. I have read it more times than I have sent heirs, and it has not grown."
+				"It is a short letter. I have said it over more times than I have sent heirs, and it has not grown."
 			],
 			[
 				"flag:a2_letter=give",
@@ -450,6 +446,14 @@ const IDLE := {
 			[
 				"flag:a2_letter=keep",
 				"You still have it. I do not ask what it says. I count the nights I do not ask."
+			],
+			[
+				"flag:a2_ending=tell",
+				"The second stair has my child on it. I sent her there. I find I can say that now, and nothing falls down."
+			],
+			[
+				"flag:a2_ending=keep",
+				"You kept the cistern's words from me. I count them anyway, unsaid. It is a short count."
 			]
 		],
 		"else": ""
@@ -474,7 +478,7 @@ const IDLE := {
 			],
 			[
 				"flag:side_hexer=silent",
-				"You came back from the fen quiet, and you have stayed quiet. I notice. I only fold cloaks."
+				"You came back from the fen quiet, and you have stayed quiet. I notice such things. It is most of my trade."
 			]
 		],
 		"else": ""

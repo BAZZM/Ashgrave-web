@@ -383,7 +383,8 @@ shop opens (`overworld_interact.gd:119`).
 ```json
 {
   "elder": {"if": [
-      ["loop>=1", "You reached the top, and the fire still burns. Sit. I am not surprised. Only sorry."],
+      ["loop>=1", {"if": [["flag:throne=true", "You reached the top, and the fire still burns. Sit. I am not surprised. Only sorry."]],
+                   "else": "You reached the top. Sit. I am not surprised. Only sorry."}],
       ["bloodline>=2", "You have the last one's hands already. The hearth is quick about that."]],
     "else": "The hearth is lit. That is all the news I trust."},
   "alchemist": {"if": [

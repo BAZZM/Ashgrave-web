@@ -25,10 +25,10 @@ player holds cinder shards.
 
 |Choice|Flag|Read in|
 |---|---|---|
-|Burn or bury the thralls' bone|`side_thralls`|`side_marigold` offer, step and finish; the quest's own journal|
+|Burn or bury the thralls' bone|`side_thralls`|`side_marigold` offer and finish; the quest's own journal|
 |Post or hold the Trader's name|`side_trader`|villager and Isolde idle lines; the quest's own finish|
-|Tell Wren what the hexer said, or stay silent|`side_hexer`|its own finish and journal; Wren's idle line|
-|(Act 2 main) Tell or keep the Duelist's words|`a2_ending`|`a2_rune` finish; Maren's idle line|
+|Tell Wren what the hexer said, or stay silent|`side_hexer`|its own finish and journal; Wren's idle line (masked by the letter lines once `a2_letter` is chosen)|
+|(Act 2 main) Tell or keep the Duelist's words|`a2_ending`|`a2_rune` finish; Maren's idle line (after the letter lines)|
 |(Act 2 main) Read, give or keep the letter|`a2_letter`|`a2_letter` finish; Maren and Wren idle lines|
 
 ## 3. The quests
@@ -61,7 +61,7 @@ player holds cinder shards.
         "text": "Bring the villager 2 grilled trout for the hearthstone.",
         "track": "Bring 2 grilled trout",
         "say": [
-          "Sit. Eat. I will watch the road, in case."
+          "Sit. Eat. I will watch the road, in case. Then ask the elder whether we should stop. He has never said."
         ]
       },
       {
@@ -114,7 +114,7 @@ Trigger: a villager (the walker in Hearthvale) with `a1_stair` done. Bring two g
     ],
     "offer": [
       "The brutes have the mine road. I want iron and cannot get to it.",
-      "Put three down on the Scar road. Bring me four iron ore from the rock they stand on. Mining 15 will take it."
+      "Put three down on the Scar road. Bring me four iron ore from the rock they stand on. It wants a practised pick."
     ],
     "accept": "I will clear the road.",
     "decline": "Not now.",
@@ -150,7 +150,7 @@ Trigger: a villager (the walker in Hearthvale) with `a1_stair` done. Bring two g
             "That mark again. Now I know where it is struck. I did not think a brute would carry one."
           ]
         ],
-        "else": "That mark. I have felt it under every grip I ever refitted, and thought it was your family's pride. It was on a brute."
+        "else": "A mark on its back, you say, small and deep. I have felt that under every grip I ever refitted. It was on a brute."
       },
       "A smith does not strike his mark on a thing he means to throw away. Whoever struck that did."
     ],
@@ -161,7 +161,7 @@ Trigger: a villager (the walker in Hearthvale) with `a1_stair` done. Bring two g
         "slaying": 100
       }
     },
-    "journal": "Stone Brutes on the mine road carry the family's mark. Brannoc says no smith marks what he means to throw away."
+    "journal": "Brutes on the mine road carry the mark under your grip. Brannoc says no smith marks what he means to throw away."
   }
 }
 ```
@@ -271,7 +271,7 @@ Trigger: talk to Brannoc with `a1_stair` and `a1_bone` done. Kill three brutes (
 }
 ```
 
-Trigger: talk to Nan Harrow (Meadows) with `a1_stair` done. Kill three thralls, bring three bone, then choose burn or bury. The choice is stored as `side_thralls` and read in `side_marigold` (four places) and its own offer text.
+Trigger: talk to Nan Harrow (Meadows) with `a1_stair` done. Kill three thralls, bring three bone, then choose burn or bury. The choice is stored as `side_thralls` and read in `side_marigold`'s offer and finish.
 
 ### 3.4 `side_marigold`: The Last Stake
 
@@ -372,7 +372,7 @@ Trigger: talk to Nan Harrow after `side_thralls`. Bring marigold, ask Old Tam, r
       "quest:a1_struck"
     ],
     "offer": [
-      "I stopped looking at the faces of the bandits on my road. After a while I began to know them.",
+      "I have stopped looking at the faces of the bandits on my road. I had begun to know them.",
       "Put three down. Then go to Hearthvale and ask who woke on the hearthstone at dawn. Do not say why you ask."
     ],
     "accept": "I will go.",
@@ -387,7 +387,7 @@ Trigger: talk to Nan Harrow after `side_thralls`. Bring marigold, ask Old Tam, r
         "text": "Defeat 3 Greywood Bandits.",
         "track": "Defeat 3 Greywood Bandits",
         "say": [
-          "It drops its knife and looks at your face. Not afraid. Only trying to place it."
+          "He drops his knife and looks at your face. Not afraid. Only trying to place it."
         ]
       },
       {
@@ -528,7 +528,7 @@ Trigger: talk to Warden Isolde after `poach` was finished with the tally (`flag:
     ],
     "offer": [
       "The moth has found my shelf, and it has started on the oldest cloak.",
-      "Bring me four marigold. Laid in the wool, it keeps the moth out. They are all the shelf has to hold."
+      "Bring me four marigold. Laid in the wool, it keeps the moth out. The cloaks are all that shelf has to keep."
     ],
     "accept": "I will bring it.",
     "decline": "Not now.",
@@ -561,7 +561,7 @@ Trigger: talk to Warden Isolde after `poach` was finished with the tally (`flag:
         "text": "Return to Sister Wren in Hearthvale.",
         "track": "Return to Sister Wren",
         "say": [
-          "Gone down clean. I thought the reeds would catch it. Look at the shelf. There is one cloak more than I have heirs to put in it.",
+          "Gone down clean. I thought the reeds would catch it. Look at the shelf. It holds one cloak more than you have dead.",
           "New wool, cut to your shoulders. I did not ask. Do not look at it like that."
         ]
       }
@@ -629,8 +629,8 @@ Trigger: talk to Sister Wren with `a1_diggers` done and no `side_hexer` active. 
         ],
         "reply": {
           "tell": [
-            "A hand on the sluice, from inside. Yes. The order would not write it down, and those who read it left.",
-            "I said beside you, once. I should have said inside. I am sorry, and I am not yet sorry enough to stop."
+            "A hand on the sluice, from inside. Yes. The order would not write it down, and those who said it aloud left.",
+            "I said I meant to ask one of the blood. I did not say for what. I am sorry, and I am not yet sorry enough to stop."
           ],
           "silent": [
             "Nothing. As you like. The fen does not speak to everyone."

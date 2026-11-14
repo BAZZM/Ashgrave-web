@@ -27,7 +27,7 @@ const QUESTS := {
 				"text": "Bring the villager 2 grilled trout for the hearthstone.",
 				"track": "Bring 2 grilled trout",
 				"say": [
-					"Sit. Eat. I will watch the road, in case."
+					"Sit. Eat. I will watch the road, in case. Then ask the elder whether we should stop. He has never said."
 				]
 			},
 			{
@@ -71,7 +71,7 @@ const QUESTS := {
 		],
 		"offer": [
 			"The brutes have the mine road. I want iron and cannot get to it.",
-			"Put three down on the Scar road. Bring me four iron ore from the rock they stand on. Mining 15 will take it."
+			"Put three down on the Scar road. Bring me four iron ore from the rock they stand on. It wants a practised pick."
 		],
 		"accept": "I will clear the road.",
 		"decline": "Not now.",
@@ -107,7 +107,7 @@ const QUESTS := {
 						"That mark again. Now I know where it is struck. I did not think a brute would carry one."
 					]
 				],
-				"else": "That mark. I have felt it under every grip I ever refitted, and thought it was your family's pride. It was on a brute."
+				"else": "A mark on its back, you say, small and deep. I have felt that under every grip I ever refitted. It was on a brute."
 			},
 			"A smith does not strike his mark on a thing he means to throw away. Whoever struck that did."
 		],
@@ -118,7 +118,7 @@ const QUESTS := {
 				"slaying": 100
 			}
 		},
-		"journal": "Stone Brutes on the mine road carry the family's mark. Brannoc says no smith marks what he means to throw away."
+		"journal": "Brutes on the mine road carry the mark under your grip. Brannoc says no smith marks what he means to throw away."
 	},
 	"side_thralls": {
 		"name": "Nan's Rows",
@@ -302,7 +302,7 @@ const QUESTS := {
 			"quest:a1_struck"
 		],
 		"offer": [
-			"I stopped looking at the faces of the bandits on my road. After a while I began to know them.",
+			"I have stopped looking at the faces of the bandits on my road. I had begun to know them.",
 			"Put three down. Then go to Hearthvale and ask who woke on the hearthstone at dawn. Do not say why you ask."
 		],
 		"accept": "I will go.",
@@ -317,7 +317,7 @@ const QUESTS := {
 				"text": "Defeat 3 Greywood Bandits.",
 				"track": "Defeat 3 Greywood Bandits",
 				"say": [
-					"It drops its knife and looks at your face. Not afraid. Only trying to place it."
+					"He drops his knife and looks at your face. Not afraid. Only trying to place it."
 				]
 			},
 			{
@@ -440,7 +440,7 @@ const QUESTS := {
 		],
 		"offer": [
 			"The moth has found my shelf, and it has started on the oldest cloak.",
-			"Bring me four marigold. Laid in the wool, it keeps the moth out. They are all the shelf has to hold."
+			"Bring me four marigold. Laid in the wool, it keeps the moth out. The cloaks are all that shelf has to keep."
 		],
 		"accept": "I will bring it.",
 		"decline": "Not now.",
@@ -473,7 +473,7 @@ const QUESTS := {
 				"text": "Return to Sister Wren in Hearthvale.",
 				"track": "Return to Sister Wren",
 				"say": [
-					"Gone down clean. I thought the reeds would catch it. Look at the shelf. There is one cloak more than I have heirs to put in it.",
+					"Gone down clean. I thought the reeds would catch it. Look at the shelf. It holds one cloak more than you have dead.",
 					"New wool, cut to your shoulders. I did not ask. Do not look at it like that."
 				]
 			}
@@ -532,8 +532,8 @@ const QUESTS := {
 				],
 				"reply": {
 					"tell": [
-						"A hand on the sluice, from inside. Yes. The order would not write it down, and those who read it left.",
-						"I said beside you, once. I should have said inside. I am sorry, and I am not yet sorry enough to stop."
+						"A hand on the sluice, from inside. Yes. The order would not write it down, and those who said it aloud left.",
+						"I said I meant to ask one of the blood. I did not say for what. I am sorry, and I am not yet sorry enough to stop."
 					],
 					"silent": [
 						"Nothing. As you like. The fen does not speak to everyone."
