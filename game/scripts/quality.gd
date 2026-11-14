@@ -15,10 +15,11 @@ const LEVELS := {
 	},
 	"safe": {
 		"label": "Safe", "textures": false, "models": false, "shadows": false,
-		"scale_k": 0.75, "radiance": Sky.RADIANCE_SIZE_64, "atlas": 0, "dpr_cap": 1.5,
+		"scale_k": 1.0, "radiance": Sky.RADIANCE_SIZE_256, "atlas": 0, "dpr_cap": 1.5,
 	},
 }
 const DEFAULT := "full"
+static var _atlas := -1
 
 
 static func valid(level: String) -> bool:
@@ -40,11 +41,14 @@ static func value(level: String, key: String, fallback: Variant) -> Variant:
 static func tune_light(l: Light3D, level: String) -> void:
 	if not l.has_meta("q_shadow"):
 		l.set_meta("q_shadow", l.shadow_enabled)
-	l.shadow_enabled = bool(l.get_meta("q_shadow")) and allows(level, "shadows")
+	var want := bool(l.get_meta("q_shadow")) and allows(level, "shadows")
+	if l.shadow_enabled != want:
+		l.shadow_enabled = want
 
 
 static func tune_sky(sky: Sky, level: String) -> void:
-	if sky != null:
+	# Only when it changes: the setter re-bakes the sky's radiance map.
+	if sky != null and sky.radiance_size != value(level, "radiance", Sky.RADIANCE_SIZE_256):
 		sky.radiance_size = value(level, "radiance", Sky.RADIANCE_SIZE_256)
 
 
@@ -56,10 +60,15 @@ static func apply(vp: Viewport, level: String) -> void:
 		var sz := DisplayServer.window_get_size()
 		var px := float(mini(sz.x, sz.y))
 		vp.msaa_3d = Viewport.MSAA_DISABLED
-		vp.scaling_3d_scale = clampf(clampf(640.0 / maxf(px, 1.0), 0.45, 1.0) * float(value(level, "scale_k", 1.0)), 0.3, 1.0)
+		var scale := clampf(clampf(640.0 / maxf(px, 1.0), 0.45, 1.0) * float(value(level, "scale_k", 1.0)), 0.3, 1.0)
+		if not is_equal_approx(vp.scaling_3d_scale, scale):
+			vp.scaling_3d_scale = scale
 		# With shadows off the atlas is released (size 0), not left allocated. The pixel-ratio cap (dpr_cap) is read by
 		# index.html before the engine starts; a level change reaches it at the next launch.
-		RenderingServer.directional_shadow_atlas_set_size(int(value(level, "atlas", 1024)), true)
+		var atlas := int(value(level, "atlas", 1024))
+		if atlas != _atlas:
+			_atlas = atlas
+			RenderingServer.directional_shadow_atlas_set_size(atlas, true)
 	var tree := vp.get_tree()
 	if tree == null:
 		return

@@ -38,7 +38,7 @@ const BANNER_MAX_AGE_S := 600
 ## banner) no more than this far apart, both since the level last changed. One unlucky crash does not count, and
 ## neither do two a day apart: it takes a loop. Wall clock, from the crumbs' own timestamps.
 const AUTO_SAFE_WINDOW_MS := 30 * 60 * 1000
-const AUTO_SAFE_NOTICE := "The game restarted twice, so it switched to safe quality: no shadows and a smaller 3D view now, lower resolution from the next launch. To change it: MAP, then QUALITY."
+const AUTO_SAFE_NOTICE := "The game restarted twice, so it switched to safe quality: no shadows now, lower resolution from the next launch. To change it: MAP, then QUALITY."
 const AUTO_SAFE_CAPTION := "Safe quality is on after two restarts. MAP, then QUALITY, to change it."
 
 var enabled := false
