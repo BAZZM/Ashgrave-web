@@ -10,6 +10,17 @@
 // expects a "[crumb] died:" console line. Then reloads normally and expects none.
 // Each later case primes or recreates its own crumb, and kills its pages (Page.crash, no pagehide) before the next.
 // Screenshots of the banner go to the directory (default /tmp) at 390x844 and 844x390.
+//
+//   node tools/crumb_test.js --decode CODE   reads back the six-character code on the restart banner
+//                                            (packed by Perf.crumb_code in game/scripts/perf.gd)
+function decodeCrumb(code) {
+  let v = 0;
+  const norm = code.trim().toUpperCase().replace(/O/g, '0').replace(/[IL]/g, '1');
+  for (const ch of norm) v = v * 32 + '0123456789ABCDEFGHJKMNPQRSTVWXYZ'.indexOf(ch);
+  return { heap_mb: v & 511, vid_mb: (v >> 9) & 127, mode: ['boot', 'title', 'land', 'tower', 'duel'][(v >> 16) & 7] || '?',
+    minutes: (v >> 19) & 63, dpr: ['other', 1, 2, 3][(v >> 25) & 3], nodes: `${((v >> 27) & 7) * 250}+` };
+}
+if (process.argv[2] === '--decode') { console.log(JSON.stringify(decodeCrumb(process.argv[3] || ''))); process.exit(0); }
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -133,6 +144,8 @@ const getLog = (page) => page.evaluate(() => JSON.parse(localStorage.getItem('as
       console.log('crumb:', JSON.stringify(second));
       check(second.live === true, 'crumb says live while running');
       check(second.heap > 0 && second.tex > 0 && second.oc > 0 && second.nc > 0, 'memory figures are non-zero (heap, textures, objects, nodes)');
+      check(second.pk > 0 && second.cw > 0 && second.ch > 0 && second.dpr > 0 && 'dm' in second && 'hc' in second && typeof second.gl === 'string' && second.md === 0,
+        `crumb has peak heap, canvas size, dpr, device memory, cores, renderer, memory deaths (${second.pk} ${second.cw}x${second.ch} dpr ${second.dpr} dm ${second.dm} hc ${second.hc} gl ${second.gl})`);
       console.log(`MEMORY_STATIC reads ${second.ms} on web`);
       check(second.place && second.place.length > 0, `place name present (${second.place})`);
       check(typeof second.run === 'string' && !second.shared && !second.stalled, 'crumb has a run id and no shared/stalled flag');
@@ -158,6 +171,11 @@ const getLog = (page) => page.evaluate(() => JSON.parse(localStorage.getItem('as
       check(num('heap_mb') > 0, 'died line has non-zero wasm heap');
       check(num('objects') > 0, 'died line has non-zero object count');
       check(/kind=died/.test(d1) && num('banner') === 1 && num('stalled') === 0 && num('shared') === 0, 'recent foreground death shows the banner');
+      const code = field(d1, 'code');
+      const dec = code ? decodeCrumb(code) : null;
+      check(!!code && /^[0-9A-HJKMNP-TV-Z]{6}$/.test(code) && dec.mode === 'land' && dec.heap_mb === num('heap_mb'), `died line has a 6-character code that decodes to mode=land and the heap (${code} ${JSON.stringify(dec)})`);
+      check(num('peak_mb') >= num('heap_mb') && /^\d+x\d+$/.test(field(d1, 'canvas')) && Number(field(d1, 'dpr')) > 0 && Number(field(d1, 'cores')) !== 0 && field(d1, 'mdeaths') === '0' && !!field(d1, 'gl'),
+        'died line has peak heap, canvas size, dpr, cores, memory deaths and renderer');
     }
     await sleep(2500);
     // (The page covers a portrait canvas with a "turn your phone sideways" note; hidden above to see the banner itself.)
