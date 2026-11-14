@@ -94,6 +94,52 @@ four scene loads a cycle (tower in, two tier changes, death home), so 4.6 MB a l
 2. Margin today: 1.7 against 2.0; the worst 3-interval window in the 12-cycle run was 1.96, so a 5-cycle run can come
 close. The leak is real and should be fixed, not the limit raised.
 
+## Leak hunt in the tower (Build 18 tree, 14 Nov 2026): not isolated
+
+Tower part only (`--soak --soak-only=tower --soak-hist`), Build 17 + Act 2 tree (dc85eb2), `mused` per cycle (MB):
+59.9, 60.4, 61.2, 61.7, 62.6: about 0.7 MB a cycle, the same as on Build 16. Counting the growing chunk groups
+(8200 + 6152 + 2 x 1032 bytes, about 16 KB each) at every change of activity (`SOAKG` lines) shows where they come:
+
+| step | groups added | real seconds |
+|---|---|---|
+| each scene load (tower in, tier 2, tier 3, death home) | 0-2 | 2 |
+| tier 1 duel | 7-9 | about 11 |
+| pack duel, tier 2 | 13-19 | about 34 |
+| tier 3 duel (lost) | 9-10 | |
+| standing idle in the tower, 60 game seconds (`--soak-tower-idle=60`) | 14, every time | about 23 |
+
+So it is not the duels and not the loads: it is time spent in the tower scene, at about 0.6 groups a real second
+(about 10 KB/s), and nothing like it in the land (a 260 s land idle was flat on Build 16). Each tower cycle adds
+about 32 groups. The chunks: the 8200 one holds 256 entries of 32 bytes ({n, 0, 0, 0, 0, 0x100, 0, 0} with n counting
+down by one); the 6152 one starts with a self-pointing pair (an empty list head) and points at another chunk of the
+same shape. Owner not identified (the wasm has no names).
+
+Removals tried, each during the 60 s tower idle unless stated, and none changed the 14 groups (so do not repeat them):
+
+| removal (debug switch) | groups in the idle |
+|---|---|
+| duel HUD and tower HUD drawing off (with duels, a game-side switch since reverted) | unchanged per duel |
+| sound plays off (`Sfx.play`; with duels; reverted) | unchanged |
+| sparks, vibration, hit-stop and slow motion off (with duels; reverted) | slightly fewer per cycle (shorter duels), still growing |
+| every OmniLight3D in the tower freed (`--soak-strip=OmniLight3D`, with duels) | unchanged |
+| tower state publishing (`Online.publish_state` every 3 s) off (reverted) | 14 |
+| every MeshInstance3D, MultiMeshInstance3D, CPUParticles3D freed | 14 |
+| every Light3D and the WorldEnvironment freed | 14 |
+| every node of the tower scene paused (process, physics, input) and every CanvasItem hidden (`noprocess:Node`) | 14 |
+| no 3D rendering at all (`no3d`: root viewport `disable_3d`) | 14 |
+| every AudioStreamPlayer in the tower freed (ambience included) | 14 |
+| autoloads Online and Perf stop processing (`noauto`) | 14 |
+| the soak bot's own per-frame work stopped during the idle (`--soak-quiet`) | 14 |
+
+Earlier (Build 16): loading the HUD font once per run changed nothing. Not tried: `--soak-pin` (keeps every material
+and sky of cycle 1 alive, so shaders are never rebuilt; written, never run), an idle with `Engine.time_scale` 1 (is
+it per game second or per real second?), an idle of 30 and 120 s (is it a rate, or a fixed cost of each tower visit
+that takes a minute to show?), and removing the bare Node3D tree, the Camera3D and the hidden HUD nodes themselves.
+Outside the tower (0.8-1.1 MB a cycle): not measured with the group counter in this round. Full `perf-soak` on this
+tree, no fix: `mused` 57.8, 59.2, 61.0, 63.2, 65.0 MB, 1.9 MB a cycle against the 2.0 limit (passes, barely). Tools: `--soak-strip=` (class
+names, `shadows`, `noprocess:<class>`, `no3d`, `noauto`), `--soak-tower-idle=S`, `--soak-quiet`, `--soak-pin`,
+`SOAKG` counts and `window.__agmPeek(size, stride, n)` in `tools/check.js`; all off by default.
+
 ## Trade-offs for the quality setting (phone title, dpr capped at 2)
 
 | Change | Saving |
