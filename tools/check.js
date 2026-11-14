@@ -202,6 +202,71 @@ function mallinfoInit(gm) {
     const P = WebAssembly.Memory.prototype, d = Object.getOwnPropertyDescriptor(P, 'buffer');
     if (d && d.get) Object.defineProperty(P, 'buffer', { configurable: true, get() { mem = this; return d.get.call(this); } });
   } catch (e) { /* no reading */ }
+  // Debug (soak --soak-hist): in-use chunks of the given sizes, e.g. __agmCount([8200, 6152]) -> "8200:12,6152:12".
+  window.__agmCount = function (sizes) {
+    try {
+      if (!mem || !gm) return '';
+      const H = new Uint32Array(mem.buffer);
+      const at = (a) => H[a >>> 2];
+      const top = at(gm + 24);
+      const n = {};
+      for (const z of sizes) n[z] = 0;
+      for (let s = gm + 448, guard = 0; s && guard < 64; s = at(s + 8), guard++) {
+        const base = at(s), size = at(s + 4);
+        if (!base) break;
+        let q = base + ((8 - ((base + 8) & 7)) & 7);
+        while (q >= base && q < base + size && q !== top) {
+          const head = at(q + 4);
+          if (head === 7) break;
+          const sz = head & ~7;
+          if (sz < 16) return '';
+          if ((head & 2) && sz in n) n[sz]++;
+          q += sz;
+        }
+      }
+      return sizes.map((z) => `${z}:${n[z]}`).join(',');
+    } catch (e) { return ''; }
+  };
+  // Debug: the newest in-use chunk of `size`, its first entries, and what the words in them point at (chunk size, text).
+  window.__agmPeek = function (size, stride, n) {
+    try {
+      const H = new Uint32Array(mem.buffer), B = new Uint8Array(mem.buffer), L = H.length * 4;
+      const at = (a) => H[a >>> 2];
+      const top = at(gm + 24);
+      let last = 0, lastPrev = [];
+      const starts = [];
+      for (let s = gm + 448, guard = 0; s && guard < 64; s = at(s + 8), guard++) {
+        const base = at(s), sz0 = at(s + 4);
+        if (!base) break;
+        let q = base + ((8 - ((base + 8) & 7)) & 7);
+        while (q >= base && q < base + sz0 && q !== top) {
+          const head = at(q + 4);
+          if (head === 7) break;
+          const sz = head & ~7;
+          if (sz < 16) return 'bad';
+          starts.push(q);
+          if ((head & 2) && sz === size) last = q;
+          q += sz;
+        }
+      }
+      if (!last) return 'none';
+      // chunk containing address a: binary search in starts
+      const owner = (a) => { let lo = 0, hi = starts.length - 1; while (lo < hi) { const m = (lo + hi + 1) >> 1; if (starts[m] <= a) lo = m; else hi = m - 1; } return starts[lo]; };
+      const txt = (a, k) => { let t = ''; for (let i = 0; i < k; i++) { const x = B[a + i]; t += x >= 32 && x < 127 ? String.fromCharCode(x) : '.'; } return t; };
+      const out = [`chunk@${last}`];
+      for (let e = 0; e < n; e++) {
+        const ea = last + 8 + e * stride;
+        const words = [];
+        for (let w = 0; w < stride / 4; w++) words.push(at(ea + w * 4));
+        const desc = words.map((v) => {
+          if (v > 65536 && v < L) { const c = owner(v); const csz = at(c + 4) & ~7; return `${v.toString(16)}[in ${csz}B+${v - c - 8}: ${txt(c + 8, 48)} | ${Array.from({ length: 8 }, (_, i) => at(c + 8 + i * 4).toString(16)).join(',')}]`; }
+          return v.toString(16);
+        });
+        out.push(`e${e}: ` + desc.join(' ; '));
+      }
+      return out.join(' || ');
+    } catch (e) { return 'err ' + e; }
+  };
   window.__agm = function () {
     try {
       if (!mem || !gm) return '';

@@ -88,7 +88,13 @@ var _q_deaths := 0
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	set_process(false)
-	var on := "--perf" in OS.get_cmdline_user_args()
+	# The game has no physics bodies, areas, shapes or queries, but the physics servers still step every tick, and
+	# on this web engine the stepping grows the heap (about 16 KB every 64 ticks, never freed: docs/PERF_BUDGET.md,
+	# "Leak hunt, part 2"). Stopping them changes nothing on screen. --physics-on (debug) keeps them running.
+	if not "--physics-on" in OS.get_cmdline_user_args():
+		PhysicsServer3D.set_active(false)
+		PhysicsServer2D.set_active(false)
+	var on :="--perf" in OS.get_cmdline_user_args()
 	if not on and OS.has_feature("web"):
 		var q: Variant = JavaScriptBridge.eval("new URLSearchParams(location.search).get('perf') || ''", true)
 		on = q is String and q != "" and q != "0"

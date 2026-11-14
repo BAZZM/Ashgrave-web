@@ -26,8 +26,21 @@ var _results: Array = []
 var _said_phase := {}
 var _fx: Sfx
 var _noeval := "--soak-noeval" in OS.get_cmdline_user_args()
+var _hist := "--soak-hist" in OS.get_cmdline_user_args() and not _noeval
+var _hist_doing := ""
+## Debug (--soak-pin): every material and sky seen during cycle 1 is kept for the rest of the run, so the shaders they
+## use are never freed and compiled again; whether that flattens the heap says if per-scene shader rebuilds grow it.
+var _pin := "--soak-pin" in OS.get_cmdline_user_args()
+## Debug (--soak-strip=OmniLight3D,shadows,...): in the tower scene, nodes of these classes are freed (or, for "shadows",
+## every light's shadow turned off) twice a second, to see which removal stops the heap growing.
+var _strip: PackedStringArray = []
+var _strip_t := 0.0
+var _pinned := {}
+var _pin_t := 0.0
 ## Debug, for finding which part of a cycle grows: --soak-only=roam,win,gather,screens,travel,lose,tower plays only those parts.
 var _only: PackedStringArray = []
+## Debug (--soak-idle-ts=X): the time scale held during the tower idle (-1: not held).
+var _idle_ts := -1.0
 
 
 func _part(name: String) -> bool:
@@ -48,6 +61,8 @@ func _ready() -> void:
 	Run.data.visited = ["camp_fire", "scar_anvil", "shrine", "altar", "circle", "watch", "tower"]
 	Run.data.in_tower = false
 	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--soak-strip="):
+			_strip = arg.trim_prefix("--soak-strip=").split(",")
 		if arg.begins_with("--soak-only="):
 			_only = arg.trim_prefix("--soak-only=").split(",")
 	if "--soak-hist" in OS.get_cmdline_user_args() and not _noeval:
@@ -57,6 +72,20 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	game_s += delta
+	if _pin and cycle <= 1:
+		_pin_t += delta
+		if _pin_t > 0.5:
+			_pin_t = 0.0
+			_pin_materials()
+	if not _strip.is_empty():
+		_strip_t += delta
+		if _strip_t > 0.5:
+			_strip_t = 0.0
+			_strip_tower()
+	if _hist and doing != _hist_doing:
+		# Debug (--soak-hist): the growing chunk sizes counted at every change of activity, to tie growth to one step.
+		print("SOAKG cycle=%d %s -> %s %s" % [cycle, _hist_doing, doing, str(JavaScriptBridge.eval("window.__agmCount ? window.__agmCount([8200,6152,1032]) : ''", true))])
+		_hist_doing = doing
 	var h := _heap() if not _noeval else 0
 	if h > _last_heap:
 		if _last_heap > 0:
@@ -72,8 +101,84 @@ func _process(delta: float) -> void:
 			d._bot = want_bot
 			d._base_time = SPEED
 			Engine.time_scale = SPEED
-	elif sc.get("is_land") != null and Engine.time_scale != SPEED:
+	elif sc.get("is_land") != null and Engine.time_scale != SPEED and _idle_ts < 0.0:
 		Engine.time_scale = SPEED
+
+
+func _strip_tower() -> void:
+	var sc := get_tree().current_scene
+	if "no3d" in _strip:
+		# No 3D rendering at all while in the tower (back on elsewhere).
+		get_tree().root.disable_3d = sc is World
+	if "noauto" in _strip:
+		# The autoloads (Online, Perf) stop running while in the tower.
+		for n in [get_tree().root.get_node_or_null("Online"), get_tree().root.get_node_or_null("Perf")]:
+			if n != null:
+				n.set_process(not (sc is World))
+	if not (sc is World):
+		return
+	var stack: Array = [sc]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		stack.append_array(n.get_children())
+		if "shadows" in _strip and n is Light3D:
+			(n as Light3D).shadow_enabled = false
+		for cls in _strip:
+			if cls.begins_with("noprocess:"):
+				# Kept, but its scripts stop running (process, physics, input and drawing of CanvasItems).
+				if n.is_class(cls.trim_prefix("noprocess:")):
+					n.set_process(false)
+					n.set_physics_process(false)
+					n.set_process_input(false)
+					n.set_process_unhandled_input(false)
+					if n is CanvasItem:
+						(n as CanvasItem).visible = false
+			elif cls != "shadows" and n.is_class(cls) and not n.is_queued_for_deletion():
+				n.queue_free()
+
+
+func _servers_active(which: PackedStringArray, on: bool) -> void:
+	var map := {"phys3d": "PhysicsServer3D", "phys2d": "PhysicsServer2D", "nav3d": "NavigationServer3D", "nav2d": "NavigationServer2D"}
+	for k in map:
+		if k in which:
+			var srv: Object = Engine.get_singleton(map[k])
+			if srv != null and srv.has_method("set_active"):
+				srv.call("set_active", on)
+			elif not on:
+				print("SOAK no set_active on %s" % map[k])
+
+
+func _pin_materials() -> void:
+	var stack: Array = [get_tree().root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		stack.append_array(n.get_children())
+		var mats: Array = []
+		if n is GeometryInstance3D:
+			mats.append((n as GeometryInstance3D).material_override)
+			mats.append((n as GeometryInstance3D).material_overlay)
+		if n is MeshInstance3D:
+			var mi := n as MeshInstance3D
+			for i in mi.get_surface_override_material_count():
+				mats.append(mi.get_surface_override_material(i))
+			if mi.mesh != null:
+				for i in mi.mesh.get_surface_count():
+					mats.append(mi.mesh.surface_get_material(i))
+		if n is MultiMeshInstance3D and (n as MultiMeshInstance3D).multimesh != null and (n as MultiMeshInstance3D).multimesh.mesh != null:
+			var mm := (n as MultiMeshInstance3D).multimesh.mesh
+			for i in mm.get_surface_count():
+				mats.append(mm.surface_get_material(i))
+		if n is CPUParticles3D and (n as CPUParticles3D).mesh != null:
+			var pm := (n as CPUParticles3D).mesh
+			for i in pm.get_surface_count():
+				mats.append(pm.surface_get_material(i))
+		if n is WorldEnvironment and (n as WorldEnvironment).environment != null and (n as WorldEnvironment).environment.sky != null:
+			mats.append((n as WorldEnvironment).environment.sky.sky_material)
+		if n is CanvasItem:
+			mats.append((n as CanvasItem).material)
+		for m in mats:
+			if m != null and not _pinned.has(m.get_instance_id()):
+				_pinned[m.get_instance_id()] = m
 
 
 func _heap() -> int:
@@ -256,6 +361,8 @@ func _main() -> void:
 		await _wait(3.0)
 		await _frames(3)
 		print("SOAK cycle=%d %s results=%s" % [cycle, readings(), ",".join(_results)])
+		if _pin:
+			print("SOAKPIN cycle=%d pinned=%d" % [cycle, _pinned.size()])
 		if "--soak-hist" in OS.get_cmdline_user_args():
 			# Debug: in-use heap chunks by size at this reading (window.__agmLast, filled by the reading above).
 			print("SOAKHIST cycle=%d %s" % [cycle, str(JavaScriptBridge.eval("JSON.stringify(window.__agmLast||{})", true))])
@@ -300,6 +407,7 @@ func _put(ow: Overworld, p: Vector3) -> void:
 func _finish_duel() -> String:
 	if not await _until(func(): return _in_duel(), 10.0):
 		return "none"
+	doing += " fighting"
 	var d: Duel = _scene().duel
 	await _until(func(): return not _in_duel(), 400.0)
 	if _in_duel():
@@ -463,6 +571,7 @@ func _tower_duel(t: World, bot: String, pack: bool, tag: String) -> String:
 		(second.node as Node3D).position = second.pos
 	t._start_duel(first)
 	var r := await _finish_duel()
+	doing = "after " + tag
 	want_bot = "soak"
 	return r
 
@@ -474,6 +583,60 @@ func _tower_part() -> bool:
 		return false
 	await _wait(1.0)
 	await _phase("tower")
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--soak-tower-idle="):
+			# Debug: stand in the tower this many game seconds before the first duel (is the growth the scene or the duel?).
+			doing = "tower idle"
+			if _hist:
+				print("SOAKG cycle=%d idle-start %s" % [cycle, str(JavaScriptBridge.eval("window.__agmCount ? window.__agmCount([8200,6152,1032]) : ''", true))])
+			# --soak-quiet: the bot's own per-frame work stops during the wait.
+			set_process(not ("--soak-quiet" in OS.get_cmdline_user_args()))
+			# --soak-idle-ts=X: Engine.time_scale during the idle; --soak-idle-real: the length is real seconds.
+			var ts0 := Engine.time_scale
+			var idle_real := "--soak-idle-real" in OS.get_cmdline_user_args()
+			for a2 in OS.get_cmdline_user_args():
+				if a2.begins_with("--soak-idle-ts="):
+					_idle_ts = float(a2.trim_prefix("--soak-idle-ts="))
+					Engine.time_scale = _idle_ts
+			# --soak-idle-steps=N: Engine.max_physics_steps_per_frame during the idle (frames against physics ticks).
+			var steps0 := Engine.max_physics_steps_per_frame
+			for a2 in OS.get_cmdline_user_args():
+				if a2.begins_with("--soak-idle-steps="):
+					Engine.max_physics_steps_per_frame = int(a2.trim_prefix("--soak-idle-steps="))
+			# --soak-idle-detach: the tower scene is taken out of the tree for the idle (scene or not?).
+			var detached: Node = null
+			if "--soak-idle-detach" in OS.get_cmdline_user_args():
+				detached = get_tree().current_scene
+				get_tree().root.remove_child(detached)
+			# --soak-idle-off=phys3d,phys2d,nav3d,nav2d: those servers are stopped (set_active false) for the idle.
+			var off: PackedStringArray = []
+			for a2 in OS.get_cmdline_user_args():
+				if a2.begins_with("--soak-idle-off="):
+					off = a2.trim_prefix("--soak-idle-off=").split(",")
+			_servers_active(off, false)
+			var f0 := Engine.get_process_frames()
+			var p0 := Engine.get_physics_frames()
+			var m0 := Time.get_ticks_msec()
+			var len_s := float(arg.trim_prefix("--soak-tower-idle="))
+			if idle_real:
+				await _wait(len_s * Engine.time_scale)
+			else:
+				await _wait(len_s)
+			var ts1 := Engine.time_scale
+			_idle_ts = -1.0
+			Engine.time_scale = ts0
+			Engine.max_physics_steps_per_frame = steps0
+			_servers_active(off, true)
+			if detached != null:
+				get_tree().root.add_child(detached)
+				get_tree().current_scene = detached
+			set_process(true)
+			if _hist:
+				print("SOAKG cycle=%d idle-end %s ts=%.2f real_ms=%d frames=%d phys=%d" % [cycle, str(JavaScriptBridge.eval("window.__agmCount ? window.__agmCount([8200,6152,1032]) : ''", true)), ts1, Time.get_ticks_msec() - m0, Engine.get_process_frames() - f0, Engine.get_physics_frames() - p0])
+			doing = "tower idled"
+			if _hist:
+				print("SOAKPEEK6 %s" % str(JavaScriptBridge.eval("window.__agmPeek ? window.__agmPeek(6152, 24, 4) : ''", true)))
+				print("SOAKPEEK8 %s" % str(JavaScriptBridge.eval("window.__agmPeek ? window.__agmPeek(8200, 32, 3) : ''", true)))
 	var t := _tower()
 	var r := await _tower_duel(t, "soak", false, "t1")
 	_results.append("t1:" + r)
