@@ -25,15 +25,23 @@ const ROADS := [
 	[Vector2(8, 30), Vector2(70, 90), Vector2(96, 118)],
 ]
 
+## Region colour scripts, Art Bible section 3 (G1). Colours are sRGB hex. ground: vertex colour of the
+## terrain; fog: fog and horizon colour; key: sun colour by day; amb: flat ambient colour.
+## The Meadows, The Scar and The Old Ruins have no bible row: the Meadows sit a little cooler than
+## Hearthvale, the Scar is Hearthvale's earth with the green taken out, the Ruins are a grey-blue stone.
 const BIOMES := {
-	"village": {"name": "Hearthvale", "ground": Color(0.36, 0.4, 0.24), "fog": Color(0.55, 0.6, 0.62), "foe": ""},
-	"meadow": {"name": "The Meadows", "ground": Color(0.3, 0.46, 0.2), "fog": Color(0.55, 0.62, 0.62), "foe": "thrall", "beast": "deer"},
-	"forest": {"name": "Greywood", "ground": Color(0.16, 0.3, 0.16), "fog": Color(0.3, 0.42, 0.36), "foe": "bandit", "alt": "poacher", "beast": "deer"},
-	"marsh": {"name": "Mirefen", "ground": Color(0.24, 0.3, 0.22), "fog": Color(0.36, 0.44, 0.38), "foe": "wight", "alt": "hexer", "beast": "boar"},
-	"quarry": {"name": "The Scar", "ground": Color(0.42, 0.38, 0.33), "fog": Color(0.6, 0.56, 0.5), "foe": "brute"},
-	"ruins": {"name": "The Old Ruins", "ground": Color(0.33, 0.33, 0.3), "fog": Color(0.45, 0.45, 0.48), "foe": "keeper", "alt": "seer"},
-	"ashlands": {"name": "The Ashlands", "ground": Color(0.2, 0.17, 0.17), "fog": Color(0.3, 0.2, 0.18), "foe": "pyre"},
+	"village": {"name": "Hearthvale", "ground": Color("#5E6B38"), "fog": Color("#8A8F88"), "key": Color("#FFE2B8"), "amb": Color("#8795A8"), "foe": ""},
+	"meadow": {"name": "The Meadows", "ground": Color("#5A6B3C"), "fog": Color("#818E88"), "key": Color("#F5E6C4"), "amb": Color("#7E8FA4"), "foe": "thrall", "beast": "deer"},
+	"forest": {"name": "Greywood", "ground": Color("#2F3F2C"), "fog": Color("#4A5F54"), "key": Color("#DDE8C4"), "amb": Color("#55685E"), "foe": "bandit", "alt": "poacher", "beast": "deer"},
+	"marsh": {"name": "Mirefen", "ground": Color("#4A4634"), "fog": Color("#66756E"), "key": Color("#E6E2D0"), "amb": Color("#6A7C82"), "foe": "wight", "alt": "hexer", "beast": "boar"},
+	"quarry": {"name": "The Scar", "ground": Color("#5A5248"), "fog": Color("#76706A"), "key": Color("#F0E2C8"), "amb": Color("#77716E"), "foe": "brute"},
+	"ruins": {"name": "The Old Ruins", "ground": Color("#4F4F4A"), "fog": Color("#5F6068"), "key": Color("#D9DDE6"), "amb": Color("#5E6472"), "foe": "keeper", "alt": "seer"},
+	"ashlands": {"name": "The Ashlands", "ground": Color("#332B2B"), "fog": Color("#4D332E"), "key": Color("#DDB8A4"), "amb": Color("#4A3A40"), "foe": "pyre"},
 }
+
+## Road and shore blends in ground_color_with: Dirt trail light (bible 2.1) and a muddy shore.
+const ROAD_COLOR := Color("#6B5A40")
+const SHORE_COLOR := Color("#5A5238")
 
 const FOES := {
 	"thrall": {"name": "Field Thrall", "arche": 1, "hp": 0.36, "dmg": 0.7, "level": 2, "style": "knight", "scale": 1.1, "body": Color(0.5, 0.48, 0.4), "accent": Color(0.7, 0.6, 0.2), "drop": "bone"},
@@ -207,10 +215,10 @@ static func ground_color_with(x: float, z: float, b: String, segs: Array) -> Col
 		var t := clampf((p - a).dot(d) / d.length_squared(), 0.0, 1.0)
 		rd = minf(rd, p.distance_to(a + d * t))
 	if rd < 3.2:
-		c = c.lerp(Color(0.42, 0.33, 0.22), smoothstep(3.2, 1.2, rd))
+		c = c.lerp(ROAD_COLOR, smoothstep(3.2, 1.2, rd))
 	var wd := minf(river_dist(x, z) - 5.0, lake_dist(x, z) - LAKE_R + 3.0)
 	if wd < 3.0:
-		c = c.lerp(Color(0.5, 0.45, 0.32), smoothstep(3.0, 0.0, wd))
+		c = c.lerp(SHORE_COLOR, smoothstep(3.0, 0.0, wd))
 	return c
 
 

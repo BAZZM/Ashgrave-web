@@ -13,6 +13,14 @@ const SUB_STEP := 0.08
 const WALL_RES := 0.05
 ## Game seconds pushed without moving before the safety net checks for a way out.
 const STUCK_AFTER := 0.5
+## Art Bible section 4, Tower column (G1). Ambient is the tier's flat colour (Tiers.THEMES amb).
+const LIGHT_AMBIENT := 0.4
+const LIGHT_FOG_DENSITY := 0.03
+const LIGHT_MOON := 0.2
+const LIGHT_MOON_OPEN := 0.45  # the Rookery, which is open to the sky
+const LIGHT_SHADOW_DISTANCE := 24.0
+const LIGHT_TORCH_ENERGY := 2.8
+const LIGHT_TORCH_RANGE := 7.0
 const PROMPTS := {"chest": "OPEN", "smith": "TRADE", "brazier": "REST", "relic": "TAKE", "exit": "ASCEND", "entry": "DESCEND"}
 
 var is_land := false
@@ -183,23 +191,25 @@ func _build_env() -> void:
 	sky.sky_material = sky_mat
 	env.background_mode = Environment.BG_SKY
 	env.sky = sky
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	env.ambient_light_energy = 1.8
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_color = theme.amb
+	env.ambient_light_energy = LIGHT_AMBIENT
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	env.glow_enabled = not OS.has_feature("web")
 	env.fog_enabled = true
 	env.fog_light_color = theme.fog
-	env.fog_density = 0.022
+	env.fog_density = LIGHT_FOG_DENSITY
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
 	var moon := DirectionalLight3D.new()
 	moon.rotation_degrees = Vector3(-52, 140, 0)
 	moon.light_color = Color(0.7, 0.78, 1.0)
-	moon.light_energy = 1.0 if theme.special != "open" else 1.6
+	moon.light_energy = LIGHT_MOON if theme.special != "open" else LIGHT_MOON_OPEN
 	moon.shadow_enabled = true
-	moon.directional_shadow_max_distance = 40.0
+	moon.directional_shadow_max_distance = LIGHT_SHADOW_DISTANCE
+	moon.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
 	add_child(moon)
 
 
@@ -222,7 +232,7 @@ func _glow_mat(c: Color, energy := 3.0) -> StandardMaterial3D:
 	return m
 
 
-func _torch(pos: Vector3, energy := 2.4, rng := 10.0) -> void:
+func _torch(pos: Vector3, energy := LIGHT_TORCH_ENERGY, rng := LIGHT_TORCH_RANGE) -> void:
 	var post := MeshKit.lathe([[0.12, 0.0], [0.05, 0.1], [0.045, 1.9], [0.16, 2.0], [0.2, 2.15]], 8)
 	_mesh(post, pos, _stone)
 	var orb := SphereMesh.new()

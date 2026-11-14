@@ -3,16 +3,26 @@ extends RefCounted
 static var _meshes := {}
 static var _mats := {}
 
+## Art Bible section 3 palette (G1): the colour a material key gets whatever the caller asked for, so
+## houses, bridges and chests (built in several files) agree. Keys not listed keep their own colour.
+const PALETTE := {
+	"plaster": Color("#736A56"),
+	"thatch": Color("#5E4935"),
+	"wood": Color("#4A3A2A"),
+	"bark_solo": Color("#3D2E22"),
+	"goldtrim": Color("#C9A24B"),
+}
+
 
 static func mat(key: String, color: Color, rough := 0.9, glow := 0.0, tinted := false) -> StandardMaterial3D:
 	if not _mats.has(key):
 		var m := StandardMaterial3D.new()
-		m.albedo_color = color
+		m.albedo_color = PALETTE.get(key, color)
 		m.roughness = rough
 		m.vertex_color_use_as_albedo = tinted
 		if glow > 0.0:
 			m.emission_enabled = true
-			m.emission = color
+			m.emission = m.albedo_color
 			m.emission_energy_multiplier = glow
 		_mats[key] = m
 	return _mats[key]
