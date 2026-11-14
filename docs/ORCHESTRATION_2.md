@@ -46,12 +46,15 @@ up. It sits on top of `docs/ORCHESTRATOR.md` (phases, gates, roles) and
 |---|---|---|---|---|---|
 | P1 | Perf | Memory and crash investigation by soak bot; fix leaks found; `perf-soak` scenario; `docs/PERF_BUDGET.md` | Opus | any script, minimal; `tools/` | DONE, released as Build 14 |
 | S1 | Story | `docs/STORY_BIBLE.md` and a fully written Act 1 from existing lore | Fable | docs only | DONE, merged (6010437) |
-| P2 | Perf | Safe mode and quality settings (pixel-ratio cap, shadows, auto-drop after two memory deaths, menu toggle) | Sonnet | `perf.gd`, `run.gd` settings, `world_hud.gd` | built, review fix round running |
+| P2 | Perf | Safe mode and quality settings (pixel-ratio cap, shadows, auto-drop after two memory deaths, menu toggle) | Sonnet | `perf.gd`, `run.gd` settings, `world_hud.gd` | DONE, released as Build 16 (safe = pixel-ratio cap 1.5, shadows off) |
 | G1 | Graphics | Lighting and atmosphere per `docs/ART_BIBLE.md` section 4; Golden Shots before and after | Sonnet | `overworld_sky.gd`, `arena.gd`, lights in `world.gd` | DONE, released as Build 13 |
 | S2 | Story | Quests as data; dialogue UI; Act 1 playable; quest bot scenario | Sonnet | `quests.gd`, `story.gd`, `world_hud.gd`, NPC hooks | DONE, released as Build 15 |
-| G2 | Graphics | `tex_kit.gd`, texture import, look test with three treatments | Sonnet (Opus if the shader fights the renderer) | new files; debug hook in `overworld.gd` | running |
-| G3 | Graphics | Visual Critic picks the treatment; apply ground and water behind the quality setting; memory measured | Fable, then Sonnet | `overworld_terrain.gd`, `overworld_kit.gd`, `land.gd` colours | queued |
-| S3 | Story | Acts 2 and 3 and region side quests filled against the schema | Haiku, Sonnet review | quest data | drafts written (lane/s3-story-fill), awaiting narrative review |
+| G2 | Graphics | `tex_kit.gd`, texture import, look test with three treatments | Sonnet (Opus if the shader fights the renderer) | new files; debug hook in `overworld.gd` | DONE (lane/g2-texkit); Critic chose GRAIN |
+| G3 | Graphics | Visual Critic picks the treatment; apply ground and water behind the quality setting; memory measured | Fable, then Sonnet | `overworld_terrain.gd`, `overworld_kit.gd`, `land.gd` colours | built and reviewed (lane/g3-ground-water 2d0c92f); ships as Build 17 |
+| S3 | Story | Acts 2 and 3 and region side quests filled against the schema | Haiku, Sonnet review | quest data | reviewed (docs/story/REVIEW_S3.md on the S4 lane): Act 2 rewrite, Act 3 rejected pending owner rulings, side quests rewrite |
+| S4 | Story | Act 2 part one: the editor's first buildable slice (5 main-line quests, about 9 side quests, Oswin, Nan Harrow), `act2` bot scenarios | Sonnet, Fable text check | quest data, NPC hooks, docs/story | running (lane/s4-act2-part1); ships as Build 18 |
+| L1 | Perf | Leak hunt: about 1.7 MB of wasm memory in use per soak cycle since Build 15 or earlier; tower part 0.6 to 0.9 MB; use the `mused` columns and `--soak-only` | Opus | any script, minimal | queued |
+| B1 | Bug | PvP: one duel result message sometimes missing (res N, atk N+1) | Opus | online scripts | queued |
 | G4 | Graphics | Walls and wood, then trees | Sonnet | `overworld_places.gd`, `world.gd`, terrain scatter | queued |
 | R1 | Graphics | Resume rig stage R1 (paused, work on `lane/p2-r1-rigvisual`) | Opus | see `docs/RIG_PLAN.md` | parked until the above are out |
 
