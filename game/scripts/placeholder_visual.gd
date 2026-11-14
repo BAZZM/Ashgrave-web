@@ -43,6 +43,22 @@ var _fall_tw: Tween
 var _trail: MultiMeshInstance3D
 var _trail_mm: MultiMesh
 static var _cloth_shader: Shader
+
+## Art Bible sections 5 and 7 (G1). Metal reads as its own colour, not a mirrored sky.
+const METAL_ROUGH := 0.45
+const METAL_METALLIC := 0.60
+const TRIM_ROUGH := 0.40
+const TRIM_METALLIC := 0.70
+const BLADE_ROUGH := 0.30
+const BLADE_METALLIC := 0.85
+## Rim light: the hero and a duel enemy get a strong one, everyone else keeps today's.
+## Enemies are told from villagers and NPCs by scale (enemies are 1.1 and up).
+const RIM_HERO := 0.5
+const RIM_ENEMY := 0.7
+const RIM_OTHER := 0.35
+const RIM_TINT := 0.3
+const ENEMY_MIN_SCALE := 1.08
+var _rim_amt := RIM_OTHER
 var _trail_pts: Array = []
 var _trail_time := 0.0
 var _trail_color := Color(1, 0.9, 0.7)
@@ -70,14 +86,14 @@ func configure(cfg: Dictionary) -> void:
 	_build()
 
 
-func _metal(color: Color, rough := 0.34, metallic := 0.85) -> StandardMaterial3D:
+func _metal(color: Color, rough := METAL_ROUGH, metallic := METAL_METALLIC) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
 	m.albedo_color = color
 	m.metallic = metallic
 	m.roughness = rough
 	m.rim_enabled = true
-	m.rim = 0.35
-	m.rim_tint = 0.4
+	m.rim = _rim_amt
+	m.rim_tint = RIM_TINT
 	return m
 
 
@@ -121,8 +137,9 @@ func _build() -> void:
 	var b := _bulk
 	var slim: bool = st.get("slim", false)
 
+	_rim_amt = RIM_HERO if style == "hero" else (RIM_ENEMY if absf(scale.y) >= ENEMY_MIN_SCALE else RIM_OTHER)
 	_armour = _metal(body_color)
-	var trim := _metal(accent_color.lerp(Color(1.0, 0.8, 0.4), 0.35), 0.3, 0.9)
+	var trim := _metal(accent_color.lerp(Color(1.0, 0.8, 0.4), 0.35), TRIM_ROUGH, TRIM_METALLIC)
 	var dark := _metal(body_color.darkened(0.6), 0.75, 0.3)
 	var glow := StandardMaterial3D.new()
 	glow.albedo_color = Color.BLACK
@@ -234,7 +251,7 @@ func _build() -> void:
 	_build_weapon(st, trim, dark, glow)
 
 	if st.get("back_blade", false):
-		var bm := _metal(st.get("blade_tint", Color(0.86, 0.88, 0.92)), 0.18, 0.95)
+		var bm := _metal(st.get("blade_tint", Color(0.86, 0.88, 0.92)), BLADE_ROUGH, BLADE_METALLIC)
 		bm.cull_mode = BaseMaterial3D.CULL_DISABLED
 		_part(_torso, MeshKit.blade(0.82, 0.06, 0.035, 0.14), Vector3(-0.12, 0.05, 0.24 * b), bm, Vector3(0, 0, -28))
 		_part(_torso, MeshKit.lathe([[0.0, -0.16], [0.025, -0.15], [0.025, 0.0], [0.0, 0.01]], 6), Vector3(-0.12, 0.05, 0.24 * b), dark, Vector3(0, 0, -28))
@@ -244,7 +261,7 @@ func _build() -> void:
 		_part(_torso, MeshKit.lathe([[0.0, -0.3], [0.06, -0.29], [0.07, 0.3], [0.0, 0.31]], 8), Vector3(-0.16, 0.3, 0.26 * b), wood, Vector3(0, 0, -20))
 	if st.get("knife_belt", false):
 		for k in 3:
-			_part(_body, MeshKit.blade(0.2, 0.035, 0.012, 0.07), Vector3(0.1 + k * 0.07, HIP_Y - 0.16, -0.2 * b), _metal(Color(0.85, 0.87, 0.9), 0.2, 0.95), Vector3(180, 0, 0))
+			_part(_body, MeshKit.blade(0.2, 0.035, 0.012, 0.07), Vector3(0.1 + k * 0.07, HIP_Y - 0.16, -0.2 * b), _metal(Color(0.85, 0.87, 0.9), BLADE_ROUGH, BLADE_METALLIC), Vector3(180, 0, 0))
 	if st.has("focus"):
 		var orb := SphereMesh.new()
 		orb.radius = 0.07
@@ -343,7 +360,7 @@ func _build_weapon(st: Dictionary, trim: Material, dark: Material, glow: Materia
 	_body.add_child(_sword)
 	var length: float = st.blade[0]
 	var width: float = st.blade[1]
-	_blade_mat = _metal(st.get("blade_tint", Color(0.86, 0.88, 0.92)), 0.18, 0.95)
+	_blade_mat = _metal(st.get("blade_tint", Color(0.86, 0.88, 0.92)), BLADE_ROUGH, BLADE_METALLIC)
 	_blade_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_blade_mat.emission_enabled = true
 	_blade_mat.emission = Color.BLACK

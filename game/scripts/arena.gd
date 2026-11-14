@@ -1,5 +1,20 @@
 extends Node3D
 
+## Art Bible section 4, Duel column (G1). Tower arenas use the tier theme; the outdoor arena uses the
+## region's own colours under the same overcast sky as the land.
+const MOON_ENERGY := 0.25
+const MOON_ENERGY_OUTDOOR := 0.5
+const AMBIENT_ENERGY := 0.45
+const FOG_DENSITY := 0.045
+const SHADOW_DISTANCE := 16.0
+const FILL_ENERGY := 2.0
+const RIM_ENERGY := 4.0
+const RIM_COOL := Color(0.55, 0.7, 1.0)  # behind the enemy, opposite the key: cool against a warm key
+const RIM_WARM := Color(1.0, 0.7, 0.45)  # ... and warm against a cool key
+const OUTDOOR_SKY_TOP := Color("#56637A")
+const OUTDOOR_FOG_MULT := 0.8
+const TORCH_ENERGY := 2.2
+
 var _torches: Array[OmniLight3D] = []
 var _t := 0.0
 
@@ -12,8 +27,10 @@ func _ready() -> void:
 	var outdoor: bool = Run.encounter.has("wild")
 	if outdoor:
 		var bio: Dictionary = Land.BIOMES[Run.encounter.get("biome", "meadow")]
-		th = {"sky_top": Color(0.2, 0.34, 0.6), "sky_low": (bio.fog as Color), "fog": bio.fog,
-			"stone": (bio.ground as Color), "light": Color(1.0, 0.75, 0.45)}
+		var fog_c: Color = (bio.fog as Color) * OUTDOOR_FOG_MULT
+		fog_c.a = 1.0
+		th = {"sky_top": OUTDOOR_SKY_TOP, "sky_low": fog_c, "fog": fog_c, "amb": bio.amb,
+			"stone": (bio.ground as Color), "light": Color(1.0, 0.75, 0.45), "key": bio.key}
 	var sky_mat := ProceduralSkyMaterial.new()
 	sky_mat.sky_top_color = th.sky_top
 	sky_mat.sky_horizon_color = th.sky_low
@@ -24,8 +41,9 @@ func _ready() -> void:
 	sky.sky_material = sky_mat
 	env.background_mode = Environment.BG_SKY
 	env.sky = sky
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	env.ambient_light_energy = 1.6
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_color = th.amb
+	env.ambient_light_energy = AMBIENT_ENERGY
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	env.glow_enabled = not OS.has_feature("web")
@@ -33,7 +51,7 @@ func _ready() -> void:
 	env.glow_bloom = 0.15
 	env.fog_enabled = true
 	env.fog_light_color = th.fog
-	env.fog_density = 0.035
+	env.fog_density = FOG_DENSITY
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
@@ -41,21 +59,24 @@ func _ready() -> void:
 	var moon := DirectionalLight3D.new()
 	moon.rotation_degrees = Vector3(-48, 150, 0)
 	moon.light_color = Color(0.7, 0.78, 1.0)
-	moon.light_energy = 2.2 if outdoor else 1.1
+	moon.light_energy = MOON_ENERGY_OUTDOOR if outdoor else MOON_ENERGY
 	moon.shadow_enabled = true
+	moon.directional_shadow_max_distance = SHADOW_DISTANCE
+	moon.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
 	add_child(moon)
 
 	var fill := OmniLight3D.new()
 	fill.position = Vector3(0.5, 3.6, 2.2)
 	fill.light_color = Color(1.0, 0.8, 0.65)
-	fill.light_energy = 1.6
+	fill.light_energy = FILL_ENERGY
 	fill.omni_range = 9.0
 	add_child(fill)
 
 	var rim := OmniLight3D.new()
 	rim.position = Vector3(-1.5, 4.0, -4.5)
-	rim.light_color = Color(0.55, 0.7, 1.0)
-	rim.light_energy = 3.0
+	var key_c: Color = th.get("key", th.light)
+	rim.light_color = RIM_COOL if key_c.r >= key_c.b else RIM_WARM
+	rim.light_energy = RIM_ENERGY
 	rim.omni_range = 10.0
 	add_child(rim)
 
@@ -99,7 +120,7 @@ func _ready() -> void:
 			var l := OmniLight3D.new()
 			l.position = tp
 			l.light_color = th.light
-			l.light_energy = 2.2
+			l.light_energy = TORCH_ENERGY
 			l.omni_range = 9.0
 			add_child(l)
 			_torches.append(l)
@@ -141,4 +162,4 @@ func _mesh(mesh: Mesh, pos: Vector3, mat: Material) -> void:
 func _process(delta: float) -> void:
 	_t += delta
 	for i in _torches.size():
-		_torches[i].light_energy = 2.2 + sin(_t * 9.0 + i * 1.7) * 0.25 + sin(_t * 23.0 + i) * 0.15
+		_torches[i].light_energy = TORCH_ENERGY + sin(_t * 9.0 + i * 1.7) * 0.25 + sin(_t * 23.0 + i) * 0.15

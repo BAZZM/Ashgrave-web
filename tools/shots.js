@@ -6,6 +6,9 @@
 //   node tools/shots.js --portrait [...]      capture portrait instead (the game is played landscape-only;
 //                                              portrait shows the game's own framing, not what players see)
 //   node tools/shots.js --list                print the shot names
+//   node tools/shots.js --regions [outdir]    one landscape shot per land region the seven shots do not
+//                                              cover (forest, marsh, quarry, ruins, ashlands), at fixed spots
+//                                              with the default follow camera (written as r<n>-<region>-landscape.png)
 //
 // Uses the current build (run `python3 tools/build.py` first). Serves the repo like
 // smoke.js, loads the game once per shot and orientation (the game picks its 3D render
@@ -40,15 +43,22 @@ let scale = 2;
 let timeout = 300;
 let list = false;
 let portrait = false;
+let regions = false;
 const pos = [];
 for (const a of process.argv.slice(2)) {
   if (a === '--list') list = true;
   else if (a === '--portrait') portrait = true;
+  else if (a === '--regions') regions = true;
   else if (a.startsWith('--scale=')) scale = Number(a.slice(8));
   else if (a.startsWith('--timeout=')) timeout = Number(a.slice(10));
   else if (a.startsWith('-')) { console.error(`unknown option ${a}`); process.exit(2); }
   else pos.push(a);
 }
+// Region shots: `--shot=x --shot-when=pvp --at=X,Z` puts a fresh-save hero at a spot, by day, with no
+// movement; "pvp" makes the game wait instead of saving its own picture. Ready = terrain chunk count stable.
+const REGIONS = [
+  ['forest', -120, 20], ['marsh', -60, 120], ['quarry', 150, -20], ['ruins', 150, -170], ['ashlands', 0, -165],
+].map(([slug, x, z], i) => ({ slug, x, z, id: `r${i + 1}-${slug}` }));
 const ORIENTATIONS = ALL_ORIENTATIONS.filter(([o]) => o === (portrait ? 'portrait' : 'landscape'));
 if (list) {
   for (const s of SHOTS) console.log(`${s.id}  ${s.about}`);
@@ -57,7 +67,7 @@ if (list) {
 const find = (n) => SHOTS.find((s) => s.slug === n || s.id === n || String(Number(n)).padStart(2, '0') === s.id.slice(0, 2) && /^\d+$/.test(n));
 let outdir = path.join(os.tmpdir(), 'ashgrave-shots');
 if (pos.length && !find(pos[0])) outdir = path.resolve(pos.shift());
-const chosen = pos.length ? pos.map((n) => find(n) || (console.error(`unknown shot ${n}`), process.exit(2))) : SHOTS;
+const chosen = regions ? [] : pos.length ? pos.map((n) => find(n) || (console.error(`unknown shot ${n}`), process.exit(2))) : SHOTS;
 if (outdir === ROOT || outdir.startsWith(ROOT + path.sep)) {
   console.error('outdir must be outside the repo');
   process.exit(2);
@@ -92,6 +102,38 @@ const server = http.createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': type });
   fs.createReadStream(file).pipe(res);
 });
+
+async function captureRegion(browser, base, r) {
+  const errors = [];
+  const ctx = await browser.newContext({ viewport: { width: 844, height: 390 }, deviceScaleFactor: scale });
+  const page = await ctx.newPage();
+  const counts = [];
+  page.on('pageerror', (e) => errors.push(String(e)));
+  page.on('console', (m) => {
+    const text = m.text();
+    const c = /^PERFLOG .*chunks=(\d+)/.exec(text);
+    if (c) counts.push(Number(c[1]));
+    if (text.startsWith('WebSocket connection to')) return;
+    if (m.type() === 'error' || /SCRIPT ERROR|Parse Error/.test(text)) errors.push(text);
+  });
+  const t0 = Date.now();
+  const args = [`--shot=/tmp/none.png`, '--shot-when=pvp', `--at=${r.x},${r.z}`, '--perflog'];
+  await page.goto(`${base}/index.html?relay=ws://127.0.0.1:9&${args.map((a) => 'arg=' + encodeURIComponent(a)).join('&')}`);
+  let ok = false;
+  while ((Date.now() - t0) / 1000 < timeout) {
+    await page.waitForTimeout(3000);
+    const n = counts.length;
+    if (n >= 3 && counts[n - 1] > 0 && counts[n - 1] === counts[n - 2] && counts[n - 2] === counts[n - 3]) { ok = true; break; }
+  }
+  const file = `${r.id}-landscape.png`;
+  if (ok) {
+    await page.waitForTimeout(2000);
+    await page.screenshot({ path: path.join(outdir, file) });
+  }
+  await ctx.close();
+  console.log(`${ok && !errors.length ? 'ok  ' : 'FAIL'} ${file} (${((Date.now() - t0) / 1000).toFixed(0)}s)${errors.length ? '\n  ' + errors.map((e) => e.slice(0, 300)).join('\n  ') : ''}`);
+  return ok && !errors.length;
+}
 
 async function capture(browser, base, shot, [orient, w, h]) {
   const errors = [];
@@ -158,6 +200,13 @@ server.listen(0, '127.0.0.1', async () => {
   const t0 = Date.now();
   const done = new Set();
   let failed = 0;
+  if (regions) {
+    for (const r of REGIONS) {
+      let ok = false;
+      try { ok = await captureRegion(browser, base, r); } catch (e) { console.log(`FAIL ${r.id}: ${e.message}`); }
+      if (!ok) failed++;
+    }
+  }
   for (const shot of chosen) {
     for (const o of ORIENTATIONS) {
       let ok = false;
@@ -167,7 +216,7 @@ server.listen(0, '127.0.0.1', async () => {
   }
   await browser.close();
   server.close();
-  sheet(done);
+  if (!regions) sheet(done);
   console.log(`${failed ? failed + ' failed' : 'all ok'}, ${((Date.now() - t0) / 1000).toFixed(0)}s total, contact sheet ${path.join(outdir, 'index.html')}`);
   process.exit(failed ? 1 : 0);
 });
