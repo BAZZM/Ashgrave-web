@@ -206,3 +206,25 @@ Golden Shots to improve first: 05, 06, then 03, then 01.
 1. **Ash ground and rock faces: neither pack has them.** (a) Forest-floor and mud grains under the Ashlands ramp: no new texture; may read as dark soil. (b) One CC0 ash texture: truer cracks; a third source to unify. (c) Macro noise only: cheapest; flattest. **Recommend (a), then (b) if Ashlands terrain scores below 3.** Rock faces use macro noise.
 2. **Sky.** (a) Always overcast, Hearthvale warmest: most cohesive. (b) Blue noon over Hearthvale only: stronger haven contrast; two sky recipes. **Recommend (a).**
 3. **KayKit heads are large and friendly.** (a) Accept them under the dark palette: no work; least menace. (b) Cover every fighter's face and scale the head bone to 0.85: darker read; needs an animation check. **Recommend (b).**
+
+## Applied in G1
+
+Lighting, sky, fog, region colours and fighter metal, with before and after Golden Shots. Compatibility lights read about three times brighter than the bible's energies assume, so energies were tuned against its own card test; colours, fog, shadows and tier values are as specified. Region fog, key and ambient blend over about 2.5 s on a biome change. Round 2 followed a Visual Critic review: fighters had read darker than the ground.
+
+|Value|Bible|Applied|Why|
+|---|---|---|---|
+|Land sun day, dusk, night|1.2, 0.8, 0.25|0.32, 0.3, 0.15|calibration|
+|Land ambient day|0.6|0.75 (x1.7 Greywood, Ashlands)|calibration; shade and forests playable|
+|Tower moon, Rookery|0.5, 1.0|0.35, 0.6|calibration; keeps the cool key|
+|Duel moon, outdoor; ambient|0.6, 1.2; 0.55|0.25, 0.5; 0.45|calibration|
+|Land fog density|0.008|0.006|tower against sky|
+|Metal metallic|0.60|0.35|metal mirrored the dark sky and read dark|
+|Rim hero, enemy|0.5, 0.7|0.9, 1.0|fighters first|
+|Fighter self-light|none|emission 0.5 x albedo|fighters 1.5x the ground; no light node|
+|Plaster|`#736A56`|`#8A7F68`|shaded walls read V 0.24|
+|Road|`#6B5A40`|`#8A7552`|value step from grass|
+|Ashlands key|`#FF9A6B`|`#DDD5D0`|ground saturation|
+|Keeper, Seer, Pyre bodies|n/a|bone and brass, purple, ember|not hero-blue, not brown on brown|
+|`adjustment_*`, `fog_height`|on|off|2.3 MB buffer; no visible effect|
+
+Skipped: lit torches, halo quads, grain textures. Not met: Ashlands median luminance and saturation (0.34 against 0.20), distant tower enemy against the floor.

@@ -84,6 +84,25 @@ func _take_shot_if_due() -> void:
 	if due:
 		var path := d._shot_path
 		d._shot_path = ""
+		if "--g3empty" in OS.get_cmdline_user_args():
+			# Lane G3 (tools/g3_shots.js): freeze, say "G3SHOT full" for the picture, wait for the page to ask, hide both fighters
+			# (and so their shadows) and say "G3SHOT empty": the same frame without them, to measure the ground behind them.
+			Engine.time_scale = 0.0
+			d.hud.visible = false
+			for i in 3:
+				await RenderingServer.frame_post_draw
+			print("G3SHOT full")
+			var guard := 0
+			while guard < 6000 and OS.has_feature("web") and int(JavaScriptBridge.eval("window.__g3_hide ? 1 : 0", true)) == 0:
+				guard += 1
+				await RenderingServer.frame_post_draw
+			d.player.visible = false
+			for f in d.foes:
+				f.node.visible = false
+			for i in 4:
+				await RenderingServer.frame_post_draw
+			print("G3SHOT empty")
+			return
 		await RenderingServer.frame_post_draw
 		await RenderingServer.frame_post_draw
 		d.get_viewport().get_texture().get_image().save_png(path)

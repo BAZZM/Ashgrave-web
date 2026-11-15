@@ -1,6 +1,10 @@
 class_name Story
 extends RefCounted
 
+const Act1 := preload("res://scripts/quest_data_act1.gd")
+const Act2 := preload("res://scripts/quest_data_act2.gd")
+const Side := preload("res://scripts/quest_data_side.gd")
+
 const INSCRIPTIONS := {
 	1: ["Here the oath was first spoken. Here it is still owed.", "Ash keeps what fire forgets.", "Your father's name is on this gate. So is his father's."],
 	2: ["The cisterns were dug to drown the pyre. They failed.", "Still water remembers every face that looked into it."],
@@ -44,10 +48,56 @@ static func inscription(tier: int, bloodline: int) -> String:
 
 
 static func bark(enemy_name: String, moment: String, met_before := false) -> String:
-	var b: Dictionary = BARKS.get(enemy_name, {})
+	var b: Dictionary = BARKS.get(enemy_name, Act1.BARKS.get(enemy_name, Act2.BARKS.get(enemy_name, {})))
 	if moment == "intro" and met_before and b.has("again"):
 		return b.again
-	return b.get(moment, "")
+	var v: Variant = b.get(moment, "")
+	if v is Array:
+		return v[randi() % v.size()] if not v.is_empty() else ""
+	return v
+
+
+## Lore found so far is kept in Run.data.lore (ids). "insc<tier>_<n>" is a tower inscription, "relic<n>" a
+## relic; anything else is a key of the LORE tables of Act 1, Act 2 or the side quests. Returns true if it was new.
+static func found(id: String) -> bool:
+	if Run.data.lore.has(id):
+		return false
+	Run.data.lore.append(id)
+	Quests.touch()
+	return true
+
+
+static func lore_entry(id: String) -> Dictionary:
+	if id.begins_with("insc"):
+		var p := id.substr(4).split("_")
+		var t := int(p[0])
+		var pool: Array = INSCRIPTIONS.get(t, [""])
+		var n := int(p[1]) if p.size() > 1 else 0
+		return {"name": "Inscription: %s" % Tiers.THEMES.get(t, {}).get("name", "the tower"), "text": pool[n % pool.size()]}
+	if id.begins_with("relic"):
+		return RELICS.get(int(id.substr(5)), {"name": id, "text": ""})
+	for src in [Act1.LORE, Act2.LORE, Side.LORE]:
+		if src.has(id):
+			return src[id]
+	return {"name": id, "text": ""}
+
+
+## Rebuild lore that a save made without the key (an older build) should have: held relics, and the lore of
+## finished quests. Only ever adds.
+static func backfill_lore() -> void:
+	for r in Run.data.relics:
+		if RELICS.has(int(r)):
+			found("relic%d" % int(r))
+	for id in Quests.QUESTS:
+		if Quests.state(id).get("done", false):
+			for lid in Quests.QUESTS[id].get("reward", {}).get("lore", []):
+				found(lid)
+
+
+## Record a tower inscription as read.
+static func read_inscription(tier: int, bloodline: int) -> void:
+	var n: int = INSCRIPTIONS.get(tier, [""]).size()
+	found("insc%d_%d" % [tier, (bloodline - 1) % n])
 
 
 static func heir_letter(bloodline: int) -> String:

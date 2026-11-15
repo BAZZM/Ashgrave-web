@@ -64,6 +64,10 @@ var travel: OverworldTravel
 
 
 func _ready() -> void:
+	# Debug only: `--looktest=tex` replaces the world with the texture look-test scene (docs/TEXTURE_LOOK.md).
+	if "--looktest=tex" in OS.get_cmdline_user_args():
+		add_child((load("res://scripts/tex_looktest.gd") as GDScript).new())
+		return
 	terrain = OverworldTerrain.new(self)
 	places = OverworldPlaces.new(self)
 	sky = OverworldSky.new(self)
@@ -187,6 +191,12 @@ func _ready() -> void:
 		Run.captions.append("Picked up where you left off.")
 
 	terrain._update_chunks(true)
+	# A saved spot can lie in a tree or a house (all chunks around it are built just above).
+	if bots.golden == "" and _assettest == null and _shot_path == "":
+		mover.settle_position("load")
+		Run.data.ow_x = hero_pos.x
+		Run.data.ow_z = hero_pos.z
+	mover.reset_motion()
 	mover._update_camera(1.0)
 	if _assettest != null:
 		_assettest_setup()

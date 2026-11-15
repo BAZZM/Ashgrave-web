@@ -43,6 +43,27 @@ var _fall_tw: Tween
 var _trail: MultiMeshInstance3D
 var _trail_mm: MultiMesh
 static var _cloth_shader: Shader
+
+## Art Bible sections 5 and 7 (G1). Metal reads as its own colour, not a mirrored sky.
+const METAL_ROUGH := 0.45
+const METAL_METALLIC := 0.35  # bible 0.60; metal reflects the dark overcast sky and read dark on land
+const TRIM_ROUGH := 0.40
+const TRIM_METALLIC := 0.70
+const BLADE_ROUGH := 0.30
+const BLADE_METALLIC := 0.85
+## Rim light: the hero and a duel enemy get a strong one, everyone else keeps today's.
+## Enemies are told from villagers and NPCs by scale (enemies are 1.1 and up).
+const RIM_HERO := 0.9
+const RIM_ENEMY := 1.0
+const RIM_OTHER := 0.35
+const RIM_TINT := 0.3
+const ENEMY_MIN_SCALE := 1.08
+## Fighters only: a small self-light so they stay lighter than the ground they stand on (no extra light node).
+const FIGHTER_LIFT := 0.5
+var _rim_amt := RIM_OTHER
+## Spheres and tori shared by every figure, by size. The engine's defaults (64 x 32 segments, 4096
+## triangles each, even for a 4 cm pommel) cost about 0.1 MB of vertex buffer per part per figure.
+static var _prims := {}
 var _trail_pts: Array = []
 var _trail_time := 0.0
 var _trail_color := Color(1, 0.9, 0.7)
@@ -70,14 +91,40 @@ func configure(cfg: Dictionary) -> void:
 	_build()
 
 
-func _metal(color: Color, rough := 0.34, metallic := 0.85) -> StandardMaterial3D:
+static func _sphere(r: float, h: float) -> SphereMesh:
+	var key := "s%.4f/%.4f" % [r, h]
+	if not _prims.has(key):
+		var m := SphereMesh.new()
+		m.radius = r
+		m.height = h
+		m.radial_segments = 24
+		m.rings = 12
+		_prims[key] = m
+	return _prims[key]
+
+
+static func _torus(inner: float, outer: float) -> TorusMesh:
+	var key := "t%.4f/%.4f" % [inner, outer]
+	if not _prims.has(key):
+		var m := TorusMesh.new()
+		m.inner_radius = inner
+		m.outer_radius = outer
+		m.rings = 32
+		m.ring_segments = 12
+		_prims[key] = m
+	return _prims[key]
+
+
+func _metal(color: Color, rough := METAL_ROUGH, metallic := METAL_METALLIC) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
 	m.albedo_color = color
 	m.metallic = metallic
 	m.roughness = rough
 	m.rim_enabled = true
-	m.rim = 0.35
-	m.rim_tint = 0.4
+	m.rim = _rim_amt
+	m.rim_tint = RIM_TINT
+	m.emission_enabled = true
+	m.emission = color.lerp(Color.WHITE, 0.3) * FIGHTER_LIFT
 	return m
 
 
@@ -121,8 +168,9 @@ func _build() -> void:
 	var b := _bulk
 	var slim: bool = st.get("slim", false)
 
+	_rim_amt = RIM_HERO if style == "hero" else (RIM_ENEMY if absf(scale.y) >= ENEMY_MIN_SCALE else RIM_OTHER)
 	_armour = _metal(body_color)
-	var trim := _metal(accent_color.lerp(Color(1.0, 0.8, 0.4), 0.35), 0.3, 0.9)
+	var trim := _metal(accent_color.lerp(Color(1.0, 0.8, 0.4), 0.35), TRIM_ROUGH, TRIM_METALLIC)
 	var dark := _metal(body_color.darkened(0.6), 0.75, 0.3)
 	var glow := StandardMaterial3D.new()
 	glow.albedo_color = Color.BLACK
@@ -137,9 +185,7 @@ func _build() -> void:
 	var fauld := _metal(body_color.darkened(0.15))
 	fauld.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_part(_body, MeshKit.lathe([[0.215 * b, HIP_Y + 0.07], [0.25 * b, HIP_Y - 0.02], [0.31 * b, HIP_Y - 0.2], [0.33 * b, HIP_Y - 0.3]], 14, 1.0, 0.82), Vector3.ZERO, fauld)
-	var belt := TorusMesh.new()
-	belt.inner_radius = 0.2 * b
-	belt.outer_radius = 0.25 * b
+	var belt := _torus(0.2 * b, 0.25 * b)
 	_part(_body, belt, Vector3(0, HIP_Y + 0.06, 0), trim).scale = Vector3(1, 0.7, 0.82)
 	if st.get("tabard", false):
 		var tab := QuadMesh.new()
@@ -156,14 +202,10 @@ func _build() -> void:
 
 	if not st.get("core", false):
 		_part(_torso, MeshKit.lathe([[0.0, 0.1], [0.05, 0.14], [0.07, 0.4], [0.05, 0.58], [0.0, 0.6]], 8, 1.0, 0.6), Vector3(0, 0, -0.2 * b), trim)
-	var collar := TorusMesh.new()
-	collar.inner_radius = 0.1
-	collar.outer_radius = 0.16
+	var collar := _torus(0.1, 0.16)
 	_part(_torso, collar, Vector3(0, 0.69, 0), trim)
 	if st.get("core", false):
-		var core := SphereMesh.new()
-		core.radius = 0.09
-		core.height = 0.18
+		var core := _sphere(0.09, 0.18)
 		_part(_torso, core, Vector3(0, 0.44, -0.23 * b), glow)
 	if st.get("fur", false):
 		var fur := _metal(Color(0.16, 0.12, 0.1), 1.0, 0.0)
@@ -234,7 +276,7 @@ func _build() -> void:
 	_build_weapon(st, trim, dark, glow)
 
 	if st.get("back_blade", false):
-		var bm := _metal(st.get("blade_tint", Color(0.86, 0.88, 0.92)), 0.18, 0.95)
+		var bm := _metal(st.get("blade_tint", Color(0.86, 0.88, 0.92)), BLADE_ROUGH, BLADE_METALLIC)
 		bm.cull_mode = BaseMaterial3D.CULL_DISABLED
 		_part(_torso, MeshKit.blade(0.82, 0.06, 0.035, 0.14), Vector3(-0.12, 0.05, 0.24 * b), bm, Vector3(0, 0, -28))
 		_part(_torso, MeshKit.lathe([[0.0, -0.16], [0.025, -0.15], [0.025, 0.0], [0.0, 0.01]], 6), Vector3(-0.12, 0.05, 0.24 * b), dark, Vector3(0, 0, -28))
@@ -244,11 +286,9 @@ func _build() -> void:
 		_part(_torso, MeshKit.lathe([[0.0, -0.3], [0.06, -0.29], [0.07, 0.3], [0.0, 0.31]], 8), Vector3(-0.16, 0.3, 0.26 * b), wood, Vector3(0, 0, -20))
 	if st.get("knife_belt", false):
 		for k in 3:
-			_part(_body, MeshKit.blade(0.2, 0.035, 0.012, 0.07), Vector3(0.1 + k * 0.07, HIP_Y - 0.16, -0.2 * b), _metal(Color(0.85, 0.87, 0.9), 0.2, 0.95), Vector3(180, 0, 0))
+			_part(_body, MeshKit.blade(0.2, 0.035, 0.012, 0.07), Vector3(0.1 + k * 0.07, HIP_Y - 0.16, -0.2 * b), _metal(Color(0.85, 0.87, 0.9), BLADE_ROUGH, BLADE_METALLIC), Vector3(180, 0, 0))
 	if st.has("focus"):
-		var orb := SphereMesh.new()
-		orb.radius = 0.07
-		orb.height = 0.14
+		var orb := _sphere(0.07, 0.14)
 		var fm := StandardMaterial3D.new()
 		fm.albedo_color = Color.BLACK
 		fm.emission_enabled = true
@@ -278,9 +318,7 @@ func _build() -> void:
 			_:
 				_part(_shield, MeshKit.shield(0.62, 0.86, 0.12), Vector3.ZERO, sm)
 				_part(_shield, MeshKit.shield(0.68, 0.93, 0.12), Vector3(0, 0, 0.012), rimm)
-		var boss_m := SphereMesh.new()
-		boss_m.radius = 0.09
-		boss_m.height = 0.12
+		var boss_m := _sphere(0.09, 0.12)
 		_part(_shield, boss_m, Vector3(0, 0.08, -0.13), trim)
 
 	var ar := 0.075 * b * (0.85 if slim else 1.0)
@@ -290,17 +328,11 @@ func _build() -> void:
 		_limbs["fa%d" % side] = _free_part(MeshKit.limb(ar * 0.95, ar * 1.25, ar * 1.05), _armour)
 		_limbs["th%d" % side] = _free_part(MeshKit.limb(lr * 1.2, lr * 1.1, lr * 0.85), dark)
 		_limbs["sh%d" % side] = _free_part(MeshKit.limb(lr * 0.85, lr * 1.15, lr * 0.75), _armour)
-		var cap := SphereMesh.new()
-		cap.radius = ar * 1.05
-		cap.height = ar * 2.1
+		var cap := _sphere(ar * 1.05, ar * 2.1)
 		_joints["el%d" % side] = _free_part(cap, trim)
-		var knee := SphereMesh.new()
-		knee.radius = lr * 0.95
-		knee.height = lr * 1.9
+		var knee := _sphere(lr * 0.95, lr * 1.9)
 		_joints["kn%d" % side] = _free_part(knee, _armour)
-		var fist := SphereMesh.new()
-		fist.radius = ar * 1.2
-		fist.height = ar * 2.4
+		var fist := _sphere(ar * 1.2, ar * 2.4)
 		var fist_mat: Material = _armour
 		if side > 0.0 and st.has("ring_glow"):
 			var rg := StandardMaterial3D.new()
@@ -343,7 +375,7 @@ func _build_weapon(st: Dictionary, trim: Material, dark: Material, glow: Materia
 	_body.add_child(_sword)
 	var length: float = st.blade[0]
 	var width: float = st.blade[1]
-	_blade_mat = _metal(st.get("blade_tint", Color(0.86, 0.88, 0.92)), 0.18, 0.95)
+	_blade_mat = _metal(st.get("blade_tint", Color(0.86, 0.88, 0.92)), BLADE_ROUGH, BLADE_METALLIC)
 	_blade_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_blade_mat.emission_enabled = true
 	_blade_mat.emission = Color.BLACK
@@ -370,14 +402,10 @@ func _build_weapon(st: Dictionary, trim: Material, dark: Material, glow: Materia
 		PackedFloat32Array([0.012, 0.024, 0.032, 0.024, 0.012]), 8)
 	_part(_sword, guard, Vector3.ZERO, trim)
 	if st.get("slim", false):
-		var ring := TorusMesh.new()
-		ring.inner_radius = 0.075
-		ring.outer_radius = 0.095
+		var ring := _torus(0.075, 0.095)
 		_part(_sword, ring, Vector3(0, 0.07, -0.02), trim, Vector3(70, 0, 0))
 	_part(_sword, MeshKit.lathe([[0.0, -0.17], [0.022, -0.16], [0.027, -0.02], [0.022, 0.1], [0.0, 0.11]], 8), Vector3.ZERO, dark)
-	var pommel := SphereMesh.new()
-	pommel.radius = 0.04
-	pommel.height = 0.08
+	var pommel := _sphere(0.04, 0.08)
 	_part(_sword, pommel, Vector3(0, -0.19, 0), trim)
 	_tip = Node3D.new()
 	_tip.position = Vector3(0, 0.12 + length, 0)
@@ -623,4 +651,4 @@ func flash(color: Color) -> void:
 	_armour.emission_enabled = true
 	_armour.emission = color
 	_flash_tw = create_tween()
-	_flash_tw.tween_property(_armour, "emission", Color.BLACK, 0.18)
+	_flash_tw.tween_property(_armour, "emission", body_color.lerp(Color.WHITE, 0.3) * FIGHTER_LIFT, 0.18)

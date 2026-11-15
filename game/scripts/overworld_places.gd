@@ -6,6 +6,8 @@ const NPC_LOOKS := {
 	"alchemist": {"style": "duelist", "scale": 0.95, "body": Color(0.3, 0.4, 0.32), "accent": Color(0.4, 0.9, 0.5), "over": {"focus": Color(0.4, 1.0, 0.5), "cape": 0.9}},
 	"fisher": {"style": "duelist", "scale": 0.95, "body": Color(0.4, 0.42, 0.46), "accent": Color(0.3, 0.5, 0.7), "over": {"plume": false}},
 	"ranger": {"style": "duelist", "scale": 1.05, "body": Color(0.26, 0.34, 0.22), "accent": Color(0.6, 0.45, 0.2), "over": {"back_bow": true, "cape": 0.9}},
+	"nan": {"style": "duelist", "scale": 0.94, "body": Color(0.36, 0.4, 0.22), "accent": Color(0.8, 0.66, 0.2), "over": {"plume": false, "half_cape": false, "cape": 0.6}},
+	"oswin": {"style": "knight", "scale": 1.12, "body": Color("#A89F8A"), "accent": Color("#C9A24B"), "over": {"fin": false, "cape": 0.7}},
 	"villager": {"style": "duelist", "scale": 0.92, "body": Color(0.5, 0.42, 0.34), "accent": Color(0.55, 0.3, 0.2), "over": {"plume": false, "half_cape": false}},
 }
 const WALK_LOOPS := [

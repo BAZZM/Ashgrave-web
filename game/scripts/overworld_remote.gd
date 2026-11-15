@@ -3,6 +3,14 @@ extends Node
 var ow: Overworld
 var _pub_t := 0.0
 var _pvp_ask_t := 0.0
+var _was_moving := false
+
+## A remote player further than this from where we show them is moved there at once, not eased. A
+## sprint on a road is 15 u/s and a dash adds 4.5, so 2 seconds of that and a late packet fit.
+const SNAP_DIST := 30.0
+const PUBLISH_FAST := 0.3
+const PUBLISH_SLOW := 1.5
+const MOVING_SPEED := 0.3
 
 
 func _init(owner_world: Overworld) -> void:
@@ -11,9 +19,18 @@ func _init(owner_world: Overworld) -> void:
 
 func _publish(delta: float) -> void:
 	_pub_t -= delta / maxf(Engine.time_scale, 0.05)
-	if _pub_t > 0.0 or not ow.started:
+	if not ow.started:
 		return
-	_pub_t = 0.3 if ow.stick.length() > 0.1 or ow._bot != "" else 1.5
+	# Keyed on how the hero is actually moving (a dash, or a slide after the stick is let go,
+	# counts), so a wait set while standing still ends as soon as the hero moves. One more packet
+	# goes out soon after the hero comes to rest.
+	var moving: bool = ow.mover.speed() > MOVING_SPEED or ow.mover.dashing() or ow.stick.length() > 0.1 or ow._bot != ""
+	if moving or _was_moving:
+		_pub_t = minf(_pub_t, PUBLISH_FAST)
+	_was_moving = moving
+	if _pub_t > 0.0:
+		return
+	_pub_t = PUBLISH_FAST if moving else PUBLISH_SLOW
 	Online.publish_state(_my_state())
 
 
@@ -51,7 +68,7 @@ func _tick_remote(delta: float) -> void:
 		if node.get_parent() != ow:
 			continue
 		var gap := Vector3(target.x - e.pos.x, 0, target.z - e.pos.z)
-		if gap.length() > 12.0:
+		if gap.length() > SNAP_DIST:
 			e.pos = target
 		elif gap.length() > 0.05:
 			e.pos += gap * minf(delta * 7.0, 1.0)

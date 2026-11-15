@@ -1,12 +1,14 @@
 class_name Tiers
 extends RefCounted
 
+## Art Bible section 3, tower rows. "amb" is the flat ambient colour of the tier (new in G1);
+## "light" is the tier's key and torch colour (Foundry and Pyre Court were moved to the bible's).
 const THEMES := {
-	1: {"name": "Ash Gate", "stone": Color(0.24, 0.22, 0.23), "light": Color(1.0, 0.55, 0.25), "sky_top": Color(0.03, 0.03, 0.07), "sky_low": Color(0.32, 0.18, 0.14), "fog": Color(0.13, 0.09, 0.09), "wall": 4.5, "special": ""},
-	2: {"name": "The Cisterns", "stone": Color(0.16, 0.22, 0.24), "light": Color(0.4, 0.85, 0.8), "sky_top": Color(0.01, 0.03, 0.05), "sky_low": Color(0.08, 0.2, 0.22), "fog": Color(0.05, 0.12, 0.13), "wall": 5.0, "special": "water"},
-	3: {"name": "The Foundry", "stone": Color(0.2, 0.15, 0.13), "light": Color(1.0, 0.4, 0.1), "sky_top": Color(0.05, 0.02, 0.01), "sky_low": Color(0.45, 0.16, 0.05), "fog": Color(0.2, 0.08, 0.04), "wall": 5.0, "special": "forge"},
-	4: {"name": "The Rookery", "stone": Color(0.3, 0.31, 0.36), "light": Color(0.7, 0.8, 1.0), "sky_top": Color(0.05, 0.08, 0.2), "sky_low": Color(0.45, 0.4, 0.5), "fog": Color(0.2, 0.2, 0.28), "wall": 1.1, "special": "open"},
-	5: {"name": "The Pyre Court", "stone": Color(0.14, 0.12, 0.14), "light": Color(1.0, 0.5, 0.15), "sky_top": Color(0.04, 0.01, 0.02), "sky_low": Color(0.5, 0.2, 0.08), "fog": Color(0.16, 0.07, 0.05), "wall": 6.0, "special": "throne"},
+	1: {"name": "Ash Gate", "amb": Color("#5A4442"), "stone": Color(0.24, 0.22, 0.23), "light": Color(1.0, 0.55, 0.25), "sky_top": Color(0.03, 0.03, 0.07), "sky_low": Color(0.32, 0.18, 0.14), "fog": Color(0.13, 0.09, 0.09), "wall": 4.5, "special": ""},
+	2: {"name": "The Cisterns", "amb": Color("#2E4A4D"), "stone": Color(0.16, 0.22, 0.24), "light": Color(0.4, 0.85, 0.8), "sky_top": Color(0.01, 0.03, 0.05), "sky_low": Color(0.08, 0.2, 0.22), "fog": Color(0.05, 0.12, 0.13), "wall": 5.0, "special": "water"},
+	3: {"name": "The Foundry", "amb": Color("#5A3326"), "stone": Color(0.2, 0.15, 0.13), "light": Color("#FF5514"), "sky_top": Color(0.05, 0.02, 0.01), "sky_low": Color(0.45, 0.16, 0.05), "fog": Color(0.2, 0.08, 0.04), "wall": 5.0, "special": "forge"},
+	4: {"name": "The Rookery", "amb": Color("#5A5F7A"), "stone": Color(0.3, 0.31, 0.36), "light": Color(0.7, 0.8, 1.0), "sky_top": Color(0.05, 0.08, 0.2), "sky_low": Color(0.45, 0.4, 0.5), "fog": Color(0.2, 0.2, 0.28), "wall": 1.1, "special": "open"},
+	5: {"name": "The Pyre Court", "amb": Color("#4A2E2A"), "stone": Color(0.14, 0.12, 0.14), "light": Color("#FFB84D"), "sky_top": Color(0.04, 0.01, 0.02), "sky_low": Color(0.5, 0.2, 0.08), "fog": Color(0.16, 0.07, 0.05), "wall": 6.0, "special": "throne"},
 }
 
 const LESSER_NAMES := ["Ash Thrall", "Cistern Lurker", "Forge Hand", "Rook Sentry", "Pyre Guard"]

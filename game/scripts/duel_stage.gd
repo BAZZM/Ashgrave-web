@@ -15,19 +15,61 @@ func _ground(world_pos: Vector3) -> float:
 	return d.global_position.y
 
 
+## Where the hero and the foe stand in the duel's frame, and how far a sidestep
+## (duel.gd input_dodge) carries the hero along that frame's x.
+const PLAYER_STAND := Vector3(-1.2, 0, 2.0)
+const FOE_STAND := Vector3(0, 0, -0.75)
+const DODGE_REACH := 1.0
+
+
 func _place_in_world() -> void:
-	var hp := d.player.global_position
-	var ep := d.enemy.global_position
+	var xf := frame_for(d.host, d.player.global_position, d.enemy.global_position)
+	xf.origin.y = _ground(xf.origin)
+	d.global_transform = xf
+	for f in [d.player, d.enemy]:
+		_adopt(f)
+	_stand(d.player, PLAYER_STAND, 0.0)
+	_stand(d.enemy, FOE_STAND, PI)
+
+
+## The duel's frame (y 0): the midpoint of hero and foe, facing the foe. In the tower (a
+## host with _walkable) it is slid and, if that is not enough, turned (both fighters are
+## stood afresh, so only the facing changes), the least that works, until the hero's stand
+## point, both sidestep ends and the foe's stand point are walkable, so no fighter is drawn
+## in a wall. The camera rides in this frame, so its framing is unchanged. Open land and
+## standalone duels (no _walkable) are not moved.
+static func frame_for(host: Node, hp: Vector3, ep: Vector3) -> Transform3D:
 	var dir := ep - hp
 	dir.y = 0
 	dir = dir.normalized() if dir.length() > 0.1 else Vector3.FORWARD
 	var mid := hp.lerp(ep, 0.5)
-	mid.y = _ground(mid)
-	d.global_transform = Transform3D(Basis.looking_at(dir, Vector3.UP), mid)
-	for f in [d.player, d.enemy]:
-		_adopt(f)
-	_stand(d.player, Vector3(-1.2, 0, 2.0), 0.0)
-	_stand(d.enemy, Vector3(0, 0, -0.75), PI)
+	mid.y = 0.0
+	var xf := Transform3D(Basis.looking_at(dir, Vector3.UP), mid)
+	if host == null or not host.has_method("_walkable"):
+		return xf
+	var best := xf
+	var best_cost := INF
+	for ir in [0, 1, -1, 2, -2, 3, -3, 4, -4, 5, -5, 6, -6]:
+		var turn := deg_to_rad(15.0 * ir)
+		if absf(turn) * 2.0 >= best_cost:
+			continue
+		var turned := Transform3D(Basis(Vector3.UP, turn) * xf.basis, mid)
+		for ix in range(-10, 11):
+			for iz in range(-3, 4):
+				var shift := Vector3(ix * 0.25, 0, iz * 0.5)
+				var cost := shift.length() + absf(turn) * 2.0
+				if cost >= best_cost:
+					continue
+				var t := turned.translated_local(shift)
+				var ok := true
+				for p in [PLAYER_STAND, PLAYER_STAND + Vector3(DODGE_REACH, 0, 0), PLAYER_STAND - Vector3(DODGE_REACH, 0, 0), FOE_STAND]:
+					if not host._walkable(t * p):
+						ok = false
+						break
+				if ok:
+					best = t
+					best_cost = cost
+	return best
 
 
 func _adopt(f: Node3D) -> void:

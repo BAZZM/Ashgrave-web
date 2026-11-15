@@ -22,30 +22,38 @@ const ROADS := [
 	[Vector2(126, -14), Vector2(132, -90), Vector2(124, -170)],
 	[Vector2(0, 20), Vector2(-70, 6), Vector2(-150, -10)],
 	[Vector2(0, 24), Vector2(-30, 90), Vector2(-90, 140)],
-	[Vector2(8, 30), Vector2(70, 90), Vector2(96, 118)],
+	[Vector2(8, 30), Vector2(70, 90), Vector2(89, 114)],
 ]
 
+## Region colour scripts, Art Bible section 3 (G1). Colours are sRGB hex. ground: vertex colour of the
+## terrain; fog: fog and horizon colour; key: sun colour by day; amb: flat ambient colour.
+## The Meadows, The Scar and The Old Ruins have no bible row: the Meadows sit a little cooler than
+## Hearthvale, the Scar is Hearthvale's earth with the green taken out, the Ruins are a grey-blue stone.
 const BIOMES := {
-	"village": {"name": "Hearthvale", "ground": Color(0.36, 0.4, 0.24), "fog": Color(0.55, 0.6, 0.62), "foe": ""},
-	"meadow": {"name": "The Meadows", "ground": Color(0.3, 0.46, 0.2), "fog": Color(0.55, 0.62, 0.62), "foe": "thrall", "beast": "deer"},
-	"forest": {"name": "Greywood", "ground": Color(0.16, 0.3, 0.16), "fog": Color(0.3, 0.42, 0.36), "foe": "bandit", "alt": "poacher", "beast": "deer"},
-	"marsh": {"name": "Mirefen", "ground": Color(0.24, 0.3, 0.22), "fog": Color(0.36, 0.44, 0.38), "foe": "wight", "alt": "hexer", "beast": "boar"},
-	"quarry": {"name": "The Scar", "ground": Color(0.42, 0.38, 0.33), "fog": Color(0.6, 0.56, 0.5), "foe": "brute"},
-	"ruins": {"name": "The Old Ruins", "ground": Color(0.33, 0.33, 0.3), "fog": Color(0.45, 0.45, 0.48), "foe": "keeper", "alt": "seer"},
-	"ashlands": {"name": "The Ashlands", "ground": Color(0.2, 0.17, 0.17), "fog": Color(0.3, 0.2, 0.18), "foe": "pyre"},
+	"village": {"name": "Hearthvale", "ground": Color("#5E6B38"), "fog": Color("#918E85"), "key": Color("#FFE2B8"), "amb": Color("#8795A8"), "foe": ""},
+	"meadow": {"name": "The Meadows", "ground": Color("#5A6B3C"), "fog": Color("#888D85"), "key": Color("#F5E6C4"), "amb": Color("#7E8FA4"), "foe": "thrall", "beast": "deer"},
+	"forest": {"name": "Greywood", "ground": Color("#445A40"), "fog": Color("#4A5F54"), "amb_k": 1.7, "key": Color("#DDE8C4"), "amb": Color("#7C9186"), "foe": "bandit", "alt": "poacher", "beast": "deer"},
+	"marsh": {"name": "Mirefen", "ground": Color("#4A4634"), "fog": Color("#66756E"), "key": Color("#E6E2D0"), "amb": Color("#6A7C82"), "foe": "wight", "alt": "hexer", "beast": "boar"},
+	"quarry": {"name": "The Scar", "ground": Color("#5A5248"), "fog": Color("#76706A"), "key": Color("#F0E2C8"), "amb": Color("#77716E"), "foe": "brute"},
+	"ruins": {"name": "The Old Ruins", "ground": Color("#4F4F4A"), "fog": Color("#5F6068"), "key": Color("#D9DDE6"), "amb": Color("#5E6472"), "foe": "keeper", "alt": "seer"},
+	"ashlands": {"name": "The Ashlands", "ground": Color("#504D4C"), "fog": Color("#4A3A36"), "key": Color("#DDD5D0"), "amb_k": 1.7, "amb": Color("#666565"), "foe": "pyre"},
 }
+
+## Road and shore blends in ground_color_with: Dirt trail light (bible 2.1) and a muddy shore.
+const ROAD_COLOR := Color("#8A7552")
+const SHORE_COLOR := Color("#5A5238")
 
 const FOES := {
 	"thrall": {"name": "Field Thrall", "arche": 1, "hp": 0.36, "dmg": 0.7, "level": 2, "style": "knight", "scale": 1.1, "body": Color(0.5, 0.48, 0.4), "accent": Color(0.7, 0.6, 0.2), "drop": "bone"},
 	"bandit": {"name": "Greywood Bandit", "arche": 2, "hp": 0.5, "dmg": 0.85, "level": 8, "style": "duelist", "scale": 1.15, "body": Color(0.3, 0.36, 0.26), "accent": Color(0.5, 0.75, 0.3), "drop": "hide"},
 	"wight": {"name": "Bog Wight", "arche": 4, "hp": 0.5, "dmg": 1.0, "level": 16, "style": "sentinel", "scale": 1.2, "body": Color(0.22, 0.32, 0.3), "accent": Color(0.4, 0.9, 0.7), "drop": "bone"},
 	"brute": {"name": "Stone Brute", "arche": 3, "hp": 0.6, "dmg": 1.0, "level": 24, "style": "brute", "scale": 1.5, "body": Color(0.45, 0.42, 0.38), "accent": Color(0.8, 0.5, 0.2), "drop": "hide"},
-	"keeper": {"name": "Ruin Keeper", "arche": 4, "hp": 1.0, "dmg": 1.45, "level": 38, "style": "knight", "scale": 1.4, "body": Color(0.3, 0.3, 0.4), "accent": Color(0.6, 0.7, 1.0), "drop": "cinder"},
+	"keeper": {"name": "Ruin Keeper", "arche": 4, "hp": 1.0, "dmg": 1.45, "level": 38, "style": "knight", "scale": 1.4, "body": Color("#A89F8A"), "accent": Color("#C9A24B"), "drop": "cinder"},
 
 	"poacher": {"name": "Greywood Poacher", "arche": 2, "hp": 0.4, "dmg": 0.85, "level": 12, "style": "duelist", "scale": 1.1, "body": Color(0.36, 0.3, 0.2), "accent": Color(0.6, 0.5, 0.2), "drop": "hide", "ranged": "archer"},
 	"hexer": {"name": "Mire Hexer", "arche": 4, "hp": 0.42, "dmg": 1.05, "level": 20, "style": "duelist", "scale": 1.15, "body": Color(0.28, 0.2, 0.34), "accent": Color(0.75, 0.4, 1.0), "drop": "bone", "ranged": "caster"},
-	"seer": {"name": "Ruin Seer", "arche": 4, "hp": 0.8, "dmg": 1.5, "level": 40, "style": "duelist", "scale": 1.3, "body": Color(0.2, 0.22, 0.34), "accent": Color(0.5, 0.8, 1.0), "drop": "cinder", "ranged": "caster"},
-	"pyre": {"name": "Pyre Guard", "arche": 5, "hp": 0.75, "dmg": 1.6, "level": 46, "style": "boss", "scale": 1.3, "body": Color(0.16, 0.14, 0.16), "accent": Color(1.0, 0.45, 0.1), "drop": "cinder"},
+	"seer": {"name": "Ruin Seer", "arche": 4, "hp": 0.8, "dmg": 1.5, "level": 40, "style": "duelist", "scale": 1.3, "body": Color("#6A5A7A"), "accent": Color("#BF99FF"), "drop": "cinder", "ranged": "caster"},
+	"pyre": {"name": "Pyre Guard", "arche": 5, "hp": 0.75, "dmg": 1.6, "level": 46, "style": "boss", "scale": 1.3, "body": Color("#7A4030"), "accent": Color("#FF731A"), "drop": "cinder"},
 }
 
 const NODES := {
@@ -72,15 +80,17 @@ const PLACES := [
 	{"id": "store", "type": "store", "pos": Vector2(12, 36), "label": "Trader", "r": 3.0},
 	{"id": "task", "type": "task", "pos": Vector2(-8, 40), "label": "Taskmaster", "r": 3.0},
 	{"id": "hearth", "type": "brazier", "pos": Vector2(0, 22), "label": "Hearth", "r": 3.0},
-	{"id": "camp_fire", "type": "station", "skill": "cooking", "pos": Vector2(104, 112), "label": "Fisher's fire", "r": 3.0},
+	{"id": "camp_fire", "type": "station", "skill": "cooking", "pos": Vector2(85, 110), "label": "Fisher's fire", "r": 3.0},
 	{"id": "scar_anvil", "type": "station", "skill": "smithing", "pos": Vector2(132, -22), "label": "Quarry anvil", "r": 3.0},
 	{"id": "stones", "type": "stones", "pos": Vector2(60, -150), "label": "Stepping stones", "r": 3.0},
 	{"id": "tower", "type": "tower", "pos": TOWER_GATE, "label": "The Ashgrave", "r": 8.0},
 
 	{"id": "elder", "type": "npc", "pos": Vector2(5, 27), "label": "Elder Maren", "r": 2.5},
 	{"id": "alchemist", "type": "npc", "pos": Vector2(23, 25), "label": "Sister Wren", "r": 2.5},
-	{"id": "fisher", "type": "npc", "pos": Vector2(100, 115), "label": "Old Tam", "r": 2.5},
+	{"id": "fisher", "type": "npc", "pos": Vector2(88, 113.5), "label": "Old Tam", "r": 2.5},
 	{"id": "ranger", "type": "npc", "pos": Vector2(-146, -7), "label": "Warden Isolde", "r": 3.0},
+	{"id": "nan", "type": "npc", "pos": Vector2(-50, 4), "label": "Nan Harrow", "r": 2.5},
+	{"id": "oswin", "type": "npc", "pos": Vector2(116, -166), "label": "Keeper Oswin", "r": 2.5},
 	{"id": "shrine", "type": "spot", "pos": Vector2(-92, 143), "label": "Mire shrine", "r": 4.0},
 	{"id": "altar", "type": "spot", "pos": Vector2(126, -174), "label": "Broken altar", "r": 4.0},
 	{"id": "circle", "type": "spot", "pos": Vector2(44, 104), "label": "Standing stones", "r": 7.0},
@@ -207,10 +217,10 @@ static func ground_color_with(x: float, z: float, b: String, segs: Array) -> Col
 		var t := clampf((p - a).dot(d) / d.length_squared(), 0.0, 1.0)
 		rd = minf(rd, p.distance_to(a + d * t))
 	if rd < 3.2:
-		c = c.lerp(Color(0.42, 0.33, 0.22), smoothstep(3.2, 1.2, rd))
+		c = c.lerp(ROAD_COLOR, smoothstep(3.2, 1.2, rd))
 	var wd := minf(river_dist(x, z) - 5.0, lake_dist(x, z) - LAKE_R + 3.0)
 	if wd < 3.0:
-		c = c.lerp(Color(0.5, 0.45, 0.32), smoothstep(3.0, 0.0, wd))
+		c = c.lerp(SHORE_COLOR, smoothstep(3.0, 0.0, wd))
 	return c
 
 

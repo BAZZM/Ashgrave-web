@@ -1,0 +1,24 @@
+{
+ "forge": [
+  "Bring Brannoc 4 copper ore and 2 oak logs. Copper rock lies in the Meadows and the Scar; oaks grow everywhere."
+ ],
+ "line": [
+  "Bring Old Tam 3 raw trout. Fish where ripples show on the river.",
+  "Cook a trout on the Fisher's fire and bring it to Old Tam."
+ ],
+ "poach": [
+  "Defeat 3 bandits or poachers in Greywood.",
+  "Return to Warden Isolde at the end of the forest road."
+ ],
+ "mire": [
+  "Bring Sister Wren 3 bogroot from Mirefen. Foraging 20 is needed to pick it.",
+  "Go to the Mire shrine at the end of the south-west road.",
+  "Defeat a Mire Hexer. Dodge its bolts, or parry at the last instant to send one back.",
+  "Return to Sister Wren in Hearthvale."
+ ],
+ "oath": [
+  "Walk the north road to the gate of the Ashgrave.",
+  "Find the broken altar in the Old Ruins, north-east beyond the river.",
+  "Return to Elder Maren by the hearth."
+ ]
+}

@@ -34,6 +34,12 @@ const CRUMB_LOG_KEEP := 5
 const BANNER_SECS := 20.0
 ## A death older than this is logged but not shown: the player has long since moved on.
 const BANNER_MAX_AGE_S := 600
+## Automatic safe mode: two memory deaths (a foreground death or a stall, each young enough to have shown the
+## banner) no more than this far apart, both since the level last changed. One unlucky crash does not count, and
+## neither do two a day apart: it takes a loop. Wall clock, from the crumbs' own timestamps.
+const AUTO_SAFE_WINDOW_MS := 30 * 60 * 1000
+const AUTO_SAFE_NOTICE := "The game restarted twice, so it switched to safe quality: no shadows now, lower resolution from the next launch. To change it: MAP, then QUALITY."
+const AUTO_SAFE_CAPTION := "Safe quality is on after two restarts. MAP, then QUALITY, to change it."
 
 var enabled := false
 ## --perflog: print every mark and a stats line every few seconds to the console
@@ -68,12 +74,27 @@ var _banner_font: Font
 var _banner_box: StyleBoxFlat
 var _crumb_on := false
 var _crumb_next_ms := 0
+## Device facts that do not change during a run (read once): device memory in GB and cores (-1 when the
+## browser does not say), and the WebGL renderer string.
+var _dev := {}
+var _peak_heap := 0
+## Set for one boot when this boot's death made the game drop to safe mode (shown in the banner).
+var _auto_notice := false
+var _notice_caption := false
+## Memory deaths counted toward the automatic rule (since the level last changed), for the crumb.
+var _q_deaths := 0
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	set_process(false)
-	var on := "--perf" in OS.get_cmdline_user_args()
+	# The game has no physics bodies, areas, shapes or queries, but the physics servers still step every tick, and
+	# on this web engine the stepping grows the heap (about 16 KB every 64 ticks, never freed: docs/PERF_BUDGET.md,
+	# "Leak hunt, part 2"). Stopping them changes nothing on screen. --physics-on (debug) keeps them running.
+	if not "--physics-on" in OS.get_cmdline_user_args():
+		PhysicsServer3D.set_active(false)
+		PhysicsServer2D.set_active(false)
+	var on :="--perf" in OS.get_cmdline_user_args()
 	if not on and OS.has_feature("web"):
 		var q: Variant = JavaScriptBridge.eval("new URLSearchParams(location.search).get('perf') || ''", true)
 		on = q is String and q != "" and q != "0"
@@ -84,6 +105,11 @@ func _ready() -> void:
 	_bench = "--terrainbench" in args
 	logging = "--perflog" in args or _dump or _world or _live or _bench
 	_crumb_start()
+	# Memory soak bot (tools/check.js perf-soak), debug only.
+	for a in args:
+		if a == "--soak" or a.begins_with("--soak="):
+			add_child(load("res://scripts/soak_bot.gd").new())
+			break
 	if on:
 		_enable()
 	elif logging:
@@ -146,6 +172,10 @@ func _process(_delta: float) -> void:
 		if ms >= _crumb_next_ms:
 			_crumb_next_ms = ms + int(CRUMB_EVERY * 1000.0)
 			_crumb_write()
+	if _notice_caption and get_tree().current_scene != null:
+		# The banner closes on the first tap: say it once more in the game's own caption line.
+		_notice_caption = false
+		Run.captions.append(AUTO_SAFE_CAPTION)
 	if _banner != null:
 		# The clock starts once the first scene is up: loading can take a long while on a phone.
 		if _banner_until == 0:
@@ -231,6 +261,49 @@ func _mb(monitor: int) -> int:
 	return int(Performance.get_monitor(monitor) / 1048576.0)
 
 
+func _heap_bytes() -> int:
+	var h: Variant = JavaScriptBridge.eval("window.__ag ? window.__ag.heap() : -1", true)
+	return int(h) if h is float or h is int else -1
+
+
+## The GPU as the browser names it (unmasked where the browser allows), read from the engine's own context.
+func _gl_name() -> String:
+	var v: Variant = JavaScriptBridge.eval("(function(){try{var g=document.getElementById('canvas').getContext('webgl2');var e=g&&g.getExtension('WEBGL_debug_renderer_info');return String(e?g.getParameter(e.UNMASKED_RENDERER_WEBGL):(g?g.getParameter(g.RENDERER):''))}catch(x){return ''}})()", true)
+	var n: String = v if v is String and v != "" else RenderingServer.get_video_adapter_name()
+	return n.left(60)
+
+
+func _memory_deaths() -> int:
+	var n := 0
+	for e in _log:
+		if e is Dictionary and str(e.get("kind", "")) in ["died", "stalled"]:
+			n += 1
+	return n
+
+
+const CODE_MODES := ["boot", "title", "land", "tower", "duel"]
+
+## Six characters (Crockford base 32: no I, L, O or U, so nothing reads as 0 or 1) that pack the key numbers of a crumb, so the owner can report a death in one
+## line and the numbers can be read back (node tools/crumb_test.js --decode CODE). 30 bits, low to high:
+## heap MB (9, capped 511), video MB (7, capped 127), mode (3, CODE_MODES), minutes played (6, capped 63),
+## devicePixelRatio (2: 1, 2, 3, other = 0), nodes / 250 (3, capped 7).
+static func crumb_code(o: Dictionary) -> String:
+	var heap_mb := clampi(int(float(o.get("heap", 0)) / 1048576.0), 0, 511)
+	var vid_mb := clampi(int(float(o.get("vid", 0)) / 1048576.0), 0, 127)
+	var mode := maxi(CODE_MODES.find(str(o.get("mode", "boot"))), 0)
+	var mins := clampi(int(float(o.get("t", 0)) / 60.0), 0, 63)
+	var dpr := roundi(float(o.get("dpr", 0)))
+	var dcode := dpr if dpr >= 1 and dpr <= 3 and absf(float(o.get("dpr", 0)) - dpr) < 0.05 else 0
+	var nodes := clampi(int(o.get("nc", 0)) / 250, 0, 7)
+	var v := heap_mb | (vid_mb << 9) | (mode << 16) | (mins << 19) | (dcode << 25) | (nodes << 27)
+	var digits := "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+	var out := ""
+	for i in 6:
+		out = digits[v & 31] + out
+		v >>= 5
+	return out
+
+
 func _heap_mb() -> int:
 	if not OS.has_feature("web"):
 		return 0
@@ -251,6 +324,10 @@ func _crumb_start() -> void:
 		var parsed: Variant = JSON.parse_string(log_text)
 		if parsed is Array:
 			_log = parsed
+	var facts: Variant = JavaScriptBridge.eval("JSON.stringify([navigator.deviceMemory||-1,navigator.hardwareConcurrency||-1])", true)
+	var fa: Variant = JSON.parse_string(facts) if facts is String else null
+	_dev = {"dm": fa[0] if fa is Array else -1, "hc": int(fa[1]) if fa is Array else -1,
+		"gl": _gl_name()}
 	# Replace the old crumb at once, so a second crash before the first write does not report the same death twice.
 	_crumb_write()
 	_crumb_on = true
@@ -260,6 +337,8 @@ func _crumb_start() -> void:
 		var rep: Variant = JSON.parse_string(rep_text)
 		if rep is Dictionary and rep.get("c") is Dictionary:
 			_on_death(rep.c, str(rep.get("kind", "died")), int(rep.get("age", -1)), int(rep.get("hid", 0)))
+			# The level may have just changed (automatic safe mode): the crumb says so from the start.
+			_crumb_write()
 
 
 func _crumb_data() -> Dictionary:
@@ -269,6 +348,17 @@ func _crumb_data() -> Dictionary:
 		"nc": int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)), "tex": int(Performance.get_monitor(Performance.RENDER_TEXTURE_MEM_USED)),
 		"vid": int(Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED)), "dc": int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)),
 		"fps": int(Engine.get_frames_per_second())}
+	# Peak wasm heap so far (the page adds the current one as "heap"), canvas size in device pixels,
+	# devicePixelRatio, device facts, and how many memory deaths the log holds before this run.
+	var h := _heap_bytes()
+	_peak_heap = maxi(_peak_heap, h)
+	var win := DisplayServer.window_get_size()
+	# The real ratio (the page caps the one the engine sees at 2; the canvas size shows what it used).
+	var dpr: Variant = JavaScriptBridge.eval("window.__ag && window.__ag.dpr ? window.__ag.dpr() : (window.devicePixelRatio || 1)", true)
+	d.merge({"pk": _peak_heap, "cw": win.x, "ch": win.y, "dpr": snappedf(float(dpr), 0.01) if dpr is float or dpr is int else -1.0,
+		"md": _memory_deaths(), "q": Run.quality_level(), "qa": int(Run.quality_is_auto()), "qd": _q_deaths,
+		"qn": int(Run.data.settings.get("q_auto_n", 0))})
+	d.merge(_dev)
 	var sc := get_tree().current_scene
 	if sc == null:
 		return d
@@ -320,8 +410,9 @@ func _death_lines(o: Dictionary) -> Array:
 			doing = "fighting another player" if o.get("pvp", false) else "fighting %s" % (o.get("foe", "") if o.get("foe", "") != "" else "a foe")
 	var heap_mb := _crumb_heap_mb(o)
 	var mem := "Memory: heap %s MB, textures %d MB, video %d MB" % ["?" if heap_mb < 0 else str(heap_mb), int(float(o.get("tex", 0)) / 1048576.0), int(float(o.get("vid", 0)) / 1048576.0)]
-	return ["Where: " + where, "Doing: " + doing,
-		"Played: %d min this run (build %s)" % [int(float(o.get("t", 0)) / 60.0), o.get("b", "?")], mem]
+	return ["Report: %s, %s, heap %s MB" % [crumb_code(o), where, "?" if heap_mb < 0 else str(heap_mb)], "Where: " + where, "Doing: " + doing,
+		"Played: %d min this run (build %s)" % [int(float(o.get("t", 0)) / 60.0), o.get("b", "?")], mem,
+		"Quality: %s%s" % [o.get("q", "?"), " (set by the game)" if int(o.get("qa", 0)) == 1 else ""]]
 
 
 func _death_short(o: Dictionary) -> String:
@@ -334,6 +425,45 @@ func _crumb_heap_mb(o: Dictionary) -> int:
 	return int(h / 1048576.0) if h > 0.0 else -1
 
 
+static func show_banner_for(kind: String, age: int) -> bool:
+	return (kind == "died" or kind == "stalled") and age >= 0 and age < BANNER_MAX_AGE_S
+
+
+## A memory death for the automatic rule: the banner kinds only (not a background reload, not a shared tab, not an old one).
+## A death while the engine was still loading (phase "boot") is a slow download, not memory: it never counts.
+static func counts_as_memory_death(e: Dictionary) -> bool:
+	return str(e.get("phase", "run")) == "run" and show_banner_for(str(e.get("kind", "")), int(e.get("age", -1)))
+
+
+## After a death is logged: two memory deaths within the window, both since the level last changed, while the
+## level is full and the game has not already switched by itself (a player choosing Full re-arms it), switch to safe.
+## Silent about the player's own choices: in safe mode nothing more happens here but the crumb.
+func _auto_safe_check(entry: Dictionary) -> void:
+	_q_deaths = 0
+	Run.ensure_loaded()
+	var s: Dictionary = Run.data.settings
+	# A mark in the future (the clock was set back) counts as now.
+	var mark := minf(float(s.get("q_mark", 0.0)), Time.get_unix_time_from_system() * 1000.0)
+	var hits: Array = []
+	for e in _log:
+		if e is Dictionary and counts_as_memory_death(e) and float(e.get("ts", 0)) > mark:
+			hits.append(e)
+	_q_deaths = hits.size()
+	if not counts_as_memory_death(entry) or hits.size() < 2:
+		return
+	var a: Dictionary = hits[hits.size() - 2]
+	var b: Dictionary = hits[hits.size() - 1]
+	var gap := float(b.get("ts", 0)) - float(a.get("ts", 0))
+	var close := gap >= 0.0 and gap <= AUTO_SAFE_WINDOW_MS
+	print("[crumb] auto-safe check: deaths=%d close=%d level=%s done=%d override=%s" % [hits.size(), int(close), Run.quality_saved(), int(bool(s.get("q_auto_done", false))), Run.quality_override])
+	if not close or Run.quality_saved() != "full" or bool(s.get("q_auto_done", false)) or Run.quality_override != "":
+		return
+	Run.set_quality("safe", true)
+	_auto_notice = true
+	_notice_caption = true
+	print("[crumb] auto-safe: switched to safe after %d memory deaths" % hits.size())
+
+
 ## kind: "died" (cut off in the foreground), "stalled" (the engine stopped writing, then the player
 ## reloaded), "shared" (another tab was alive, so the crumb cannot be trusted) or "hidden" (the page was
 ## hidden and then gone without pagehide: usually the OS reclaiming a background tab; a quiet note).
@@ -344,18 +474,23 @@ func _on_death(o: Dictionary, kind: String, age: int, hid: int) -> void:
 	if kind == "hidden":
 		print("[crumb] note: reloaded after being hidden for %ds" % hid)
 	else:
-		var show := (kind == "died" or kind == "stalled") and age >= 0 and age < BANNER_MAX_AGE_S
+		var show := show_banner_for(kind, age)
 		print("[crumb] died: kind=%s phase=%s stalled=%d shared=%d banner=%d mode=%s place=%s x=%d z=%d tier=%d foe=%s pvp=%d min=%.1f static_mb=%d tex_mb=%d vid_mb=%d heap_mb=%d objects=%d nodes=%d draw=%d fps=%d players=%d build=%s age_s=%d" % [
 			kind, o.get("phase", "run"), int(kind == "stalled"), int(kind == "shared"), int(show), o.get("mode", ""), o.get("place", ""), int(o.get("x", 0)), int(o.get("z", 0)),
 			int(o.get("tier", 0)), o.get("foe", ""), int(o.get("pvp", false)),
 			float(o.get("t", 0)) / 60.0, int(float(o.get("ms", 0)) / 1048576.0), int(float(o.get("tex", 0)) / 1048576.0), int(float(o.get("vid", 0)) / 1048576.0),
 			_crumb_heap_mb(o), int(o.get("oc", 0)), int(o.get("nc", 0)), int(o.get("dc", 0)), int(o.get("fps", 0)), int(o.get("pl", 0)),
-			o.get("b", ""), age])
-		if show:
-			_show_banner(o, kind)
+			o.get("b", ""), age] + " code=%s peak_mb=%d canvas=%dx%d dpr=%s devmem=%s cores=%d mdeaths=%d q=%s qa=%d qd=%d qn=%d gl=%s" % [
+			crumb_code(o), int(float(o.get("pk", 0)) / 1048576.0), int(o.get("cw", 0)), int(o.get("ch", 0)), str(o.get("dpr", -1)),
+			str(o.get("dm", -1)), int(o.get("hc", -1)), int(o.get("md", 0)),
+			str(o.get("q", "?")), int(o.get("qa", 0)), int(o.get("qd", 0)), int(o.get("qn", 0)), str(o.get("gl", "")).replace(" ", "_")])
 	_log.append(entry)
 	while _log.size() > CRUMB_LOG_KEEP:
 		_log.pop_front()
+	if kind != "hidden":
+		_auto_safe_check(entry)
+		if show_banner_for(kind, age):
+			_show_banner(o, kind)
 	JavaScriptBridge.eval("try{localStorage.setItem('%s',%s)}catch(e){}" % [CRUMB_LOG_KEY, JSON.stringify(JSON.stringify(_log))], true)
 
 
@@ -393,7 +528,10 @@ func _show_banner(o: Dictionary, kind: String) -> void:
 		_banner_font = load("res://fonts/cinzel-700.woff2")
 	_banner_title = _banner_text("The game froze or ran out of memory" if kind == "stalled" else "Restarted after a suspected memory kill", Color(1.0, 0.84, 0.55))
 	vb.add_child(_banner_title)
-	_banner_label = _banner_text("\n".join(_death_lines(o)) + "\nTap to close", Color(1, 1, 1, 0.92))
+	var extra := ("\n" + AUTO_SAFE_NOTICE) if _auto_notice else ""
+	if _auto_notice:
+		print("[crumb] notice: the banner says the game switched to a lighter mode")
+	_banner_label = _banner_text("\n".join(_death_lines(o)) + extra + "\nTap to close", Color(1, 1, 1, 0.92))
 	vb.add_child(_banner_label)
 	layer.add_child(_banner)
 	_banner_until = 0
@@ -485,8 +623,30 @@ func _stats_line() -> String:
 	var sc := get_tree().current_scene
 	var pos: Variant = sc.get("hero_pos") if sc else null
 	var chunks: Variant = sc.get("_chunks") if sc else null
-	return "PERFLOG pos=%s chunks=%s draw=%d obj=%d prim=%d nodes=%d" % [
-		"%d,%d" % [pos.x, pos.z] if pos is Vector3 else "-", chunks.size() if chunks is Dictionary else "-", m[0], m[1], m[2], m[3]]
+	return "PERFLOG pos=%s chunks=%s draw=%d obj=%d prim=%d nodes=%d tex=%d vid=%d buf=%d heap=%d %s" % [
+		"%d,%d" % [pos.x, pos.z] if pos is Vector3 else "-", chunks.size() if chunks is Dictionary else "-", m[0], m[1], m[2], m[3],
+		int(Performance.get_monitor(Performance.RENDER_TEXTURE_MEM_USED)), int(Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED)), int(Performance.get_monitor(Performance.RENDER_BUFFER_MEM_USED)), _heap_bytes(), _quality_state()]
+
+
+## The quality levers actually in force, read back from the engine (logging only): level, 3D render scale,
+## directional lights and how many cast shadows, sky radiance sizes (0 = 32 ... 3 = 256), and the gates.
+func _quality_state() -> String:
+	var dir := 0
+	var shadowed := 0
+	var rad: Array = []
+	var stack: Array = [get_tree().root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		stack.append_array(n.get_children())
+		if n is Light3D and (n as Light3D).shadow_enabled:
+			shadowed += 1
+		if n is DirectionalLight3D:
+			dir += 1
+		elif n is WorldEnvironment and n.environment != null and n.environment.sky != null:
+			rad.append(int(n.environment.sky.radiance_size))
+	return "q=%s scale3d=%.3f dirlights=%d shadowed=%d radiance=%s textures=%d models=%d texheld=%d" % [Run.quality_level(), get_viewport().scaling_3d_scale,
+		dir, shadowed, ",".join(PackedStringArray(rad.map(func(x): return str(x)))) if not rad.is_empty() else "-",
+		int(Run.quality_allows("textures")), int(Run.quality_allows("models")), preload("res://scripts/tex_kit.gd").loaded.size()]
 
 
 ## Which part of the scene a mesh node belongs to, for the breakdown.
