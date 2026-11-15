@@ -26,6 +26,9 @@ ROOT = Path(__file__).resolve().parent.parent
 GAME = ROOT / "game"
 SRC = ROOT / "assets_src"
 DEFAULT_GODOT = "/home/claude/godot/Godot_v4.4.1-stable_linux.x86_64"
+# Import options that differ from Godot's defaults, by assets_src/ prefix. The rig meshes need no LODs (characters
+# are small on screen), no separate shadow meshes and no tangents (no normal maps): less buffer memory on the phone.
+PARAMS = {"rig/": {".glb": ["meshes/ensure_tangents=false", "meshes/generate_lods=false", "meshes/create_shadow_meshes=false"]}}
 RAW = {".glb", ".gltf", ".png", ".jpg", ".jpeg", ".webp", ".wav", ".ogg"}
 
 
@@ -77,6 +80,13 @@ def main() -> int:
             if own or ext:
                 gone.add("res://" + imp.relative_to(stage).as_posix()[:-len(".import")])
                 imp.unlink()
+        for s in sources:
+            rel = s.relative_to(SRC).as_posix()
+            for pre, by_ext in PARAMS.items():
+                if rel.startswith(pre) and s.suffix.lower() in by_ext:
+                    importer = "scene" if s.suffix.lower() in (".glb", ".gltf") else "texture"
+                    (stage / "assets" / (rel + ".import")).write_text(
+                        '[remap]\n\nimporter="%s"\n\n[params]\n\n%s\n' % (importer, "\n".join(by_ext[s.suffix.lower()])))
         stage_cache = stage / ".godot" / "uid_cache.bin"
         write_uids(stage_cache, [e for e in read_uids(stage_cache) if e[1] not in gone])
         r = subprocess.run([args.godot, "--headless", "--path", str(stage), "--import"],

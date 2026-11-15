@@ -1,5 +1,5 @@
 extends RefCounted
-## Debug only (--looktest=rig-check, check.js `rig-contract`): drives one RigVisual through every
+## Debug only (--looktest=rig-check, check.js `rig`): drives one RigVisual through every
 ## contract action on a fixed 240 Hz clock (tick(), not frames, so the result does not depend on the
 ## 2-4 fps of software WebGL) and prints RIGCHECK lines. A second, hidden RigVisual is the reference:
 ## it is posed straight from the clip at the key time, so "reached its key pose" means the hand,
@@ -39,6 +39,7 @@ var ref: FighterVisual
 var ph: PlaceholderVisual
 var fails: Array = []
 var _parent: Node3D
+var mem_before_rebuilds := 0.0
 
 
 func _init(parent: Node3D) -> void:
@@ -150,6 +151,12 @@ func run() -> bool:
 		var label := "%s(%d,%.2f)" % [s[0], s[1], s[2]]
 		var m := _measure(s[0], s[1], s[2], s[3])
 		_check_timing(label, m)
+		if s[0] == &"strike":
+			# Plan section 3: contact (the end of S) 0.05 +- 0.02 s after the call, whatever `duration` is.
+			var c_ok: bool = absf(m.t_key - 0.05) <= 0.02
+			_say("contact %s at %.3f s after strike (want 0.05 +- 0.02) %s" % [label, m.t_key, "ok" if c_ok else "BAD"])
+			if not c_ok:
+				_fail("%s contact at %.3f s" % [label, m.t_key])
 		if s[0] == &"windup":
 			# still in the key pose when the duel strikes (end of the windup, or of the feint's resume)
 			var held := _dist(m.end, _ref_pose(m.key, 0.0))
@@ -173,10 +180,30 @@ func run() -> bool:
 				mind = minf(mind, (windup_end[a][0] as Vector3).distance_to(windup_end[b][0]))
 				mint = minf(mint, (windup_end[a][1] as Vector3).distance_to(windup_end[b][1]))
 	_say("windup_distinct min_hand_pair=%.3f min_tip_pair=%.3f" % [mind, mint])
+	# Tip side per direction as the player sees a foe facing them: the fighter's +x is the player's screen
+	# left. LEFT: tip to screen left; RIGHT: screen right; OVER: above the head; THRUST: near the middle.
+	if windup_end.size() == 4:
+		var head_y: float = rig.call("debug_bone", "head").y
+		var tl: Vector3 = windup_end[0][1]
+		var tr: Vector3 = windup_end[1][1]
+		var to: Vector3 = windup_end[2][1]
+		var tt: Vector3 = windup_end[3][1]
+		var side := {"LEFT": tl.x > 0.3, "RIGHT": tr.x < -0.3, "OVER": to.y > head_y + 0.2, "THRUST": tt.z < windup_end[3][0].z - 0.5 and absf(tt.x) < 0.7}
+		_say("windup_side screen LEFT=%s (x %.2f) RIGHT=%s (x %.2f) OVER=%s (tip y %.2f, head %.2f) THRUST=%s (x %.2f, z %.2f: point toward the player)" % [
+			side.LEFT, tl.x, side.RIGHT, tr.x, side.OVER, to.y, head_y, side.THRUST, tt.x, tt.z])
+		for k in side:
+			if not side[k]:
+				_fail("windup %s tip on the wrong side" % k)
 	if windup_end.size() != 4 or mind < 0.25:
 		_fail("windup hand positions too close (min %.3f u)" % mind)
 
 	# 3. get_clash_point() against PlaceholderVisual at the same place and scale.
+	# (a fresh one: reconfiguring the one that played would free parts its own tweens still target)
+	ph.free()
+	ph = PlaceholderVisual.new()
+	ph.has_shield = true
+	_parent.add_child(ph)
+	ph.visible = false
 	for sc in [1.0, 1.45]:
 		rig.configure({"style": "hero", "shield": true, "scale": sc})
 		ph.configure({"style": "hero", "scale": sc})
@@ -256,6 +283,71 @@ func run() -> bool:
 	if dmax - dmin > 0.002 or path < 1.0:
 		_fail("MeshKit blade does not follow the hand (spread %.4f, path %.2f)" % [dmax - dmin, path])
 	mk.queue_free()
+
+	# 7. Skeleton_Blade (KayKit skeleton gear from its own file) on handslot.r of the skeleton warrior.
+	var sb := _make({"style": "skeleton"}, Vector3(-4, 0, 0))
+	sb.play(&"slash", 1, 0.35)
+	var sb_node: Node3D = sb.find_child("Skeleton_Blade", true, false)
+	var sb_spread := [INF, 0.0]
+	var sb_path := 0.0
+	sb.call("debug_sync_attachments")
+	var sb_prev: Vector3 = sb.call("debug_tip_global")
+	for k in 120:
+		sb.call("tick", DT)
+		sb.call("debug_sync_attachments")
+		var tip2: Vector3 = sb_node.to_global((sb_node.get_child(1) as Node3D).position) if sb_node != null else Vector3.ZERO
+		var hand2: Vector3 = sb.to_global(sb.call("debug_bone", "handslot.r"))
+		sb_spread[0] = minf(sb_spread[0], tip2.distance_to(hand2))
+		sb_spread[1] = maxf(sb_spread[1], tip2.distance_to(hand2))
+		sb_path += tip2.distance_to(sb_prev)
+		sb_prev = tip2
+	_say("skeleton_blade attached=%s tip_to_handslot min=%.4f max=%.4f tip_path=%.2f u" % [sb_node != null, sb_spread[0], sb_spread[1], sb_path])
+	if sb_node == null or sb_spread[1] - sb_spread[0] > 0.002 or sb_path < 1.0:
+		_fail("Skeleton_Blade does not follow the hand")
+
+	# 8. The bases agree: knight and skeleton warrior posed from the same clip times put every deform bone
+	# within 1 mm (toe bones and the IK/control helpers excluded: the plan found the toes differ).
+	var kn: FighterVisual = _make({"style": "hero"}, Vector3(0, 0, 10))
+	sb.position = Vector3(0, 0, 10)
+	sb.rotation = Vector3.ZERO
+	var sk: Skeleton3D = kn.find_children("*", "Skeleton3D", true, false)[0]
+	var sk2: Skeleton3D = sb.find_children("*", "Skeleton3D", true, false)[0]
+	var worst := 0.0
+	var worst_bone := ""
+	var n_bones := 0
+	for clip in [Clips.IDLE, Clips.SLICE, Clips.CHOP, Clips.STAB, Clips.WALK, Clips.DEATH, Clips.HIT_HEAVY]:
+		var len3: float = RigVisual.library().get_animation(clip).length
+		for f in [0.0, 0.3, 0.6, 0.9]:
+			kn.call("debug_pose", clip, len3 * f)
+			sb.call("debug_pose", clip, len3 * f)
+			n_bones = 0
+			for bi in sk.get_bone_count():
+				var bn := sk.get_bone_name(bi)
+				if bn.begins_with("toes") or "IK" in bn or bn.begins_with("control") or sk2.find_bone(bn) < 0:
+					continue
+				n_bones += 1
+				var d3: float = (kn.call("debug_bone", bn) as Vector3).distance_to(sb.call("debug_bone", bn))
+				if d3 > worst:
+					worst = d3
+					worst_bone = "%s %s@%.2f" % [bn, clip, len3 * f]
+	_say("bases_agree knight_vs_skeleton_warrior bones=%d worst=%.5f m (%s)" % [n_bones, worst, worst_bone])
+	if worst > 0.001:
+		_fail("bases disagree by %.4f m at %s" % [worst, worst_bone])
+	sb.queue_free()
+	kn.queue_free()
+
+	# 9. The static caches: rebuilding and creating rigs loads nothing again.
+	var loads0: int = RigVisual.loads
+	var mem0 := Performance.get_monitor(Performance.MEMORY_STATIC)
+	for k in 20:
+		rig.configure({"style": "skeleton" if k % 2 else "hero", "shield": true})
+		var tmp := _make({"style": "knight", "shield": true}, Vector3(8, 0, 0))
+		tmp.free()
+	rig.configure(cfg)
+	mem_before_rebuilds = mem0
+	_say("caches loads_before=%d loads_after=%d (20 rebuilds, 20 new rigs)" % [loads0, RigVisual.loads])
+	if RigVisual.loads != loads0:
+		_fail("a rig resource was loaded again (%d -> %d)" % [loads0, RigVisual.loads])
 
 	_say("done ok=%s fails=%d actions=%d secs=%.1f" % [fails.is_empty(), fails.size(), SEQUENCE.size(), (Time.get_ticks_msec() - t0) / 1000.0])
 	return fails.is_empty()

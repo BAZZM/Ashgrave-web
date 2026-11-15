@@ -1168,11 +1168,12 @@ scenario('quest-save', 'saves from earlier builds keep their quest progress step
 scenario('pvp', 'two players duel through one relay', (ctx) => pvp(ctx, 1), true);
 scenario('pvp-2relay', 'two players duel through the same two relays, duplicates dropped', (ctx) => pvp(ctx, 2), true);
 
-// ---- 7. RigVisual contract (docs/RIG_PLAN.md R1; debug scene, the game itself does not use it yet)
+// ---- 7. RigVisual contract (docs/RIG_PLAN.md R1; debug scene, the game itself does not use it yet; the release
+// pack leaves the rig out, so this needs `python3 tools/build.py --looktest` first)
 
 // The look test runs the check on its own 240 Hz clock (not frames), so the timings below do not
 // depend on how slowly software WebGL draws.
-scenario('rig-contract', 'RigVisual: every contract action lands its key pose on time, windups distinct, unknown actions ignored, reparent and tweens safe', async (ctx) => {
+scenario('rig', 'RigVisual (needs a `tools/build.py --looktest` pack): every contract action lands its key pose on time (section play, blends, reverse), contact 0.05 s after strike, windup tips on their sides, gear follows the hand, bases agree, caches load once', async (ctx) => {
   let seen = [];
   const res = await solo(ctx, {
     args: ['--looktest=rig-check'], finish: /^LOOKTEST rig-check ok=/, seconds: 180,
@@ -1185,7 +1186,12 @@ scenario('rig-contract', 'RigVisual: every contract action lands its key pose on
       if (bad.length) return `late or missed key poses: ${bad.slice(0, 3).join(' | ')}`;
       const fails = rc.filter((l) => /^RIGCHECK FAIL/.test(l));
       if (fails.length) return fails.slice(0, 3).join(' | ');
-      for (const want of [/^RIGCHECK windup_distinct /, /^RIGCHECK clash_point /, /^RIGCHECK unknown_action ignored=true/, /^RIGCHECK meshkit_blade /, /^RIGCHECK done ok=true/]) {
+      if (!lines.some((l) => /^RIGCHECK /.test(l))) return 'no RIGCHECK lines: is this a `tools/build.py --looktest` pack?';
+      const contacts = rc.filter((l) => /^RIGCHECK contact /.test(l));
+      if (contacts.length < 4 || contacts.some((l) => !/ ok$/.test(l))) return `strike contact: ${contacts.join(' | ')}`;
+      for (const want of [/^RIGCHECK windup_distinct /, /^RIGCHECK windup_side screen LEFT=true .*RIGHT=true .*OVER=true .*THRUST=true/, /^RIGCHECK clash_point /,
+        /^RIGCHECK unknown_action ignored=true/, /^RIGCHECK meshkit_blade /, /^RIGCHECK skeleton_blade attached=true/, /^RIGCHECK bases_agree /,
+        /^RIGCHECK caches /, /^RIGCHECK caches_after_free /, /^RIGCHECK done ok=true/, /^LOOKTEST rig-check ok=true/]) {
         if (!lineOf(lines, want)) return `missing ${want}`;
       }
       const wd = /min_hand_pair=([\d.]+)/.exec(lineOf(lines, /^RIGCHECK windup_distinct /));
@@ -1197,7 +1203,8 @@ scenario('rig-contract', 'RigVisual: every contract action lands its key pose on
   });
   // The figures the plan asked for, so a pass also shows them.
   const shown = [];
-  for (const re of [/^LOOKTEST rig-check /, /^RIGCHECK windup_pose /, /^RIGCHECK windup_distinct /, /^RIGCHECK meshkit_blade /, /^RIGCHECK done /]) shown.push(...seen.filter((l) => re.test(l)));
+  for (const re of [/^LOOKTEST rig-check /, /^RIGCHECK windup_side /, /^RIGCHECK windup_distinct /, /^RIGCHECK meshkit_blade /, /^RIGCHECK skeleton_blade /,
+    /^RIGCHECK bases_agree /, /^RIGCHECK caches/, /^RIGCHECK done /]) shown.push(...seen.filter((l) => re.test(l)));
   return { ok: res.ok, notes: [...res.notes, ...shown.map((l) => `saw: ${l.slice(0, 150)}`)] };
 });
 

@@ -48,5 +48,6 @@ const AT := {
 const DODGE_TIME := 0.46
 const PARRY_HOLD := 0.08
 const FEINT_NUDGE := 0.05
+const STRIKE_TIME := 0.05  # strike plays S in this, so contact lands 0.05 s after the call
 const BLEND := 0.12
 const BLEND_FAST := 0.03

@@ -7,7 +7,11 @@ extends Node3D
 ##   rig-heads      head scale 1.0 and 0.85 side by side (idle; seek freezes).
 ##   rig-gear       gear variants and the MeshKit blade on handslot.r: overhead windup, then a slash
 ##                  at 0.6 s (seek freezes). A "-close" suffix moves the camera in (rig-gear-close).
-##   rig-perf=N, ph-perf=N   N RigVisual or N PlaceholderVisual fighters idling, for the Perf numbers.
+##   rig-perf=N, ph-perf=N   N RigVisual or N PlaceholderVisual fighters idling, for the Perf numbers
+##                  (rig18 = rig-perf=18). Prints a LOOKTEST perf_result line: frame time, draw calls, memory.
+##   rig-shots      knight and skeleton warrior, each from the front and three-quarter, frozen in SHOTS one
+##                  after another (tools/rig_shots.js advances with window.__lt_next), then the knight alone
+##                  and the empty ground for the luminance measure (tools/g3_measure.py).
 
 const RigVisual := preload("res://scripts/rig_visual.gd")
 const RigCheck := preload("res://scripts/rig_check.gd")
@@ -23,6 +27,27 @@ var _step_t := 0.0
 var _starts: Array = []
 var _frozen := false
 var _seq := false
+var _shot := -1
+var _shot_wait := 0.0
+var _perf_n := -1
+var _perf_t := 0.0
+var _perf_frames := 0
+var _perf_sum := 0.0
+var _perf_max := 0.0
+var _perf_rss0 := 0.0
+
+## [name, action, dir, duration, seconds after the call to freeze, walk amount]
+const SHOTS := [
+	["idle", &"idle", 0, 0.3, 0.6, 0.0],
+	["slash", &"slash", 1, 0.35, 0.2, 0.0],
+	["windup-over", &"windup", 2, 1.0, 0.7, 0.0],
+	["parry", &"parry", -1, 0.3, 0.07, 0.0],
+	["stagger", &"stagger", 0, 0.3, 0.3, 0.0],
+	["death", &"death", 0, 0.3, 1.3, 0.0],
+	["walk", &"idle", 0, 0.3, 0.55, 0.6],
+	["lum-knight", &"idle", 0, 0.3, 0.6, 0.0],
+	["lum-knight_empty", &"idle", 0, 0.3, 0.6, 0.0],
+]
 
 
 func setup(p_mode: String, p_seek: float) -> void:
@@ -42,7 +67,15 @@ func setup(p_mode: String, p_seek: float) -> void:
 			lines.append("%d:%s(%d,%.2f)@%.2f" % [i, s[0], s[1], s[2], _starts[i]])
 		print("LOOKTEST rig sequence (step:action(dir,duration)@start) %s total=%.2f" % [" ".join(lines), t])
 	elif mode == "rig-check":
-		var ok := RigCheck.new(self).run()
+		var chk := RigCheck.new(self)
+		var ok := chk.run()
+		# The rebuilt rigs' old nodes go with queue_free: measure static memory once they are gone.
+		await get_tree().create_timer(1.0).timeout
+		var grow := int(Performance.get_monitor(Performance.MEMORY_STATIC) - chk.mem_before_rebuilds)
+		print("RIGCHECK caches_after_free static_mem_delta=%d B (20 rebuilds + 20 rigs made and freed)" % grow)
+		if grow > 1 << 20:
+			ok = false
+			print("RIGCHECK FAIL static memory grew %d B over 20 rebuilds" % grow)
 		print("LOOKTEST rig-check ok=%s" % ok)
 		for c in get_children():
 			c.visible = false
@@ -62,7 +95,23 @@ func setup(p_mode: String, p_seek: float) -> void:
 			rigs.append(_rig(looks[i], Vector3(-2.1 + 1.4 * i, 0, -3.2)))
 		for r in rigs:
 			r.play(&"windup", AttackDef.Dir.OVER, 1.0)
-	elif mode.begins_with("rig-perf=") or mode.begins_with("ph-perf="):
+	elif mode == "rig-shots":
+		var specs := [[{"style": "hero", "shield": true}, 0.0], [{"style": "hero", "shield": true}, -0.75],
+			[{"style": "skeleton"}, 0.0], [{"style": "skeleton"}, -0.75]]
+		for i in specs.size():
+			var r := _rig(specs[i][0], Vector3(-2.4 + 1.6 * i, 0, -1.0))
+			rigs.append(r)
+			r.rotation.y = PI + specs[i][1]
+		var cam := Camera3D.new()
+		cam.fov = 50.0
+		add_child(cam)
+		cam.position = Vector3(0, 1.35, 4.3)
+		cam.look_at(to_global(Vector3(0, 0.95, -1.0)))
+		cam.make_current()
+		_shot_go(0)
+	elif mode == "rig18":
+		mode = "rig-perf=18"
+	if mode.begins_with("rig-perf=") or mode.begins_with("ph-perf="):
 		var n := int(mode.get_slice("=", 1))
 		var cols := 4
 		for i in n:
@@ -73,11 +122,12 @@ func setup(p_mode: String, p_seek: float) -> void:
 			else:
 				_ph(pos)
 		print("LOOKTEST perf fighters=%d kind=%s" % [n, mode.get_slice("=", 0)])
+		_perf_n = n
 	if mode.ends_with("-close"):
 		var cam := get_viewport().get_camera_3d()
 		cam.position = Vector3(0, 1.5, 0.6)
 		cam.look_at(get_parent().to_global(Vector3(0, 1.1, -3.0)))
-	if seek >= 0.0 and not mode.begins_with("rig-perf") and not mode.begins_with("ph-perf") and mode != "rig-check":
+	if seek >= 0.0 and mode != "rig-shots" and not mode.begins_with("rig-perf") and not mode.begins_with("ph-perf") and mode != "rig-check":
 		_advance(seek)
 		_frozen = true
 		print("LOOKTEST frozen t=%.3f step=%d %s" % [_t, _step, str(RigCheck.SEQUENCE[_step]) if _seq and _step >= 0 else ""])
@@ -107,6 +157,10 @@ func _ph(pos: Vector3) -> PlaceholderVisual:
 
 
 func _process(delta: float) -> void:
+	if _perf_n >= 0:
+		_perf_tick(delta)
+	if _shot >= 0:
+		_shot_poll(delta)
 	if not _frozen and not rigs.is_empty() and (_seq or mode.begins_with("rig-heads") or mode.begins_with("rig-gear")):
 		_advance(minf(delta, 0.1))
 
@@ -147,3 +201,61 @@ func _tick(h: float) -> void:
 			if tw != null and tw.is_valid():
 				tw.custom_step(h)
 		p._process(h)
+
+
+# ---- rig-shots: one frozen pose after another, advanced by the page (window.__lt_next = next index)
+
+func _shot_go(i: int) -> void:
+	_shot = i
+	_shot_wait = 0.0
+	var sh: Array = SHOTS[i]
+	for k in rigs.size():
+		var r: Node3D = rigs[k]
+		r.visible = not (sh[0] == "lum-knight_empty" or sh[0] == "lum-knight" and k >= 2)
+		r.call("set_walk", 0.0)
+		r.play(&"idle")
+		_tick_rig(r, 0.5)
+		r.call("set_walk", sh[5])
+		r.play(sh[1], sh[2], sh[3])
+		_tick_rig(r, sh[4])
+	print("LOOKTEST cam %s" % sh[0])
+
+
+func _tick_rig(r: Node3D, t: float) -> void:
+	var left := t
+	while left > 1e-6:
+		var h := minf(SUB, left)
+		r.call("tick", h)
+		left -= h
+
+
+func _shot_poll(delta: float) -> void:
+	_shot_wait += delta
+	if _shot_wait < 0.5 or not OS.has_feature("web"):
+		return
+	_shot_wait = 0.0
+	var v := int(JavaScriptBridge.eval("window.__lt_next === undefined ? -1 : window.__lt_next", true))
+	if v > _shot and v < SHOTS.size():
+		_shot_go(v)
+
+
+# ---- rig-perf: frame time over 4 s after 4 s of warm-up, then the render monitors
+
+func _perf_tick(delta: float) -> void:
+	_perf_t += delta
+	if _perf_t < 4.0:
+		return
+	if _perf_frames == 0:
+		_perf_rss0 = Performance.get_monitor(Performance.MEMORY_STATIC)
+	_perf_frames += 1
+	_perf_sum += delta
+	_perf_max = maxf(_perf_max, delta)
+	if _perf_t >= 8.0:
+		print("LOOKTEST perf_result kind=%s n=%d frames=%d frame_ms_avg=%.1f frame_ms_max=%.1f draw_calls=%d objects=%d primitives=%d tex_mem=%d buf_mem=%d vid_mem=%d static_mem=%d wasm_heap=%d" % [
+			mode.get_slice("=", 0), _perf_n, _perf_frames, 1000.0 * _perf_sum / _perf_frames, 1000.0 * _perf_max,
+			int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)), int(Performance.get_monitor(Performance.RENDER_TOTAL_OBJECTS_IN_FRAME)),
+			int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME)), int(Performance.get_monitor(Performance.RENDER_TEXTURE_MEM_USED)),
+			int(Performance.get_monitor(Performance.RENDER_BUFFER_MEM_USED)), int(Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED)),
+			int(Performance.get_monitor(Performance.MEMORY_STATIC)),
+			int(JavaScriptBridge.eval("window.__ag ? window.__ag.heap() : -1", true)) if OS.has_feature("web") else -1])
+		_perf_n = -1

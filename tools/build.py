@@ -13,6 +13,11 @@ The release pack holds only the textures the real game samples (SHIPPED_TEXTURES
 and the ripple map). The other imported textures under game/assets/textures/ (walls, wood, bark, leaf, armour, banner,
 the colour sources) are used only by the debug look-test scene; their .import files and imported forms are left out
 unless --looktest is given, and the look test then falls back to flat (tex_kit.gd).
+
+The rig (docs/RIG_PLAN.md stage R1) is look-test-only too: everything under assets/rig/ (remaps and imported
+meshes, clips, atlas), the KayKit probe's imports under assets/kaykit/, and the rig scripts (RIG_SCRIPTS) are left
+out unless --looktest is given. R2, which puts
+the rig in the game behind a flag, must move them into the release pack (drop them from look_test_only()).
 """
 import hashlib
 import re
@@ -27,6 +32,8 @@ GODOT_VERSION = (4, 4, 1)
 ALIGN = 16
 TEX_DIR = "assets/textures/"
 SHIPPED_TEXTURES = {"packed/terrain_a", "packed/terrain_b", "packed/ripple"}
+RIG_DIRS = ("assets/rig/", "assets/kaykit/")  # the rig, and the KayKit probe's imports (lane p1, --looktest=wide|close|...)
+RIG_SCRIPTS = {"scripts/rig_visual.gd", "scripts/rig_clips.gd", "scripts/rig_check.gd", "scripts/rig_looktest.gd"}
 
 
 def pad(n: int, to: int) -> int:
@@ -43,7 +50,11 @@ def look_test_only() -> set:
         out.add(imp.relative_to(GAME).as_posix())
         for m in re.finditer(r'res://([^"]+)', "\n".join(l for l in imp.read_text().splitlines() if l.startswith("path=") or l.startswith("dest_files="))):
             out.add(m.group(1))
-    return out
+    for imp in [i for d in RIG_DIRS for i in (GAME / d).rglob("*.import")]:
+        out.add(imp.relative_to(GAME).as_posix())
+        for m in re.finditer(r'res://([^"]+)', "\n".join(l for l in imp.read_text().splitlines() if l.startswith("path=") or l.startswith("dest_files="))):
+            out.add(m.group(1))
+    return out | RIG_SCRIPTS
 
 
 def build_pack(with_looktest: bool = False) -> bytes:

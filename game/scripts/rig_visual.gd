@@ -5,13 +5,22 @@ extends FighterVisual
 ## Nothing in the game creates one yet: only the --looktest=rig debug scene does. No class_name:
 ## load with preload("res://scripts/rig_visual.gd").
 ##
-## Shared by every instance: the AnimationLibrary (anims.glb, loaded once), the atlas, the shader and
-## its one ShaderMaterial. Per instance: instance uniforms (tint, flash, tell), the skeleton and its
+## Shared by every instance: the AnimationLibrary (anims.glb, loaded once), the meshes, the atlas and the
+## shader. Per instance: two small ShaderMaterials made from the shared one (body and gear: tint, flash;
+## weapon: tint, tell). Not instance uniforms: on the web renderer their buffer ran out (4096 slots, the
+## rig check hit "Too many instances using shader instance variables"). Also per instance: the skeleton and its
 ## AnimationPlayer, which runs in manual mode and is advanced by tick() from _process.
+##
+## Rules for the stages that put it in the game (R2 on): create one only when RigVisual.allowed() (quality
+## "models"; Safe has none) and use PlaceholderVisual otherwise; nothing here uses physics (Build 19 stops
+## the physics servers). Meshes, gear, clips, atlas and shader are loaded once per run (static caches).
 
 const Clips := preload("res://scripts/rig_clips.gd")
 const DIR := "res://assets/rig/"
 const TIP_1H := 1.41  # 1H_Sword: tip along its bone's +Y (mesh AABB end)
+const TIP_SKELETON_BLADE := 1.17  # Skeleton_Blade mesh AABB end (Skeleton_Blade.gltf)
+## Loose gear in gear.glb (tools/pack_characters.py GEAR), hung on a bone at run time.
+const LOOSE := {"Skeleton_Blade": {"bone": "handslot.r", "tip": TIP_SKELETON_BLADE}}
 
 ## Style -> base character and gear. The `gear` key of configure() overrides any of these.
 const LOOKS := {
@@ -19,12 +28,16 @@ const LOOKS := {
 	"knight": {"base": "knight", "sword": "1H_Sword", "shield": "Rectangle_Shield", "helmet": true, "cape": false},
 	"sentinel": {"base": "knight", "sword": "1H_Sword", "shield": "Rectangle_Shield", "helmet": true, "cape": true},
 	"duelist": {"base": "knight", "sword": "1H_Sword", "shield": "", "helmet": false, "cape": false},
+	"skeleton": {"base": "skeleton_warrior", "sword": "Skeleton_Blade", "shield": "", "helmet": true, "cape": false},
 	"brute": {"base": "skeleton_warrior", "sword": "meshkit", "shield": "", "helmet": true, "cape": false},
 	"boss": {"base": "knight", "sword": "2H_Sword", "shield": "Spike_Shield", "helmet": true, "cape": true},
 }
 const SHIELDS := ["Badge_Shield", "Rectangle_Shield", "Round_Shield", "Spike_Shield"]
 const SWORDS := ["1H_Sword", "2H_Sword"]
 const HELMETS := ["Knight_Helmet", "Skeleton_Warrior_Helmet"]
+## Emission lift: PlaceholderVisual uses 0.5; on the KayKit atlas that washed the steel out to near white
+## (knight on grass 1.76x the ground); 0.32 measured 1.20x. 0.45 keeps some of the steel's blue at 1.5x or more.
+const LIFT := 0.45
 const CHEST_YAW := 20.0
 const HIT_YAW := 16.0
 
@@ -32,27 +45,32 @@ const SHADER := "
 shader_type spatial;
 render_mode cull_disabled;
 uniform sampler2D atlas : source_color, filter_linear, repeat_disable;
-uniform float rim_amount = 0.25;
-instance uniform vec4 tint : source_color = vec4(1.0, 1.0, 1.0, 1.0);
-instance uniform vec4 flash : source_color = vec4(0.0, 0.0, 0.0, 1.0);
-instance uniform vec4 tell : source_color = vec4(0.0, 0.0, 0.0, 1.0);
+uniform float rim_amount = 0.35;
+uniform float metallic_k = 0.35;
+uniform float lift = 0.5;
+uniform vec4 tint : source_color = vec4(1.0, 1.0, 1.0, 1.0);
+uniform vec4 flash : source_color = vec4(0.0, 0.0, 0.0, 1.0);
+uniform vec4 tell : source_color = vec4(0.0, 0.0, 0.0, 1.0);
 void fragment() {
 	vec3 c = texture(atlas, UV).rgb;
 	float hi = max(c.r, max(c.g, c.b));
 	float sat = (hi - min(c.r, min(c.g, c.b))) / max(hi, 0.001);
 	float metal = 1.0 - smoothstep(0.12, 0.3, sat);
 	ALBEDO = mix(c, c * tint.rgb, metal);
-	METALLIC = metal * 0.55;
+	METALLIC = metal * metallic_k;
 	ROUGHNESS = mix(0.85, 0.45, metal);
-	EMISSION = flash.rgb + tell.rgb * 2.5;
+	// The same lift and rim as PlaceholderVisual (Build 16 lighting: fighters read at 1.5x the ground or more).
+	EMISSION = mix(ALBEDO, vec3(1.0), 0.3) * lift + flash.rgb + tell.rgb * 2.5;
 	RIM = rim_amount;
-	RIM_TINT = 0.4;
+	RIM_TINT = 0.3;
 }
 "
 
 static var _lib: AnimationLibrary
 static var _mat: ShaderMaterial
 static var _bases := {}
+static var _loose := {}
+static var loads := 0  # resources loaded by the static caches (the rig check proves it stays flat)
 
 @export var has_shield := false
 var style := "hero"
@@ -70,8 +88,11 @@ var _ap: AnimationPlayer
 var _skinned: Array[GeometryInstance3D] = []
 var _rigid: Array[GeometryInstance3D] = []
 var _weapon: GeometryInstance3D
+var _body_mat: ShaderMaterial
+var _weapon_mat: ShaderMaterial
 var _tip: Node3D
 var _head_bone := -1
+var _chest_off := Quaternion.IDENTITY  # the chest yaw last added on top of the clip (undone before the next advance)
 var _chest_bone := -1
 var _hand_bone := -1
 var _segs: Array = []
@@ -97,8 +118,14 @@ var _trail_time := 0.0
 var _trail_color := Color(1, 0.9, 0.7)
 
 
+## Whether the game may build one (quality "models"); a caller falls back to PlaceholderVisual otherwise.
+static func allowed() -> bool:
+	return Run.quality_allows("models")
+
+
 static func library() -> AnimationLibrary:
 	if _lib == null:
+		loads += 1
 		var src: Node = (load(DIR + "anims.glb") as PackedScene).instantiate()
 		_lib = (src.find_children("*", "AnimationPlayer")[0] as AnimationPlayer).get_animation_library("")
 		src.free()
@@ -111,16 +138,31 @@ static func material() -> ShaderMaterial:
 	if _mat == null:
 		var sh := Shader.new()
 		sh.code = SHADER
+		loads += 2
 		_mat = ShaderMaterial.new()
 		_mat.shader = sh
 		_mat.set_shader_parameter("atlas", load(DIR + "atlas.png"))
+		for k in ["flash", "tell"]:
+			_mat.set_shader_parameter(k, Color.BLACK)
+		_mat.set_shader_parameter("tint", Color.WHITE)
 	return _mat
 
 
 static func _base(name_: String) -> PackedScene:
 	if not _bases.has(name_):
+		loads += 1
 		_bases[name_] = load(DIR + name_ + ".glb")
 	return _bases[name_]
+
+
+static func _loose_mesh(name_: String) -> Mesh:
+	if _loose.is_empty():
+		loads += 1
+		var g: Node = (load(DIR + "gear.glb") as PackedScene).instantiate()
+		for mi in g.find_children("*", "MeshInstance3D"):
+			_loose[str(mi.name)] = (mi as MeshInstance3D).mesh
+		g.free()
+	return _loose.get(name_)
 
 
 func _ready() -> void:
@@ -149,7 +191,21 @@ func _look() -> Dictionary:
 	return look
 
 
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE:
+		_kill_tweens()
+
+
+func _kill_tweens() -> void:
+	for tw in [_flash_tw, _tell_tw]:
+		if tw != null and tw.is_valid():
+			tw.kill()
+	_flash_tw = null
+	_tell_tw = null
+
+
 func _build() -> void:
+	_kill_tweens()
 	for c in get_children():
 		remove_child(c)
 		c.queue_free()
@@ -166,7 +222,9 @@ func _build() -> void:
 	for c in rig_node.get_children():
 		if c != _sk and c.get_child_count() == 0 and not (c is MeshInstance3D):
 			c.free()  # the body parts the pack tool merged leave empty nodes
-	var mat := material()
+	_body_mat = material().duplicate() as ShaderMaterial  # shares the shader and the atlas
+	_weapon_mat = material().duplicate() as ShaderMaterial
+	var mat := _body_mat
 	for n in _sk.get_children():
 		if n is MeshInstance3D:
 			var mi := n as MeshInstance3D
@@ -191,19 +249,28 @@ func _build() -> void:
 			mi2.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF if att.name == "Knight_Cape" else mi2.cast_shadow
 			_rigid.append(mi2)
 			if att.name in SWORDS:
+				mi2.material_override = _weapon_mat
 				_weapon = mi2
 				_tip = Node3D.new()
-				_tip.position = Vector3(0, TIP_1H * (1.25 if att.name == "2H_Sword" else 1.0), 0)
+				_tip.position = mi2.transform * Vector3(0, TIP_1H * (1.25 if att.name == "2H_Sword" else 1.0), 0)
 				att.add_child(_tip)
 	if look.sword == "meshkit":
 		_attach_blade(1.2, 0.1)
+	elif LOOSE.has(look.sword):
+		_attach_loose(look.sword, _weapon_mat)
 	_head_bone = _sk.find_bone("head")
 	_chest_bone = _sk.find_bone("chest")
 	_hand_bone = _sk.find_bone("hand.r")
-	var tint := Color.WHITE.lerp(body_color.lightened(0.25), 0.6)
-	for g in _skinned + _rigid:
-		if g.material_override == mat:
-			g.set_instance_shader_parameter("tint", tint)
+	# The body colour steers the steel's hue, never darkens it (the playability rule is about luminance).
+	var bc := body_color.lightened(0.25)
+	var tint := Color.WHITE.lerp(bc / maxf(maxf(bc.r, bc.g), maxf(bc.b, 0.01)), 0.5)
+	var rim: float = PlaceholderVisual.RIM_HERO if style == "hero" else (PlaceholderVisual.RIM_ENEMY if absf(scale.y) >= PlaceholderVisual.ENEMY_MIN_SCALE else PlaceholderVisual.RIM_OTHER)
+	for m in [_body_mat, _weapon_mat]:
+		m.set_shader_parameter("rim_amount", rim)
+		m.set_shader_parameter("metallic_k", PlaceholderVisual.METAL_METALLIC)
+		m.set_shader_parameter("lift", LIFT)
+	_body_mat.set_shader_parameter("tint", tint)
+	_weapon_mat.set_shader_parameter("tint", tint)
 	_ap = AnimationPlayer.new()
 	_ap.name = "Anim"
 	_rig.add_child(_ap)
@@ -211,6 +278,7 @@ func _build() -> void:
 	_ap.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
 	_ap.add_animation_library(&"", library())
 	_build_trail()
+	_chest_off = Quaternion.IDENTITY
 	_segs.clear()
 	_seg = {}
 	_action = &""
@@ -218,11 +286,30 @@ func _build() -> void:
 	tick(0.0)
 
 
-## A non-KayKit weapon on the right-hand slot: a MeshKit blade on the 1H_Sword mount bone.
+## Gear from gear.glb on its bone, placed as KayKit places 1H_Sword on handslot.r (0.033 up, turned 180 degrees).
+func _attach_loose(name_: String, mat: Material) -> void:
+	var spec: Dictionary = LOOSE[name_]
+	var att := BoneAttachment3D.new()
+	att.name = name_
+	att.bone_name = spec.bone
+	_sk.add_child(att)
+	var mi := MeshInstance3D.new()
+	mi.mesh = _loose_mesh(name_)
+	mi.material_override = mat
+	mi.transform = Transform3D(Basis(Vector3.UP, PI), Vector3(0, 0.0333, 0))
+	att.add_child(mi)
+	_rigid.append(mi)
+	_weapon = mi
+	_tip = Node3D.new()
+	_tip.position = mi.transform * Vector3(0, spec.tip, 0)
+	att.add_child(_tip)
+
+
+## A non-KayKit weapon on the right-hand slot: a MeshKit blade on handslot.r (the bone 1H_Sword hangs from).
 func _attach_blade(length: float, width: float) -> void:
 	var att := BoneAttachment3D.new()
 	att.name = "MeshKitBlade"
-	att.bone_name = "1H_Sword"
+	att.bone_name = "handslot.r"
 	_sk.add_child(att)
 	var bm := StandardMaterial3D.new()
 	bm.albedo_color = Color(0.82, 0.84, 0.88)
@@ -325,6 +412,7 @@ func tick(dt: float) -> void:
 	if _ap == null:
 		return
 	_since += dt
+	_undo_offsets()
 	var left := dt
 	for _guard in 16:
 		if _seg_left > left:
@@ -349,11 +437,20 @@ func _offsets(dt: float) -> void:
 		_yaw_back = -1.0
 	var k := clampf(_yaw_t / _yaw_dur, 0.0, 1.0) if _yaw_dur > 0.0 else 1.0
 	var yaw := lerpf(_yaw_from, _yaw_to, k)
+	_undo_offsets()
 	if absf(yaw) > 0.01:
-		var q := _sk.get_bone_pose_rotation(_chest_bone)
-		_sk.set_bone_pose_rotation(_chest_bone, Quaternion(Vector3.UP, deg_to_rad(yaw)) * q)
+		_chest_off = Quaternion(Vector3.UP, deg_to_rad(yaw))
+		_sk.set_bone_pose_rotation(_chest_bone, _chest_off * _sk.get_bone_pose_rotation(_chest_bone))
 	if _head_scale != 1.0:
 		_sk.set_bone_pose_scale(_head_bone, Vector3.ONE * _head_scale)
+
+
+## Take the last chest yaw off again, so a clip without a chest track (stripped as constant on import)
+## does not pile yaw up frame after frame.
+func _undo_offsets() -> void:
+	if _chest_off != Quaternion.IDENTITY:
+		_sk.set_bone_pose_rotation(_chest_bone, _chest_off.inverse() * _sk.get_bone_pose_rotation(_chest_bone))
+		_chest_off = Quaternion.IDENTITY
 
 
 func _yaw(to: float, over: float, back := -1.0) -> void:
@@ -426,7 +523,7 @@ func play(action: StringName, dir: int = 0, duration: float = 0.3) -> void:
 			var at2: Dictionary = Clips.ATTACK.get(dir, Clips.ATTACK[3])
 			var s2: Array = at2.s
 			var r2: Array = at2.r
-			var t3 := maxf(duration, 0.01)
+			var t3: float = Clips.STRIKE_TIME  # plan section 3: S in 0.05 s whatever `duration` says
 			var cont: bool = _action == &"windup" and _seg.get("clip") == at2.clip
 			var y0 := _yaw_now()
 			_yaw(0.0, t3 + 0.2)
@@ -547,15 +644,15 @@ func _glow_tell(color: Color, t: float) -> void:
 		return
 	if _tell_tw:
 		_tell_tw.kill()
-	var from: Color = _weapon.get_instance_shader_parameter("tell") if _weapon.material_override == _mat else Color.BLACK
-	if _weapon.material_override != _mat:
+	var from: Color = _weapon_mat.get_shader_parameter("tell") if _weapon.material_override == _weapon_mat else Color.BLACK
+	if _weapon.material_override != _weapon_mat:
 		var bm := _weapon.material_override as StandardMaterial3D
 		bm.emission_enabled = true
 		_tell_tw = create_tween()
 		_tell_tw.tween_property(bm, "emission", color, maxf(t, 0.01))
 		return
 	_tell_tw = create_tween()
-	_tell_tw.tween_method(func(c: Color) -> void: _weapon.set_instance_shader_parameter("tell", c), from, color, maxf(t, 0.01))
+	_tell_tw.tween_method(func(c: Color) -> void: _weapon_mat.set_shader_parameter("tell", c), from, color, maxf(t, 0.01))
 
 
 func flash(color: Color) -> void:
@@ -566,8 +663,7 @@ func flash(color: Color) -> void:
 
 
 func _set_flash(c: Color) -> void:
-	for g in _skinned:
-		g.set_instance_shader_parameter("flash", c)
+	_body_mat.set_shader_parameter("flash", c)
 
 
 func _swing_trail(color: Color, t := 0.22) -> void:
@@ -648,6 +744,7 @@ func debug_sync_attachments() -> void:
 
 ## Pose this (reference) rig at one clip time with a chest yaw, with no blending.
 func debug_pose(clip: StringName, t: float, yaw := 0.0) -> void:
+	_undo_offsets()
 	_segs.clear()
 	_ap.play(clip, 0.0, 0.0)
 	_ap.seek(t, true)

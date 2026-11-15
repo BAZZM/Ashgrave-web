@@ -11,6 +11,8 @@ into assets_src/rig/ (git-ignored; tools/import_assets.py turns it into res://as
                UVs are moved into the character's slot of the shared atlas.
   anims.glb    the skeleton of Skeleton_Warrior (the superset of clip names) plus exactly the clips in
                CLIPS and no mesh: imported once, its AnimationLibrary is shared by every RigVisual.
+  gear.glb     loose gear from other files (GEAR), each a plain mesh at the origin with its UVs in its
+               texture's atlas slot: RigVisual hangs them on a bone at run time (Skeleton_Blade on handslot.r).
   atlas.png    one atlas for every character: each pack texture (1024 px) scaled to SLOT px into its slot.
 
 Also strips the sideways travel of root and hips (0.69 u) from Dodge_Left/Right (the duel tweens the node itself).
@@ -51,6 +53,8 @@ CLIPS = ["Idle", "Walking_A", "Running_A", "1H_Melee_Attack_Slice_Horizontal", "
          "1H_Melee_Attack_Stab", "Blocking", "Block_Hit", "Hit_A", "Hit_B", "PickUp", "Death_A",
          "Dodge_Left", "Dodge_Right", "Taunt", "Cheer"]
 NO_SIDEWAYS = {"Dodge_Left", "Dodge_Right"}
+# Loose gear (.gltf with its .bin): name -> (source, texture slot).
+GEAR = {"Skeleton_Blade": (SKE.replace("Characters/gltf/", "Assets/gltf/") + "Skeleton_Blade.gltf", "skeleton")}
 
 CT = {5120: np.int8, 5121: np.uint8, 5122: np.int16, 5123: np.uint16, 5125: np.uint32, 5126: np.float32}
 NC = {"SCALAR": 1, "VEC2": 2, "VEC3": 3, "VEC4": 4, "MAT4": 16}
@@ -196,6 +200,29 @@ def pack_base(src, name, tex, body_parts, head_part, out_path):
     return len(new_meshes)
 
 
+def pack_gear(src, out_path):
+    o = Out()
+    meshes, nodes = [], []
+    for name, (path, tex) in GEAR.items():
+        f = Path(src) / path
+        j = json.loads(f.read_text())
+        b = (f.parent / j["buffers"][0]["uri"]).read_bytes()
+        p = j["meshes"][j["nodes"][0]["mesh"]]["primitives"][0]
+        a = {k: acc(j, b, v)[0] for k, v in p["attributes"].items()}
+        idx = acc(j, b, p["indices"])[0].reshape(-1, 1)
+        attrs = {"POSITION": o.add(a["POSITION"], "VEC3", 5126, 34962, True),
+                 "NORMAL": o.add(a["NORMAL"], "VEC3", 5126, 34962),
+                 "TEXCOORD_0": o.add(slot_uv(a["TEXCOORD_0"], TEXTURES[tex][1]), "VEC2", 5126, 34962)}
+        ii = o.add(idx, "SCALAR", 5125 if idx.max() > 65535 else 5123, 34963)
+        meshes.append({"name": name, "primitives": [{"attributes": attrs, "indices": ii, "material": 0}]})
+        nodes.append({"name": name, "mesh": len(meshes) - 1})
+    nj = {"asset": {"version": "2.0", "generator": "ashgrave pack_characters.py"}, "scene": 0,
+          "scenes": [{"nodes": list(range(len(nodes)))}], "nodes": nodes, "meshes": meshes,
+          "materials": [{"name": "kaykit_shared", "pbrMetallicRoughness": {"metallicFactor": 0, "roughnessFactor": 0.6}}]}
+    o.write(nj, out_path)
+    return len(meshes)
+
+
 def pack_anims(src, out_path):
     j, b = read_glb(src)
     o = Out()
@@ -276,6 +303,8 @@ def main() -> int:
         print("%-22s %8d B  %d meshes, no clips, no image  (raw %d B)" % (name + ".glb", (out / (name + ".glb")).stat().st_size, n, (src / f).stat().st_size))
     n = pack_anims(src / ANIM_SOURCE, out / "anims.glb")
     print("%-22s %8d B  %d clips" % ("anims.glb", (out / "anims.glb").stat().st_size, n))
+    n = pack_gear(src, out / "gear.glb")
+    print("%-22s %8d B  %d meshes" % ("gear.glb", (out / "gear.glb").stat().st_size, n))
     pack_atlas(src, out / "atlas.png", args.slot)
     print("%-22s %8d B  %dx%d" % ("atlas.png", (out / "atlas.png").stat().st_size, args.slot * 2, args.slot * 2))
     return 0

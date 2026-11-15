@@ -237,7 +237,8 @@ func _assettest_report() -> void:
 
 
 # ---- debug only: --looktest[=wide|close|skeleton|compare|swing|empty] [--looktest-seek=SECONDS] ----
-# --looktest=rig|rig-check|rig-heads|rig-gear|rig-perf=N|ph-perf=N: RigVisual scenes in rig_looktest.gd.
+# --looktest=rig|rig-check|rig-shots|rig-heads|rig-gear|rig18|rig-perf=N|ph-perf=N: RigVisual scenes in rig_looktest.gd
+# (in a `tools/build.py --looktest` pack only: the release pack leaves the rig out).
 # KayKit adventurer vs skeleton in the duel framing (duel.gd CAM_POS/CAM_LOOK, fov 55, 2.5 apart),
 # a short dungeon wall with floor and a lit torch behind. Local frame as in a duel: the player at the
 # origin facing -Z, the enemy 2.5 further along -Z facing +Z (offset sideways so the chunky knight does not hide it). `empty` builds only the camera (baseline).
@@ -352,6 +353,9 @@ func _looktest_setup() -> void:
 		hero.visible = false
 	if mode.begins_with("rig") or mode.begins_with("ph-perf"):
 		# RigVisual (docs/RIG_PLAN.md R1): loaded only here, so a normal start never touches it.
+		if not ResourceLoader.exists("res://scripts/rig_looktest.gd"):
+			push_warning("LOOKTEST rig: not in this pack (build with tools/build.py --looktest)")
+			return
 		var lt: Node3D = load("res://scripts/rig_looktest.gd").new()
 		root.add_child(lt)
 		lt.call("setup", mode, _looktest_seek)
