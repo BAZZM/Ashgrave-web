@@ -106,6 +106,13 @@ static func level_for(xp: int) -> int:
 	return lvl
 
 
+## A recipe's display name (the bow shows as the crossbow while the rigged hero is in use).
+static func label(r: Dictionary) -> String:
+	if r.get("out", {}).get("item", "") == "hunters_bow":
+		return Items.bow_name()
+	return r.name
+
+
 static func recipes_for(skill: String) -> Array:
 	return RECIPES.filter(func(r): return r.skill == skill)
 

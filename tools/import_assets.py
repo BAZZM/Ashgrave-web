@@ -26,6 +26,9 @@ ROOT = Path(__file__).resolve().parent.parent
 GAME = ROOT / "game"
 SRC = ROOT / "assets_src"
 DEFAULT_GODOT = "/home/claude/godot/Godot_v4.4.1-stable_linux.x86_64"
+# Import options that differ from Godot's defaults, by assets_src/ prefix. The rig meshes need no LODs (characters
+# are small on screen), no separate shadow meshes and no tangents (no normal maps): less buffer memory on the phone.
+PARAMS = {"rig/": {".glb": ["meshes/ensure_tangents=false", "meshes/generate_lods=false", "meshes/create_shadow_meshes=false"]}}
 RAW = {".glb", ".gltf", ".png", ".jpg", ".jpeg", ".webp", ".wav", ".ogg"}
 
 
@@ -65,6 +68,27 @@ def main() -> int:
             dst = stage / "assets" / s.relative_to(SRC)
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(s, dst)
+        # Re-import the sources from scratch. Leaving their old .import files (and uids) in the stage makes
+        # Godot log "Invalid UID"/"Unrecognized UID" and sometimes fail to open the old output, so a second
+        # run after a source change failed. Other assets (e.g. assets/test) are left alone.
+        stems = {(s.parent, s.stem) for s in sources}
+        gone = set()
+        for imp in list((stage / "assets").rglob("*.import")):
+            name = imp.name[:-len(".import")]
+            own = (SRC / imp.relative_to(stage / "assets").parent / name).is_file()
+            ext = any(name.startswith(stem + "_") and imp.parent == (stage / "assets" / par.relative_to(SRC)) for par, stem in stems)
+            if own or ext:
+                gone.add("res://" + imp.relative_to(stage).as_posix()[:-len(".import")])
+                imp.unlink()
+        for s in sources:
+            rel = s.relative_to(SRC).as_posix()
+            for pre, by_ext in PARAMS.items():
+                if rel.startswith(pre) and s.suffix.lower() in by_ext:
+                    importer = "scene" if s.suffix.lower() in (".glb", ".gltf") else "texture"
+                    (stage / "assets" / (rel + ".import")).write_text(
+                        '[remap]\n\nimporter="%s"\n\n[params]\n\n%s\n' % (importer, "\n".join(by_ext[s.suffix.lower()])))
+        stage_cache = stage / ".godot" / "uid_cache.bin"
+        write_uids(stage_cache, [e for e in read_uids(stage_cache) if e[1] not in gone])
         r = subprocess.run([args.godot, "--headless", "--path", str(stage), "--import"],
                            capture_output=True, text=True, timeout=600)
         log = r.stdout + r.stderr
@@ -98,7 +122,13 @@ def main() -> int:
         cache = GAME / ".godot" / "uid_cache.bin"
         old = read_uids(cache)
         new = [(u, p) for u, p in read_uids(stage / ".godot" / "uid_cache.bin") if p.startswith("res://assets/")]
-        merged = [e for e in old if not e[1].startswith("res://assets/")] + new
+        # Assets imported earlier whose sources are not in assets_src/ now (it is git-ignored, so another
+        # checkout has only some of them) keep their entries while their .import is still in game/; Godot
+        # drops them from the stage's cache because their source file is missing there.
+        fresh = {p for _, p in new}
+        kept = [e for e in old if e[1].startswith("res://assets/") and e[1] not in fresh
+                and (GAME / (e[1][len("res://"):] + ".import")).is_file()]
+        merged = [e for e in old if not e[1].startswith("res://assets/")] + kept + new
         if merged != old:
             write_uids(cache, merged)
     for rel, files in copied:

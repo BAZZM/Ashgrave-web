@@ -32,7 +32,8 @@ var _pub_t := 0.0
 var tier := 1
 var theme: Dictionary
 var rects: Array = []
-var hero: PlaceholderVisual
+var hero: FighterVisual
+var _hero_rev := 0
 var hero_pos := Vector3.ZERO
 var hero_yaw := 0.0
 var cam: Camera3D
@@ -125,10 +126,10 @@ func _ready() -> void:
 	_build_geometry()
 	_spawn_entities()
 
-	hero = PlaceholderVisual.new()
-	hero.has_shield = true
-	add_child(hero)
-	hero.configure(Run.look())
+	hero = FighterVisual.make_hero()
+	FighterVisual.add_hero(self, hero)
+	_hero_rev = Run.quality_rev
+	FighterVisual.debug_cycle(self)
 	if Run.spawn is Vector3:
 		hero_pos = _settle(Run.spawn)
 	elif Run.spawn == "exit":
@@ -173,7 +174,7 @@ func _ready() -> void:
 	started = Run.title_seen
 	_update_camera(1.0)
 	if _bot == "tour":
-		print("WORLD tier=%d loop=%d bloodline=%d combat=%d gold=%d" % [tier, Run.data.loop, Run.data.bloodline, Run.combat_level(), Run.data.gold])
+		print("WORLD tier=%d loop=%d bloodline=%d combat=%d gold=%d hero=%s" % [tier, Run.data.loop, Run.data.bloodline, Run.combat_level(), Run.data.gold, "primitive" if hero is PlaceholderVisual else "rig"])
 		if int(Run.data.loop) >= 1:
 			print("TOUR DONE")
 			get_tree().quit()
@@ -521,9 +522,57 @@ func _walkable(p: Vector3) -> bool:
 	return true
 
 
+## The hero's visual the way the switch says (the rig, or the primitive hero), keeping its place and moving the lantern (and
+## anything else of the hero's) across: used when the quality changes and around duels (duels stay on PlaceholderVisual until
+## stage R3). Frees the old one at once, or at the end of the frame when a duel that is ending may still read it.
+func hero_swap(rig: bool, deferred := false) -> void:
+	if hero == null or (hero is PlaceholderVisual) != rig or (rig and not FighterVisual.rig_wanted()):
+		return  # already the kind asked for (or the rig is not wanted)
+	var old := hero
+	var nh: FighterVisual = FighterVisual.make_hero() if rig else PlaceholderVisual.new()
+	if not rig:
+		nh.set("has_shield", true)
+	FighterVisual.add_hero(self, nh)
+	nh.transform = old.transform
+	for c in old.get_children():
+		if c is OmniLight3D:
+			c.reparent(nh, false)
+	hero = nh
+	remove_child(old)
+	if deferred:
+		old.queue_free()
+	else:
+		old.free()
+	if not rig and not FighterVisual.rig_wanted():
+		FighterVisual.release_rig()
+	if _bot != "":
+		var lit := 0  # heroes in the tree: a child of the world that carries the lantern
+		for c in get_children():
+			if not (c is FighterVisual):
+				continue
+			for g in c.get_children():
+				if g is OmniLight3D:
+					lit += 1
+					break
+		print("HERO swap tower hero=%s deferred=%s heroes=%d" % ["rig" if rig else "primitive", deferred, lit])
+
+
+## The level changed to one that has no models: a rig hero becomes the primitive hero and the rig's caches are freed. Waits
+## while a duel runs (the duel holds the hero) and applies when it ends.
+func _hero_follow_quality() -> void:
+	if Run.quality_rev == _hero_rev or duel != null:
+		return
+	_hero_rev = Run.quality_rev
+	if hero != null and not (hero is PlaceholderVisual) and not FighterVisual.rig_wanted():
+		hero_swap(false)
+	if not Run.quality_allows("models"):
+		FighterVisual.release_rig()
+
+
 func _process(delta: float) -> void:
 	if hero == null:
 		return
+	_hero_follow_quality()
 	if _wbot != null:
 		_wbot.tick(delta)
 	_pub_t -= delta
@@ -736,6 +785,7 @@ func ground_y(_p: Vector3) -> float:
 func _start_duel(e: Dictionary) -> void:
 	if duel != null:
 		return
+	hero_swap(false)  # duels stay on the primitive fighters until stage R3
 	stick = Vector2.ZERO
 	hero.set_walk(0.0)
 	var group: Array = [e]
@@ -772,6 +822,7 @@ func duel_done(won: bool, d: Duel) -> void:
 		Run.spawn = _settle_from(_pre_duel, hero.global_position) if not d.reward.get("cleared", false) else "entrance"
 		get_tree().reload_current_scene.call_deferred()
 		return
+	hero_swap(true, true)  # the rig back, where the switch wants it (the duel's own hero goes at the end of the frame)
 	hud.visible = true
 	cam.make_current()
 	for rec in d.slain:
@@ -848,7 +899,7 @@ func interact() -> void:
 
 
 func refresh_hero() -> void:
-	hero.configure(Run.look())
+	hero.configure(FighterVisual.hero_cfg())
 	hero.flash(Color(1.0, 0.85, 0.5))
 
 

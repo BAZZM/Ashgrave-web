@@ -14,7 +14,8 @@ const OverworldTravel := preload("res://scripts/overworld_travel.gd")
 var is_land := true
 var theme := {"name": "Hearthvale", "special": "open"}
 var tier := 0
-var hero: PlaceholderVisual
+var hero: FighterVisual
+var _hero_rev := 0
 var hero_pos := Vector3.ZERO
 var hero_yaw := 0.0
 var cam: Camera3D
@@ -48,6 +49,9 @@ var _shot_path := ""
 var _shot_when := ""
 var _assettest: Variant = null  # debug: "--assettest" or "--assettest=SECONDS" (freeze the pose there)
 var _assettest_anim: AnimationPlayer
+var _looktest: Variant = null  # debug: "--looktest=MODE" (wide|close|compare|swing|empty), "--looktest-seek=SECONDS"
+var _looktest_seek := -1.0
+var _looktest_hide := ""
 
 var terrain: OverworldTerrain
 var places: OverworldPlaces
@@ -103,6 +107,16 @@ func _ready() -> void:
 			_assettest = a.trim_prefix("--assettest").trim_prefix("=")
 			Run.no_save = true
 			Run.title_seen = true
+		elif a.begins_with("--looktest-hide="):
+			_looktest_hide = a.trim_prefix("--looktest-hide=")
+		elif a.begins_with("--looktest-seek="):
+			_looktest_seek = float(a.trim_prefix("--looktest-seek="))
+		elif a.begins_with("--looktest"):
+			_looktest = a.trim_prefix("--looktest").trim_prefix("=")
+			if str(_looktest) == "":
+				_looktest = "wide"
+			Run.no_save = true
+			Run.title_seen = true
 		elif a.begins_with("--at="):
 			at = a.trim_prefix("--at=")
 		elif a.begins_with("--golden="):
@@ -146,11 +160,11 @@ func _ready() -> void:
 	sky._build_sky()
 	places._build_tower()
 
-	hero = PlaceholderVisual.new()
-	hero.has_shield = true
-	add_child(hero)
-	hero.configure(Run.look())
+	hero = FighterVisual.make_hero()
+	FighterVisual.add_hero(self, hero)
 	hero.position = hero_pos
+	_hero_rev = Run.quality_rev
+	FighterVisual.debug_cycle(self)
 	cam = Camera3D.new()
 	cam.fov = 60.0
 	cam.far = 260.0
@@ -187,8 +201,10 @@ func _ready() -> void:
 	mover._update_camera(1.0)
 	if _assettest != null:
 		_assettest_setup()
+	if _looktest != null:
+		_looktest_setup()
 	if _bot != "":
-		print("LAND at=%d,%d combat=%d gold=%d" % [hero_pos.x, hero_pos.z, Run.combat_level(), Run.data.gold])
+		print("LAND at=%d,%d combat=%d gold=%d hero=%s" % [hero_pos.x, hero_pos.z, Run.combat_level(), Run.data.gold, "primitive" if hero is PlaceholderVisual else "rig"])
 
 
 func _assettest_setup() -> void:
@@ -221,6 +237,166 @@ func _assettest_report() -> void:
 	print("ASSETTEST anim_pos=%.3f playing=%s" % [_assettest_anim.current_animation_position, _assettest_anim.is_playing()])
 
 
+# ---- debug only: --looktest[=wide|close|skeleton|compare|swing|empty] [--looktest-seek=SECONDS] ----
+# --looktest=rig|rig-check|rig-shots|rig-heads|rig-gear|rig18|rig-perf=N|ph-perf=N: RigVisual scenes in rig_looktest.gd
+# (in a `tools/build.py --looktest` pack only: the release pack leaves the rig out).
+# KayKit adventurer vs skeleton in the duel framing (duel.gd CAM_POS/CAM_LOOK, fov 55, 2.5 apart),
+# a short dungeon wall with floor and a lit torch behind. Local frame as in a duel: the player at the
+# origin facing -Z, the enemy 2.5 further along -Z facing +Z (offset sideways so the chunky knight does not hide it). `empty` builds only the camera (baseline).
+const LT_DIR := "res://assets/kaykit/"
+const LT_SWORD := "1H_Sword"
+const LT_SHIELD := "Badge_Shield"
+
+
+func _lt_aabb(root: Node3D, skip: Array = []) -> AABB:
+	var box := AABB()
+	var first := true
+	var inv := root.global_transform.affine_inverse()
+	for n in root.find_children("*", "MeshInstance3D", true, false):
+		var mi := n as MeshInstance3D
+		if mi.name in skip or mi.mesh == null:
+			continue
+		var b: AABB = (inv * mi.global_transform) * mi.mesh.get_aabb()
+		box = b if first else box.merge(b)
+		first = false
+	return box
+
+
+func _lt_load(file: String, parent: Node3D, pos: Vector3, yaw := 0.0) -> Node3D:
+	var n: Node3D = (load(LT_DIR + file) as PackedScene).instantiate()
+	parent.add_child(n)
+	n.position = pos
+	n.rotation.y = yaw
+	return n
+
+
+func _lt_actor(file: String, parent: Node3D, pos: Vector3, facing_z: float, keep: Array, clip: String) -> Node3D:
+	# glTF fronts face +Z; the duel player faces -Z.
+	var m := _lt_load(file, parent, pos, 0.0 if facing_z > 0.0 else PI)
+	var sk: Skeleton3D = m.find_children("*", "Skeleton3D")[0]
+	var weapons: Array = []
+	for n in m.find_children("*", "MeshInstance3D", true, false):
+		var par := n.get_parent()
+		if par is BoneAttachment3D:
+			weapons.append("%s on %s" % [n.name, (par as BoneAttachment3D).bone_name])
+			n.visible = n.name in keep
+	for n in m.find_children("*", "MeshInstance3D", true, false):
+		if _looktest_hide != "" and n.name in _looktest_hide.split(","):
+			n.visible = false
+	if _looktest_hide == "list":
+		for n in m.find_children("*", "MeshInstance3D", true, false):
+			var mi2 := n as MeshInstance3D
+			print("LOOKTEST mesh %s surfaces=%d mat0=%s visible=%s aabb=%s" % [n.name, mi2.mesh.get_surface_count(), mi2.get_active_material(0).resource_name, mi2.visible, mi2.mesh.get_aabb()])
+	var ap: AnimationPlayer = m.find_children("*", "AnimationPlayer")[0]
+	var anim := ap.get_animation(clip)
+	anim.loop_mode = Animation.LOOP_LINEAR
+	ap.play(clip)
+	if _looktest_seek >= 0.0:
+		ap.seek(_looktest_seek, true)
+		ap.pause()
+	var h := _lt_aabb(m, ["Knight_Cape"])
+	var mats := {}
+	var tris := 0
+	for n in m.find_children("*", "MeshInstance3D", true, false):
+		var mi := n as MeshInstance3D
+		for i in mi.mesh.get_surface_count():
+			mats[mi.get_active_material(i)] = true
+		if mi.visible:
+			for i in mi.mesh.get_surface_count():
+				tris += mi.mesh.surface_get_array_len(i) / 3 if mi.mesh.surface_get_array_index_len(i) == 0 else mi.mesh.surface_get_array_index_len(i) / 3
+	print("LOOKTEST %s bones=%d skeleton=%s clips=%d clip=%s len=%.2f aabb_y=%.3f..%.3f size=%s materials=%d visible_tris=%d weapons=%s" % [file, sk.get_bone_count(), sk.name, ap.get_animation_list().size(), clip, anim.length, h.position.y, h.end.y, h.size, mats.size(), tris, weapons])
+	return m
+
+
+func _looktest_setup() -> void:
+	var mode := str(_looktest)
+	var root := Node3D.new()
+	root.name = "LookTest"
+	add_child(root)
+	# A spot near the start with no world entity (chest, node, foe) close by.
+	_collect_ents()
+	var best := -1.0
+	root.position = hero_pos + Vector3(0, 0, -10)
+	for off in [Vector2(0, -10), Vector2(10, -6), Vector2(-10, -6), Vector2(6, 10), Vector2(-6, 10), Vector2(14, 0), Vector2(-14, 0), Vector2(0, -16), Vector2(12, -14), Vector2(-12, -14), Vector2(18, 8), Vector2(-18, 8)]:
+		var c := hero_pos + Vector3(off.x, 0, off.y)
+		var nearest := 1e9
+		for e in ents:
+			if e.has("pos"):
+				nearest = minf(nearest, Vector2(e.pos.x - c.x, e.pos.z - c.z).length())
+		if nearest > best:
+			best = nearest
+			root.position = c
+	print("LOOKTEST site=%s nearest_entity=%.1f" % [root.position, best])
+	root.position.y = Land.walk_height(root.position.x, root.position.z)
+	hud.visible = false
+	var cam2 := Camera3D.new()
+	cam2.fov = 55.0
+	cam2.far = 260.0
+	root.add_child(cam2)
+	var cpos := Vector3(0.55, 1.9, 4.4)
+	var clook := Vector3(0.2, 1.8, -0.8)
+	if mode == "close":
+		cpos = Vector3(-2.3, 1.45, -1.8)
+		clook = Vector3(-0.45, 1.25, -0.1)
+	elif mode == "skeleton":
+		cpos = Vector3(2.6, 1.6, -1.2)
+		clook = Vector3(0.2, 1.2, -2.5)
+	cam2.position = cpos
+	cam2.look_at(root.to_global(clook))
+	cam2.make_current()
+	var hbox := _lt_aabb(hero)
+	print("LOOKTEST code hero height=%.3f aabb_y=%.3f..%.3f width=%.3f" % [hbox.size.y, hbox.position.y, hbox.end.y, hbox.size.x])
+	for n in hero.find_children("*", "MeshInstance3D", true, false):
+		var mb: AABB = (hero.global_transform.affine_inverse() * (n as MeshInstance3D).global_transform) * (n as MeshInstance3D).mesh.get_aabb()
+		if mb.position.y < -0.3:
+			print("LOOKTEST hero mesh below ground: %s y=%.2f..%.2f size=%s" % [n.name, mb.position.y, mb.end.y, mb.size])
+	if mode != "compare":
+		hero.visible = false
+	if mode.begins_with("rig") or mode.begins_with("ph-perf"):
+		# RigVisual (docs/RIG_PLAN.md R1): loaded only here, so a normal start never touches it.
+		if not ResourceLoader.exists("res://scripts/rig_looktest.gd"):
+			push_warning("LOOKTEST rig: not in this pack (build with tools/build.py --looktest)")
+			return
+		var lt: Node3D = load("res://scripts/rig_looktest.gd").new()
+		root.add_child(lt)
+		lt.call("setup", mode, _looktest_seek)
+		get_tree().create_timer(6.0).timeout.connect(_looktest_report)
+		return
+	if mode != "empty":
+		var knight := _lt_actor("knight.glb", root, Vector3(-0.45, 0, 0), -1.0, [LT_SWORD, LT_SHIELD, "Knight_Helmet", "Knight_Cape", "Knight_Body", "Knight_Head", "Knight_ArmLeft", "Knight_ArmRight", "Knight_LegLeft", "Knight_LegRight"], "1H_Melee_Attack_Slice_Diagonal" if mode == "swing" else "Idle")
+		_lt_actor("skeleton_warrior.glb", root, Vector3(0.2, 0, -2.5), 1.0, ["Skeleton_Warrior_Helmet"], "1H_Melee_Attack_Slice_Horizontal" if mode == "swing" else "Idle_Combat")
+		if mode == "compare":
+			hero_pos = root.position + Vector3(-1.7, 0, 0)  # the mover keeps placing the hero at hero_pos
+			hero_yaw = 0.0
+			hero.visible = true
+			knight.position = Vector3(-0.1, 0, 0)
+		# Dungeon (4 x 4 grid pieces): floor tiles, a wall of five pieces with the doorway in the middle,
+		# two pillars, a barrel, a lit torch on the floor with a warm light.
+		var wz := -2.5 - 1.7
+		for i in range(-2, 3):
+			for z in [2.0, -2.0]:
+				_lt_load("d_floor_tile_large.glb", root, Vector3(i * 4.0, -0.05, z))
+			_lt_load("d_wall_doorway.glb" if i == 0 else "d_wall.glb", root, Vector3(i * 4.0, 0, wz))
+		for x in [-2.0, 2.0]:
+			_lt_load("d_pillar.glb", root, Vector3(x, 0, wz + 0.9))
+		_lt_load("d_torch_lit.glb", root, Vector3(-1.4, 0.395, wz + 1.0))
+		_lt_load("d_barrel_large.glb", root, Vector3(3.4, 0, wz + 1.0))
+		var tl := OmniLight3D.new()
+		tl.position = Vector3(-1.4, 1.4, wz + 1.2)
+		tl.light_color = Color(1.0, 0.62, 0.28)
+		tl.light_energy = 2.2
+		tl.omni_range = 7.0
+		root.add_child(tl)
+	get_tree().create_timer(6.0).timeout.connect(_looktest_report)
+
+
+func _looktest_report() -> void:
+	print("LOOKTEST stats mode=%s draw_calls=%d objects=%d primitives=%d nodes=%d tex_mem=%d vid_mem=%d" % [str(_looktest),
+		int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)), int(Performance.get_monitor(Performance.RENDER_TOTAL_OBJECTS_IN_FRAME)),
+		int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME)), int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)),
+		int(Performance.get_monitor(Performance.RENDER_TEXTURE_MEM_USED)), int(Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED))])
+
+
 func begin() -> void:
 	if started:
 		return
@@ -251,6 +427,7 @@ func _process(delta: float) -> void:
 	if duel != null:
 		return
 	remotes._tick_remote(delta)
+	hero_follow_quality()
 	_t += delta
 	sky._day = fmod(sky._day + delta / 480.0, 1.0)
 	bots._take_shot_if_due()
@@ -258,6 +435,7 @@ func _process(delta: float) -> void:
 	sky._apply_light(clampf(delta * 0.8, 0.0, 1.0))
 	if not started or hud.screen != "" or _leaving:
 		hero.set_walk(0.0)
+		bots.golden_pose()
 		if hud.screen in ["bag", "shop"]:
 			hero.rotation.y = cam_yaw + PI + sin(_t * 0.9) * 0.6
 		mover._update_camera(delta)
@@ -306,8 +484,43 @@ func duel_done(won: bool, d: Duel) -> void:
 	duels.duel_done(won, d)
 
 
+## Put the hero's visual back the way the switch says (the rig, or the primitive hero), keeping its place: used when the
+## quality level changes and around duels (duels stay on PlaceholderVisual until stage R3). Frees the old one at once.
+func hero_swap(rig: bool, deferred := false) -> void:
+	if hero == null or (hero is PlaceholderVisual) != rig or (rig and not FighterVisual.rig_wanted()):
+		return  # already the kind asked for (or the rig is not wanted)
+	var old := hero
+	if _bot != "":
+		print("HERO swap rig=%s deferred=%s" % [rig, deferred])
+	var nh: FighterVisual = FighterVisual.make_hero() if rig else PlaceholderVisual.new()
+	if not rig:
+		nh.set("has_shield", true)
+	FighterVisual.add_hero(self, nh)
+	nh.transform = old.transform
+	hero = nh
+	if old.get_parent() != null:
+		old.get_parent().remove_child(old)
+	if deferred:
+		old.queue_free()  # a duel that is ending may still read its `player` this frame
+	else:
+		old.free()
+	if not rig and not FighterVisual.rig_wanted():
+		FighterVisual.release_rig()
+
+
+## The level changed: a hero that was a rig under Full becomes the primitive hero under Safe (and the caches are freed).
+func hero_follow_quality() -> void:
+	if Run.quality_rev == _hero_rev:
+		return
+	_hero_rev = Run.quality_rev
+	if hero != null and not (hero is PlaceholderVisual) and not FighterVisual.rig_wanted():
+		hero_swap(false)
+	if not Run.quality_allows("models"):
+		FighterVisual.release_rig()
+
+
 func refresh_hero() -> void:
-	hero.configure(Run.look())
+	hero.configure(FighterVisual.hero_cfg())
 	hero.flash(Color(1.0, 0.85, 0.5))
 
 

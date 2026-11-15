@@ -7,6 +7,8 @@
 //   node tools/check.js --probe "--autoplay=x --wild=thrall"
 //                                       run one client with those game args and print its console
 //
+// --rig runs every scenario's game with `--rig` (the hero as RigVisual; needs a `python3 tools/build.py --looktest` pack, see the
+// `rig` scenario).
 // Options: --jobs=N (scenarios run at once, default 1), --verbose (print every game
 // console line), --viewport=WxH (default 320x180), --dpr=N (device pixel ratio, default 1), --timeout=SECONDS (probe length), --shots=DIR (probe).
 //
@@ -45,12 +47,13 @@ async function loadRelayPackages() {
   }
 }
 
-const opts = { dpr: 1, jobs: 1, verbose: false, viewport: '320x180', timeout: 300, probe: null, list: false };
+const opts = { dpr: 1, jobs: 1, rig: false, verbose: false, viewport: '320x180', timeout: 300, probe: null, list: false };
 const names = [];
 for (let i = 2; i < process.argv.length; i++) {
   const a = process.argv[i];
   if (a === '--verbose') opts.verbose = true;
   else if (a === '--list') opts.list = true;
+  else if (a === '--rig') opts.rig = true;
   else if (a === '--probe') opts.probe = process.argv[++i] || '';
   else if (a.startsWith('--jobs=')) opts.jobs = Math.max(1, Number(a.slice(7)));
   else if (a.startsWith('--shots=')) opts.shots = a.slice(8);
@@ -358,7 +361,7 @@ class Client {
     // ?quality=safe|full for this session (a client's own .quality, else AG_QUALITY for every client).
     const quality = this.quality || process.env.AG_QUALITY;
     if (quality) q.set('quality', quality);
-    for (const a of gameArgs) q.append('arg', a);
+    for (const a of opts.rig && !gameArgs.includes('--rig') ? [...gameArgs, '--rig'] : gameArgs) q.append('arg', a);
     this.t0 = Date.now();
     await this.page.goto(`${base}/index.html?${q}`);
   }
@@ -434,7 +437,7 @@ function errorNotes(clients) {
 // Run one client with the given game args until a line matching `finish`
 // appears (or `fail` does, or time runs out). `verify(lines)` may return a
 // string describing what is wrong with what it printed.
-async function solo(ctx, { args, finish, fail, seconds, verify }) {
+async function solo(ctx, { args, finish, fail, seconds, verify, heroIsRig }) {
   const relay = await ctx.newRelay();
   const c = await ctx.client('bot');
   c.stopRe = finish;
@@ -448,11 +451,17 @@ async function solo(ctx, { args, finish, fail, seconds, verify }) {
     const problem = verify && verify(c.lines);
     if (problem) { ok = false; notes.push(problem); }
   }
+  if (ok && heroIsRig && opts.rig) {
+    // With --rig the hero must BE the rig (a release pack without the assets passes the flag and shows the primitive hero).
+    const hl = c.lines.filter((l) => /^(LAND|WORLD) /.test(l));
+    const bad = hl.find((l) => !/ hero=rig\b/.test(l));
+    if (!hl.length || bad) { ok = false; notes.push(`--rig given but the hero is not the rig: ${bad || 'no LAND/WORLD line'}`); }
+  }
   notes.push(...c.lines.filter((l) => GAME_LINE.test(l)).slice(-3).map((l) => `saw: ${l.slice(0, 150)}`));
   return { ok, notes };
 }
 
-const GAME_LINE = /^(LAND|WORLD|TOUR|RESULT|GATHER|PVP|ACT1|ACT2|QSAVE)/;
+const GAME_LINE = /^(LAND|WORLD|HERO|TOUR|RESULT|GATHER|PVP|ACT1|ACT2|QSAVE)/;
 const lineOf = (lines, re) => lines.find((l) => re.test(l));
 
 // ---- 1. load
@@ -474,7 +483,7 @@ scenario('load', 'title screen loads and the world builds (bot idles in it), no 
   await plain.close();
   if (notes.length) return { ok: false, notes };
   // Same page, but the pvp_a bot: the world builds without a title and says so.
-  return solo(ctx, { args: ['--autoplay=pvp_a'], finish: /^LAND /, seconds: 60 });
+  return solo(ctx, { args: ['--autoplay=pvp_a'], finish: /^LAND /, seconds: 60, heroIsRig: true });
 });
 
 // ---- 2. solo duels
@@ -549,7 +558,7 @@ scenario('tour', 'tour bot walks to the tower, wins tier 1 and enters tier 2', a
   const earlier = [];
   for (let attempt = 1; ; attempt++) {
     const res = await solo(ctx, {
-      args: ['--autoplay=tour'], finish: /^WORLD tier=2 /, fail: /^TOUR hero fell/, seconds: 240,
+      args: ['--autoplay=tour'], finish: /^WORLD tier=2 /, fail: /^TOUR hero fell/, seconds: 240, heroIsRig: true,
       verify: (lines) => {
         if (!lines.some((l) => /^LAND /.test(l)) || !lines.some((l) => /^WORLD tier=1 /.test(l))) return 'did not pass through the land and tier 1';
         const wins = lines.filter((l) => /^RESULT win /.test(l)).length;
@@ -565,7 +574,7 @@ scenario('tour', 'tour bot walks to the tower, wins tier 1 and enters tier 2', a
 // ---- 4. gather
 
 scenario('gather', 'gather bot mines, crafts and takes the task', (ctx) => solo(ctx, {
-  args: ['--autoplay=gather'], finish: /^GATHER /, seconds: 120,
+  args: ['--autoplay=gather'], finish: /^GATHER /, seconds: 120, heroIsRig: true,
   verify: (lines) => {
     const l = lineOf(lines, /^GATHER /);
     if (/mats=\{\s*\}/.test(l)) return `nothing gathered: ${l}`;
@@ -1206,6 +1215,125 @@ scenario('quest-save', 'saves from earlier builds keep their quest progress step
 scenario('pvp', 'two players duel through one relay', (ctx) => pvp(ctx, 1), true);
 scenario('pvp-2relay', 'two players duel through the same two relays, duplicates dropped', (ctx) => pvp(ctx, 2), true);
 
+// ---- 7. RigVisual contract (docs/RIG_PLAN.md R1; debug scene, the game itself does not use it yet; the release
+// pack leaves the rig out, so this needs `python3 tools/build.py --looktest` first)
+
+// The look test runs the check on its own 240 Hz clock (not frames), so the timings below do not
+// depend on how slowly software WebGL draws.
+// Whether the pack index.html points at holds the rig (a release pack leaves it out; then the scenario is skipped, not failed).
+function packHasRig() {
+  try {
+    const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+    const name = /game_[0-9a-f]{10}\.wasm/.exec(html)[0];
+    return fs.readFileSync(path.join(ROOT, name)).includes('scripts/rig_check.gd');
+  } catch (e) { return false; }
+}
+
+scenario('rig', 'RigVisual (a `tools/build.py --looktest` pack; skipped on a release pack): every contract action lands its key pose on time (section play, blends, reverse), contact 0.05 s after strike, windup tips on their sides, gear follows the hand, bases agree, caches load once and nothing leaks, walking after an action, texture budget', async (ctx) => {
+  if (!packHasRig()) return { ok: true, skipped: true, notes: ['skipped: this pack holds no rig (release pack); build with `python3 tools/build.py --looktest` to run it'] };
+  let seen = [];
+  const res = await solo(ctx, {
+    args: ['--looktest=rig-check'], finish: /^LOOKTEST rig-check ok=/, seconds: 180,
+    verify: (lines) => {
+      seen = lines;
+      const rc = lines.filter((l) => /^RIGCHECK /.test(l));
+      const actions = rc.filter((l) => /^RIGCHECK action /.test(l));
+      const bad = actions.filter((l) => !/ ok$/.test(l));
+      if (actions.length < 34) return `only ${actions.length} action lines (want 32 sequence actions + reparent + tween)`;
+      if (bad.length) return `late or missed key poses: ${bad.slice(0, 3).join(' | ')}`;
+      const fails = rc.filter((l) => /^RIGCHECK FAIL/.test(l));
+      if (fails.length) return fails.slice(0, 3).join(' | ');
+      if (!lines.some((l) => /^RIGCHECK /.test(l))) return 'no RIGCHECK lines: is this a `tools/build.py --looktest` pack?';
+      const contacts = rc.filter((l) => /^RIGCHECK contact /.test(l));
+      if (contacts.length < 4 || contacts.some((l) => !/ ok$/.test(l))) return `strike contact: ${contacts.join(' | ')}`;
+      for (const want of [/^RIGCHECK windup_distinct /, /^RIGCHECK windup_side screen LEFT=true .*RIGHT=true .*OVER=true .*THRUST=true/, /^RIGCHECK clash_point /,
+        /^RIGCHECK unknown_action ignored=true/, /^RIGCHECK meshkit_blade /, /^RIGCHECK skeleton_blade attached=true/, /^RIGCHECK bases_agree /,
+        /^RIGCHECK caches /, /^RIGCHECK budget /, /^RIGCHECK leak_after_rebuilds /, /^RIGCHECK leak_after_release /, /^RIGCHECK natural /, /^RIGCHECK done ok=true/, /^LOOKTEST rig-check ok=true/]) {
+        if (!lineOf(lines, want)) return `missing ${want}`;
+      }
+      const wd = /min_hand_pair=([\d.]+)/.exec(lineOf(lines, /^RIGCHECK windup_distinct /));
+      if (!wd || Number(wd[1]) < 0.25) return `windup hand positions too close: ${lineOf(lines, /^RIGCHECK windup_distinct /)}`;
+      const wa = rc.filter((l) => /^RIGCHECK walk_after /.test(l));
+      if (wa.length < 3 || wa.some((l) => !/ ok$/.test(l))) return `walking after an action: ${wa.join(' | ')}`;
+      const cp = /max_distance=([\d.]+)/.exec(lineOf(lines, /^RIGCHECK clash_point /));
+      if (!cp || Number(cp[1]) > 0.3) return `clash point off: ${lineOf(lines, /^RIGCHECK clash_point /)}`;
+      return null;
+    },
+  });
+  // The figures the plan asked for, so a pass also shows them.
+  const shown = [];
+  for (const re of [/^LOOKTEST rig-check /, /^RIGCHECK windup_side /, /^RIGCHECK windup_distinct /, /^RIGCHECK meshkit_blade /, /^RIGCHECK skeleton_blade /,
+    /^RIGCHECK bases_agree /, /^RIGCHECK caches/, /^RIGCHECK budget /, /^RIGCHECK leak_/, /^RIGCHECK natural /, /^RIGCHECK gait speed/, /^RIGCHECK walk_after /, /^RIGCHECK done /]) shown.push(...seen.filter((l) => re.test(l)));
+  return { ok: res.ok, notes: [...res.notes, ...shown.map((l) => `saw: ${l.slice(0, 150)}`)] };
+});
+
+// ---- 8. The rig in the world (docs/RIG_R2.md): the hero is a RigVisual only with the flag, at Full quality, with the assets in
+// the pack; entering and leaving the land and the tower leaks nothing. Needs a `--looktest` pack like `rig`.
+scenario('rig-cycle', 'the hero is the rig with --rig and the primitive one without it or at Safe quality (and then no rig resource is loaded); six scene changes between land and tower leak nothing (skipped on a release pack)', async (ctx) => {
+  if (!packHasRig()) return { ok: true, skipped: true, notes: ['skipped: this pack holds no rig (release pack); build with `python3 tools/build.py --looktest`'] };
+  const notes = [];
+  const run = async (label, args, quality) => {
+    const relay = await ctx.newRelay();
+    const c = await ctx.client(label);
+    if (quality) c.quality = quality;
+    c.stopRe = /^RIGCYCLE done/;
+    await c.start(ctx.base, args, [relay.url]);
+    const r = await waitUntil([c], () => c.find(/^RIGCYCLE done/), 150);
+    const rows = c.lines.filter((l) => /^RIGCYCLE \d/.test(l)).map((l) => {
+      const o = { scene: /^RIGCYCLE \d+ (\w+)/.exec(l)[1], hero: /hero=(\w+)/.exec(l)[1], loaded: /rig_loaded=(\w+)/.exec(l)[1] === 'true' };
+      for (const k of ['objects', 'resources', 'nodes', 'orphans', 'tex', 'vid', 'draws']) o[k] = Number(new RegExp(`${k}=(\\d+)`).exec(l)[1]);
+      return o;
+    });
+    const errs = errorNotes([c]);
+    await c.close();
+    if (r !== 'ok') notes.push(`${label}: no RIGCYCLE done (${r})`);
+    notes.push(...errs);
+    return rows;
+  };
+  const off = await run('off', ['--rigcycle=3']);
+  const on = await run('rig', ['--rigcycle=3', '--rig']);
+  const safe = await run('safe', ['--rigcycle=2', '--rig'], 'safe');
+  const safeOff = await run('safe-off', ['--rigcycle=2'], 'safe');
+  let ok = notes.length === 0;
+  const bad = (m) => { ok = false; notes.push(m); };
+  if (off.length !== 6 || on.length !== 6 || safe.length !== 4 || safeOff.length !== 4) bad(`rows: off ${off.length}, rig ${on.length}, safe ${safe.length}, safe-off ${safeOff.length}`);
+  else {
+    if (off.some((r) => r.hero !== 'primitive' || r.loaded)) bad('without --rig the hero is not primitive or the rig script was loaded');
+    if (on.some((r) => r.hero !== 'rig' || !r.loaded)) bad('with --rig the hero is not the rig in land and tower');
+    if (safe.some((r) => r.hero !== 'primitive' || r.loaded)) bad('at Safe quality the hero is not primitive or the rig script was loaded');
+    // Safe with the flag holds what the flagless game holds: no rig resource.
+    for (let i = 0; i < 4; i++) if (safe[i].resources !== safeOff[i].resources || safe[i].tex !== safeOff[i].tex) bad(`safe with --rig holds more than safe without it at arrival ${i + 1}: resources ${safe[i].resources} vs ${safeOff[i].resources}, tex ${safe[i].tex} vs ${safeOff[i].tex}`);
+    // Land arrivals 3 and 5, tower arrivals 4 and 6, against the first visit that settled (the very first visit makes a few lazy
+    // resources in the flagless game too): nothing grows.
+    for (const [a, b] of [[2, 4], [3, 5]]) {
+      const x = on[a], y = on[b];
+      if (y.resources > x.resources || y.tex > x.tex || y.orphans > x.orphans || y.nodes > x.nodes + 5 || y.objects > x.objects + 40 || y.vid > x.vid + 65536) bad(`rig run grows between arrival ${a + 1} and ${b + 1}: ${JSON.stringify(x)} -> ${JSON.stringify(y)}`);
+    }
+  }
+  for (const [n, rows] of [['off', off], ['rig', on], ['safe', safe], ['safe-off', safeOff]]) for (const r of rows.slice(0, 2)) notes.push(`saw: ${n} ${r.scene} hero=${r.hero} rig_loaded=${r.loaded} objects=${r.objects} resources=${r.resources} nodes=${r.nodes} tex=${r.tex} vid=${r.vid} draws=${r.draws}`);
+  return { ok, notes };
+}, true);
+
+// ---- 9. A tower duel with the flag: the hero is the primitive one during the duel and the rig after it, one hero in the tree
+// throughout (world.gd hero_swap; the lantern goes across both ways).
+scenario('rig-tower-duel', 'with --rig, a tower duel is fought by the primitive hero and the rig is back after it; one hero in the tree at every swap (skipped on a pack without the rig)', async (ctx) => {
+  if (!packHasRig()) return { ok: true, skipped: true, notes: ['skipped: this pack holds no rig (build with `--rig` or `--looktest`)'] };
+  return solo(ctx, {
+    args: ['--autoplay=tour', '--rig'], finish: /^WORLD tier=2 /, fail: /^TOUR hero fell/, seconds: 240, heroIsRig: true,
+    verify: (lines) => {
+      const sw = lines.filter((l) => /^HERO swap tower /.test(l));
+      if (sw.length < 2) return `expected tower hero swaps, saw ${sw.length}`;
+      if (sw.some((l) => !/ heroes=1$/.test(l))) return `not exactly one hero in the tree: ${sw.find((l) => !/ heroes=1$/.test(l))}`;
+      for (let i = 0; i < sw.length; i++) {
+        const want = i % 2 === 0 ? 'primitive' : 'rig';
+        if (!new RegExp(` hero=${want} `).test(sw[i])) return `swap ${i + 1} should be ${want}: ${sw[i]}`;
+      }
+      // A guardian duel that is won reloads the scene (the new hero is built by the switch), so the last swap may be the primitive one.
+      return null;
+    },
+  });
+}, true);
+
 // ---------------------------------------------------------------- main
 
 // One scenario's own context: its own clients and relays, closed when it ends.
@@ -1270,13 +1398,14 @@ async function main() {
         live.delete(cleanup);
         const secs = ((Date.now() - t) / 1000).toFixed(0);
         // Printed as each one finishes, so the output is whole lines per scenario.
-        console.log([`${res.ok ? 'PASS' : 'FAIL'}  ${s.name.padEnd(11)} ${secs.padStart(4)}s  ${s.describe}`, ...res.notes.map((n) => `        ${n}`)].join('\n'));
+        console.log([`${res.skipped ? 'SKIP' : res.ok ? 'PASS' : 'FAIL'}  ${s.name.padEnd(11)} ${secs.padStart(4)}s  ${s.describe}`, ...res.notes.map((n) => `        ${n}`)].join('\n'));
         results.push(res);
       }
     };
     await Promise.all(Array.from({ length: Math.min(opts.jobs, chosen.length) }, worker));
     failed = results.filter((r) => !r.ok).length;
-    console.log(`${failed ? 'FAILED' : 'ok'}: ${chosen.length - failed}/${chosen.length} passed in ${((Date.now() - t0) / 1000).toFixed(0)}s`);
+    const skipped = results.filter((r) => r.ok && r.skipped).length;
+    console.log(`${failed ? 'FAILED' : 'ok'}: ${chosen.length - failed - skipped}/${chosen.length} passed${skipped ? `, ${skipped} skipped` : ''} in ${((Date.now() - t0) / 1000).toFixed(0)}s`);
   } finally {
     page.close();
   }

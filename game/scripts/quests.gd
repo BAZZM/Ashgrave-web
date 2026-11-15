@@ -394,7 +394,7 @@ static func act(action: String) -> Array:
 				"choose:poach:tally":
 					Run.add_item("hunters_bow")
 					Run.add_mat("arrow", 30)
-					Run.captions.append("Isolde gives you a Hunter's Bow and 30 arrows.")
+					Run.captions.append("Isolde gives you a %s and 30 arrows." % Items.bow_name())
 				"choose:poach:bribe":
 					Run.data.gold += 300
 					Run.captions.append("You keep the poachers' 300 gold. Isolde says nothing.")

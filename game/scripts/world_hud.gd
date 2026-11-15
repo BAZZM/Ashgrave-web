@@ -422,7 +422,7 @@ func _press_list(pos: Vector2) -> void:
 			if why != "":
 				_say(why + ".")
 			elif Craft.make(row):
-				_say("Made: %s." % row.name)
+				_say("Made: %s." % Craft.label(row))
 				if row.out.has("item"):
 					Run.equip(row.out.item)
 					world.refresh_hero()
@@ -1152,7 +1152,7 @@ func _draw_list(s: Vector2) -> void:
 		if crafting:
 			var why := Craft.blocker(row)
 			_box(r, why == "")
-			_text(row.name, r.position + Vector2(14, 30), 20, GOLD if why == "" else Color(1, 1, 1, 0.75), false, r.size.x - 110)
+			_text(Craft.label(row), r.position + Vector2(14, 30), 20, GOLD if why == "" else Color(1, 1, 1, 0.75), false, r.size.x - 110)
 			_text("Lv %d" % row.level, Vector2(r.end.x - 44, r.position.y + 30), 17, Color(0.5, 1.0, 0.6) if Run.skill(craft_skill) >= int(row.level) else Color(1.0, 0.45, 0.4))
 			_text(Craft.inputs_text(row), r.position + Vector2(14, 56), 14, Color(1, 1, 1, 0.8), false, r.size.x - 28)
 			_text("MAKE   +%d XP" % row.xp if why == "" else why, r.position + Vector2(14, 80), 14, Color(0.5, 1.0, 0.6) if why == "" else Color(1.0, 0.6, 0.5), false, r.size.x - 28)

@@ -17,6 +17,7 @@ func _init(owner_world: Overworld) -> void:
 func _start_duel(e: Dictionary) -> void:
 	if ow.duel != null:
 		return
+	ow.hero_swap(false)  # duels stay on the primitive fighters until stage R3
 	if ow.hud.screen != "":
 		ow.hud._close()
 	ow._gather = {}
@@ -49,6 +50,7 @@ func duel_done(won: bool, d: Duel) -> void:
 	ow.duel = null
 	ow.hud.visible = true
 	ow.cam.make_current()
+	ow.hero_swap(true, true)  # the rig back, where the switch wants it (the duel's own hero goes at the end of the frame)
 	Engine.time_scale = 4.0 if ow._bot in ["tour", "gather"] else 1.0
 	if not d.pvp.is_empty():
 		_pvp_done(won, d)
@@ -202,6 +204,7 @@ func _start_pvp(id: String, who: String, card: Dictionary, i_go_first: bool, zon
 		ow.remotes._tick_remote(0.0)
 	if not ow._remote.has(id):
 		return
+	ow.hero_swap(false)
 	ow._gather = {}
 	ow.gather_progress = -1.0
 	ow.stick = Vector2.ZERO

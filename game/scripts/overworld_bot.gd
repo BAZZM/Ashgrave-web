@@ -20,6 +20,15 @@ const GOLDEN := {
 	"g3-ashlands": {"at": Vector2(0, -138), "hero": Vector3(3.0, 0, -7.0), "hero_yaw": PI, "cam": Vector3(0, 2.5, 0), "look": Vector3(0, 3.0, -37), "hud": false},
 	"g3-water": {"at": Vector2(80, 40), "hero": Vector3(3.0, 0, -1.5), "hero_yaw": PI * 0.5, "cam": Vector3(2.0, 1.5, 6.0), "look": Vector3(22, -0.3, 0), "hud": false},
 	"g3-trail": {"at": Vector2(0, -50), "hero": Vector3(0.3, 0, -5.0), "hero_yaw": PI, "cam": Vector3(1.8, 1.6, 2.5), "look": Vector3(0, 0.3, -30), "hud": false},
+	# Stage R2 (docs/RIG_R2.md; run with --rig): the hero on Hearthvale grass, standing, at the game's walk, run and sprint speeds
+	# (walk x pace, as the mover gives them), gathering, the close view of the head, and a three-quarter view for the gear.
+	"r2-stand": {"at": Vector2(12, 62), "hero_yaw": PI, "cam": Vector3(1.4, 1.5, 3.6), "look": Vector3(0, 1.0, 0), "hud": false},
+	"r2-walk": {"at": Vector2(12, 62), "hero_yaw": PI, "cam": Vector3(1.4, 1.5, 3.6), "look": Vector3(0, 1.0, 0), "hud": false, "walk": 1.0, "pace": 1.0},
+	"r2-run": {"at": Vector2(12, 62), "hero_yaw": PI, "cam": Vector3(1.4, 1.5, 3.6), "look": Vector3(0, 1.0, 0), "hud": false, "walk": 1.0, "pace": 1.73},
+	"r2-sprint": {"at": Vector2(12, 62), "hero_yaw": PI, "cam": Vector3(1.4, 1.5, 3.6), "look": Vector3(0, 1.0, 0), "hud": false, "walk": 1.0, "pace": 2.27},
+	"r2-gather": {"at": Vector2(12, 62), "hero_yaw": PI, "cam": Vector3(1.4, 1.5, 3.6), "look": Vector3(0, 1.0, 0), "hud": false, "play": [&"slash", 3, 0.6]},
+	"r2-head": {"at": Vector2(12, 62), "hero_yaw": PI, "cam": Vector3(0.45, 1.75, 1.35), "look": Vector3(0, 1.62, 0), "hud": false},
+	"r2-gear": {"at": Vector2(12, 62), "hero_yaw": PI + 0.7, "cam": Vector3(0.0, 1.45, 3.2), "look": Vector3(0, 1.05, 0), "hud": false},
 	"g3-trail-ash": {"at": Vector2(0, -150), "hero": Vector3(0.3, 0, -5.0), "hero_yaw": PI, "cam": Vector3(1.8, 1.6, 2.5), "look": Vector3(0, 0.3, -30), "hud": false},
 	# Lane G4a (textured trees): Hearthvale's meadow trees, Greywood's oaks (g3-greywood), its conifers, and one tree close up
 	# ("tree_close": the camera goes to the nearest tree to `at` once the chunks are built).
@@ -124,6 +133,11 @@ func golden_begin(shot_name: String) -> void:
 	Run.data = Run.defaults()
 	Run.data.skills_seeded = true
 	Run.data.tutorial_done = true
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--goldequip="):  # debug: what the hero wears in the shot (item ids, comma separated)
+			for id in a.trim_prefix("--goldequip=").split(","):
+				Run.data.inventory.append(id)
+				Run.equip(id)
 	_g = GOLDEN[shot_name].duplicate()
 	var hp := _golden_at(_g, _g.get("hero", Vector3.ZERO), true)
 	Run.data.ow_x = hp.x
@@ -149,6 +163,8 @@ func _golden_tick() -> void:
 	ow.cam_yaw = yaw
 	ow.hero.position = ow.hero_pos
 	ow.hero.rotation.y = yaw
+	if "--goldhide" in OS.get_cmdline_user_args():  # debug: the same frame without the hero (fighter against ground luminance)
+		ow.hero.visible = false
 	ow._biome = Land.biome(ow.hero_pos.x, ow.hero_pos.z)
 	ow.sky._apply_light(1.0)
 	ow.hud.visible = bool(_g.hud)
@@ -157,6 +173,18 @@ func _golden_tick() -> void:
 		if _g_ok >= 8:
 			_g_said = true
 			print("GOLDEN ready ", golden)
+
+
+## Debug (stage R2): the hero's own motion in a golden shot (walk and pace as the mover gives them, or a repeated action); called after
+## the process step has stood the hero still.
+func golden_pose() -> void:
+	if _g.is_empty():
+		return
+	if _g.has("walk"):
+		ow.hero.set_walk(float(_g.walk))
+		ow.hero.set_pace(float(_g.get("pace", 1.0)))
+	if _g.has("play") and fmod(ow._t, 0.9) < get_process_delta_time():
+		ow.hero.play(_g.play[0], _g.play[1], _g.play[2])
 
 
 func _golden_cam() -> void:
