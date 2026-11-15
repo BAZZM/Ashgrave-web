@@ -21,6 +21,14 @@ const GOLDEN := {
 	"g3-water": {"at": Vector2(80, 40), "hero": Vector3(3.0, 0, -1.5), "hero_yaw": PI * 0.5, "cam": Vector3(2.0, 1.5, 6.0), "look": Vector3(22, -0.3, 0), "hud": false},
 	"g3-trail": {"at": Vector2(0, -50), "hero": Vector3(0.3, 0, -5.0), "hero_yaw": PI, "cam": Vector3(1.8, 1.6, 2.5), "look": Vector3(0, 0.3, -30), "hud": false},
 	"g3-trail-ash": {"at": Vector2(0, -150), "hero": Vector3(0.3, 0, -5.0), "hero_yaw": PI, "cam": Vector3(1.8, 1.6, 2.5), "look": Vector3(0, 0.3, -30), "hud": false},
+	# Lane G4a (textured trees): Hearthvale's meadow trees, Greywood's oaks (g3-greywood), its conifers, and one tree close up
+	# ("tree_close": the camera goes to the nearest tree to `at` once the chunks are built).
+	"g4a-hearthvale": {"at": Vector2(30, 112), "hero": Vector3(-0.5, 0, -6.0), "hero_yaw": PI, "cam": Vector3(0, 2.2, 0), "look": Vector3(-8, 3.5, -40), "hud": false},
+	"g4a-conifer": {"at": Vector2(-175, 20), "hero": Vector3(0.5, 0, -6.0), "hero_yaw": PI, "cam": Vector3(0, 2.2, 0), "look": Vector3(-8, 3.5, -28), "hud": false},
+	"g4a-close": {"at": Vector2(-100, 40), "hero": Vector3(0.0, 0, 9.0), "hero_yaw": PI, "cam": Vector3(0, 2.0, 0), "look": Vector3(0, 2.5, -5), "hud": false, "tree_close": true},
+	"g4a-node": {"at": Vector2(-100, 40), "hero": Vector3(0.0, 0, 9.0), "hero_yaw": PI, "cam": Vector3(0, 2.0, 0), "look": Vector3(0, 2.5, -5), "hud": false, "tree_close": true, "node": "oak"},
+	"g4a-node-pine": {"at": Vector2(-170, 20), "hero": Vector3(0.0, 0, 9.0), "hero_yaw": PI, "cam": Vector3(0, 2.0, 0), "look": Vector3(0, 2.5, -5), "hud": false, "tree_close": true, "node": "pine"},
+	"g4a-close-pine": {"at": Vector2(-170, 20), "hero": Vector3(0.0, 0, 9.0), "hero_yaw": PI, "cam": Vector3(0, 2.0, 0), "look": Vector3(0, 2.5, -5), "hud": false, "tree_close": true},
 }
 var golden := ""
 var _g := {}
@@ -116,7 +124,7 @@ func golden_begin(shot_name: String) -> void:
 	Run.data = Run.defaults()
 	Run.data.skills_seeded = true
 	Run.data.tutorial_done = true
-	_g = GOLDEN[shot_name]
+	_g = GOLDEN[shot_name].duplicate()
 	var hp := _golden_at(_g, _g.get("hero", Vector3.ZERO), true)
 	Run.data.ow_x = hp.x
 	Run.data.ow_z = hp.z
@@ -153,6 +161,36 @@ func _golden_tick() -> void:
 
 func _golden_cam() -> void:
 	if ow.cam == null or _g.is_empty():
+		return
+	if _g.get("tree_close", false) and not _g_said:
+		# The tree nearest `at` (a gatherable tree's or a scattered one's obstacle disc has radius 0.5 to 1 m); frozen once the golden is ready.
+		var best := Vector2.ZERO
+		var bd := 1e9
+		for ch in ow._chunks.values():
+			if _g.has("node"):
+				# A gatherable tree of that kind (oak or pine) instead.
+				for e in ch.ents:
+					if e.type == "node" and e.node_id == _g.node:
+						var dn: float = Vector2(e.pos.x, e.pos.z).distance_to(_g.at)
+						if dn < bd and dn > 2.0:
+							bd = dn
+							best = Vector2(e.pos.x, e.pos.z)
+				continue
+			for ob in ch.obstacles:
+				var d: float = Vector2(ob.x, ob.y).distance_to(_g.at)
+				if ob.z > 0.4 and ob.z < 0.75 and d < bd and d > 2.0:
+					bd = d
+					best = Vector2(ob.x, ob.y)
+		if bd < 1e8:
+			_g.cam = Vector3(0, 2.0, 0)
+			_g.tree_at = best
+	if _g.has("tree_at"):
+		var t: Vector2 = _g.tree_at
+		var base := Vector3(t.x, Land.height(t.x, t.y), t.y)
+		ow.cam.position = base + Vector3(2.6, 1.7, 4.2)
+		ow.cam.look_at(base + Vector3(0, 3.0, 0))
+		ow.cam.h_offset = 0.0
+		ow.cam.fov = 60.0
 		return
 	ow.cam.position = _golden_at(_g, _g.cam, false)
 	ow.cam.look_at(_golden_at(_g, _g.look, false))

@@ -13,6 +13,7 @@ pack size with wrap-around so seams stay closed, four grains per RGBA texture.
     build     512  R castle stone G planks         B pine bark (256 up) A deciduous bark (256 up)
     detail    256  R steel plate  G chainmail      B gambeson       A heraldic cloth (512 down)
     foliage   256  R broadleaf luminance G evergreen luminance B broadleaf alpha A evergreen alpha
+    trees     256  R pine bark G deciduous bark B broadleaf canopy A evergreen canopy (the real game's tree grains, lane G4a)
     ripple    256  R,G ripple normal A (x, y)      B,A ripple normal B (x, y)
 
 The SOURCE treatment uses the colour files as they are (no derived file). The importer
@@ -116,6 +117,12 @@ def main() -> int:
         print("  foliage    %-22s 256  cover %.2f" % (p, (a > 0.5).mean()))
     if not args.check:
         save_rgba(out / "foliage.png", [lum_c[0], lum_c[1], alp_c[0], alp_c[1]])
+        # trees: the two barks (256 as they are) and the two canopy grains. A canopy grain is the leaf spray's luminance where the spray
+        # is, and a dark gap (0.25) where it is not, so a solid canopy shows clumps of leaves with shadow between them.
+        tr = [grain(wrap_resize(luminance(load(src, p)[..., :3]), 256)) for p in ("bark/bark_pine", "bark/bark_deciduous")]
+        for lum_i, alp_i in zip(lum_c, alp_c):
+            tr.append(np.clip(lum_i * alp_i + 0.25 * (1.0 - alp_i), 0.0, 1.0))
+        save_rgba(out / "trees.png", tr)
         ra = load(src, "water/ripple_normal_a")
         rb = load(src, "water/ripple_normal_b")
         save_rgba(out / "ripple.png", [ra[..., 0], ra[..., 1], rb[..., 0], rb[..., 1]])

@@ -37,6 +37,11 @@ var _tex_state := false
 const WATER_N := 32
 ## Debug: `--flatground` keeps the flat look at Full quality (before pictures; docs/TEXTURE_LOOK.md).
 var _flat_debug := "--flatground" in OS.get_cmdline_user_args()
+## Debug (lane G4a): `--flattrees` keeps flat trees at Full quality (before pictures). Foliage cutout cards on broadleaf canopies are built
+## but OFF in the shipped game (`--cards` turns them on): they cost little (+5 draws, +0.7% primitives in Greywood) but, as isolated sprays,
+## they read as detached tufts floating off the canopy (docs/TEXTURE_LOOK.md); their texture (packed/foliage) is not in the release pack.
+var _flat_trees := "--flattrees" in OS.get_cmdline_user_args()
+var _cards_on := "--cards" in OS.get_cmdline_user_args()
 
 
 func _init(owner_world: Overworld) -> void:
@@ -220,6 +225,11 @@ func _textured() -> bool:
 	return Run.quality_allows("textures") and not _flat_debug and TexKit.ground_ready()
 
 
+## Trees (lane G4a): textured under the same rule as the ground (Full quality and the pack has the grain), and a debug flag for the before pictures.
+func _trees_textured() -> bool:
+	return Run.quality_allows("textures") and not _flat_trees and TexKit.trees_ready()
+
+
 func _ground_material(textured: bool) -> Material:
 	if textured:
 		return TexKit.terrain(TexKit.GRAIN, TexKit.world_pal())
@@ -261,6 +271,7 @@ func _apply_look(chunk: Dictionary, textured: bool) -> void:
 	var origin: Vector2 = chunk.origin
 	var g: MeshInstance3D = chunk.ground
 	chunk.tex = textured
+	_apply_trees(chunk, textured and not _flat_trees and TexKit.trees_ready())
 	g.mesh = _ground_mesh(origin, textured)
 	g.material_override = _ground_material(textured)
 	var w: Variant = chunk.get("water")
@@ -276,6 +287,25 @@ func _apply_look(chunk: Dictionary, textured: bool) -> void:
 			wi.mesh = plane
 			wi.position = Vector3(origin.x + Land.CHUNK * 0.5, Land.WATER_Y, origin.y + Land.CHUNK * 0.5)
 			wi.material_override = _flat_water_material()
+
+
+## Put a chunk's trees into the current look: textured materials, or the flat ones (and the foliage cards freed) when not.
+func _apply_trees(chunk: Dictionary, want: bool) -> void:
+	var keep: Array = []
+	for t in chunk.get("trees", []):
+		var n: Node = t.node
+		if not is_instance_valid(n):
+			continue
+		if t.kind == "cards":
+			if want:
+				keep.append(t)
+			else:
+				n.queue_free()
+			continue
+		var m: Material = TexKit.tree_mat(t.kind) if want else null
+		(n as GeometryInstance3D).material_override = m if m != null else t.flat
+		keep.append(t)
+	chunk.trees = keep
 
 
 ## Follow a change of quality level: re-mesh the loaded chunks (one per frame, all at once when build_all), then free the
@@ -307,7 +337,7 @@ func _start_chunk(k: Vector2i) -> Dictionary:
 	ow.add_child(root)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(Vector2i(k.x * 7919 + 13, k.y * 104729 + 7))
-	var job := {"k": k, "origin": origin, "root": root, "chunk": {"root": root, "ents": [], "obstacles": [], "origin": origin}, "multi": {}, "rng": rng,
+	var job := {"k": k, "origin": origin, "root": root, "chunk": {"root": root, "ents": [], "obstacles": [], "origin": origin, "trees": []}, "multi": {}, "rng": rng,
 		"steps": [[STEP_GROUND]], "next": 0, "usec": 0}
 	var centre := origin + Vector2(Land.CHUNK, Land.CHUNK) * 0.5
 	if not Land.in_bounds(clampf(centre.x, -Land.X_MAX - 30, Land.X_MAX + 30), centre.y) and absf(centre.x) > Land.X_MAX + 30:
@@ -455,7 +485,8 @@ func _step_batch() -> void:
 		var mm := MultiMesh.new()
 		mm.transform_format = MultiMesh.TRANSFORM_3D
 		mm.use_colors = true
-		mm.mesh = Kit.mesh(String(key).get_slice("|", 0))
+		var tk: String = data[3]
+		mm.mesh = TexKit.tree_cards_mesh() if tk == "cards" else Kit.mesh(String(key).get_slice("|", 0))
 		mm.instance_count = data[0].size()
 		for i in data[0].size():
 			mm.set_instance_transform(i, data[0][i])
@@ -463,13 +494,22 @@ func _step_batch() -> void:
 		var mmi := MultiMeshInstance3D.new()
 		mmi.multimesh = mm
 		mmi.material_override = data[2]
+		if tk != "":
+			var tm: Material = TexKit.tree_cards_mat() if tk == "cards" else TexKit.tree_mat(tk)
+			if tm != null:
+				mmi.material_override = tm
+				if tk == "cards":
+					mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+				_job.chunk.trees.append({"node": mmi, "kind": tk, "flat": data[2]})
 		root.add_child(mmi)
 
 
-func _scatter(multi: Dictionary, mesh_key: String, mat_key: String, tint: Color, p: Vector2, spin: float, size: float, squash := 1.0) -> void:
-	var key := mesh_key + "|" + mat_key
+## tree_kind (TexKit.TREE_KINDS, or "cards"): the shared textured material this kind of tree takes at Full quality; its own batch then.
+func _scatter(multi: Dictionary, mesh_key: String, mat_key: String, tint: Color, p: Vector2, spin: float, size: float, squash := 1.0, tree_kind := "") -> void:
+	var tk := tree_kind if (tree_kind != "" and _trees_textured() and (tree_kind != "cards" or TexKit.cards_ready())) else ""
+	var key := mesh_key + "|" + mat_key + ("|" + tk if tk != "" else "")
 	if not multi.has(key):
-		multi[key] = [[], [], Kit.mat("mm_" + mat_key, Color.WHITE, 0.9, 0.0, true)]
+		multi[key] = [[], [], Kit.mat("mm_" + mat_key, Color.WHITE, 0.9, 0.0, true), tk]
 	var basis := Basis(Vector3.UP, spin).scaled(Vector3(size, size * squash, size))
 	multi[key][0].append(Transform3D(basis, Vector3(p.x, Land.height(p.x, p.y) - 0.05, p.y)))
 	multi[key][1].append(tint)
@@ -480,12 +520,15 @@ func _place(chunk: Dictionary, multi: Dictionary, kind: String, b: String, eid: 
 	match kind:
 		"tree":
 			var pine := Land.tree_at(p.x, p.y) == "pine"
-			_scatter(multi, "trunk", "bark", Color(0.3, 0.2, 0.12), p, spin, size)
+			_scatter(multi, "trunk", "bark", Color(0.3, 0.2, 0.12), p, spin, size, 1.0, "bark_pine" if pine else "bark_dec")
 			var leaf := Color(0.12, 0.28, 0.16) if pine else Color(0.2, 0.42, 0.16).lerp(Color(0.34, 0.45, 0.14), rng.randf())
-			_scatter(multi, "pine" if pine else "oak", "leaf", leaf, p, spin, size)
+			_scatter(multi, "pine" if pine else "oak", "leaf", leaf, p, spin, size, 1.0, "leaf_pine" if pine else "leaf_broad")
+			# Cutout cards on broadleaf trees only (never conifers, dead or burnt trees): the ragged edge.
+			if not pine and _cards_on:
+				_scatter(multi, "cards", "leaf", leaf, p, spin, size, 1.0, "cards")
 			chunk.obstacles.append(Vector3(p.x, p.y, 0.55 * size))
 		"dead":
-			_scatter(multi, "dead", "bark", Color(0.16, 0.13, 0.12) if b != "marsh" else Color(0.25, 0.24, 0.18), p, spin, size)
+			_scatter(multi, "dead", "bark", Color(0.16, 0.13, 0.12) if b != "marsh" else Color(0.25, 0.24, 0.18), p, spin, size, 1.0, "bark_dec")
 			chunk.obstacles.append(Vector3(p.x, p.y, 0.5 * size))
 		"rock":
 			var tint := Color(0.22, 0.19, 0.19) if b in ["ashlands", "ruins"] else Color(0.45, 0.43, 0.4)
@@ -565,7 +608,11 @@ func _add_node(chunk: Dictionary, eid: String, node_id: String, pos: Vector3, si
 				Kit._part(full, Kit.mesh("ore"), Vector3(0, 2.2 * size, 0), Kit.mat("ashglow", Color(1.0, 0.4, 0.1), 0.5, 3.0), Vector3.ZERO, Vector3(2, 3, 2))
 			else:
 				# Trunk and crown are one mesh (one draw instead of two).
-				Kit._part(full, Kit.mesh("node_pine" if node_id == "pine" else "node_oak"), Vector3.ZERO, Kit.baked_mat(), Vector3.ZERO, Vector3.ONE * size)
+				var tk := "node_pine" if node_id == "pine" else "node_oak"
+				var tm: Material = TexKit.tree_mat(tk) if _trees_textured() else null
+				var tmi := Kit._part(full, Kit.mesh(tk), Vector3.ZERO, tm if tm != null else Kit.baked_mat(), Vector3.ZERO, Vector3.ONE * size)
+				if tm != null:
+					chunk.trees.append({"node": tmi, "kind": tk, "flat": Kit.baked_mat()})
 			Kit._part(empty, Kit.mesh("stump"), Vector3.ZERO, bark)
 		"mining":
 			radius = 1.1

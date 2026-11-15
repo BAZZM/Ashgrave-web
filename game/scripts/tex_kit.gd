@@ -620,6 +620,143 @@ static func cards(kind: String, t: int, tint: Color, fog: Color) -> Material:
 	return m
 
 
+## ---- the real game's trees (lane G4a): GRAIN only, one shared material per kind of tree ------------------------
+## The tint is the instance colour (MultiMesh) or the baked vertex colour (gatherable trees), so one material serves every tree
+## of its kind. Object-space triplanar like solid(); the trunk and canopy grains sit in packed/trees (256 px, four channels).
+const TILE_TREE_LEAF := 0.9   # world units per repeat of the canopy grain: smaller than the look test's 1.6, which read as oversized leaves (G3 Critic)
+const CARD_SIZE := 1.3        # cutout cards on broadleaf canopies (the look test used 2.0)
+const D_BARK_TREE := 0.25
+const D_CANOPY_TREE := 0.25
+## kind: [trunk/bark mask, canopy mask, node mode]. node_* kinds are the gatherable trees (trunk and crown in one mesh, told apart by colour).
+const TREE_KINDS := {
+	"bark_dec": [Vector4(0, 1, 0, 0), Vector4(0, 1, 0, 0), 0.0],
+	"bark_pine": [Vector4(1, 0, 0, 0), Vector4(1, 0, 0, 0), 0.0],
+	"leaf_broad": [Vector4(0, 0, 1, 0), Vector4(0, 0, 1, 0), 0.0],
+	"leaf_pine": [Vector4(0, 0, 0, 1), Vector4(0, 0, 0, 1), 0.0],
+	"node_oak": [Vector4(0, 1, 0, 0), Vector4(0, 0, 1, 0), 1.0],
+	"node_pine": [Vector4(1, 0, 0, 0), Vector4(0, 0, 0, 1), 1.0],
+}
+
+
+static func trees_ready() -> bool:
+	return tex("packed/trees") != null
+
+
+static func cards_ready() -> bool:
+	return tex("packed/foliage") != null
+
+
+static func _tree_code() -> String:
+	return "shader_type spatial;\nrender_mode specular_disabled;\n" + COMMON + """
+varying vec3 lp;
+varying vec3 ln;
+varying vec3 wp;
+uniform vec3 fog_col;
+uniform sampler2D tex""" + SAMP_REPEAT + """;
+uniform vec4 mask_a;
+uniform vec4 mask_b;
+uniform float node = 0.0;
+uniform float tile_a = 2.0;
+uniform float tile_b = 0.9;
+uniform float d_a = 0.25;
+uniform float d_b = 0.25;
+void vertex() { lp = VERTEX; ln = NORMAL; wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
+void fragment() {
+	vec3 tint = COLOR.rgb;
+	bool crown = node > 0.5 && tint.g > tint.r;
+	vec4 m = crown ? mask_b : mask_a;
+	float t = crown ? tile_b : tile_a;
+	float dd = crown ? d_b : d_a;
+	vec3 w = pow(abs(ln), vec3(4.0)); w /= (w.x + w.y + w.z);
+	float g = dot(texture(tex, lp.zy / t), m) * w.x + dot(texture(tex, lp.xz / t), m) * w.y + dot(texture(tex, lp.xy / t), m) * w.z;
+	ALBEDO = ramp(tint, g, dd, fog_col) * macro(wp.xz);
+	ROUGHNESS = 0.9;
+}
+"""
+
+
+## The shared GRAIN material of a kind of tree (TREE_KINDS), or null when the level forbids textures or the pack lacks them.
+static func tree_mat(kind: String) -> Material:
+	var key := "tree|" + kind
+	if _mats.has(key):
+		return _mats[key]
+	var a: Texture2D = tex("packed/trees")
+	if a == null:
+		return null
+	var def: Array = TREE_KINDS[kind]
+	var sm := _sm(_shader("tree", _tree_code()))
+	sm.set_shader_parameter("tex", a)
+	sm.set_shader_parameter("fog_col", _vec(WORLD_FOG))
+	sm.set_shader_parameter("mask_a", def[0])
+	sm.set_shader_parameter("mask_b", def[1])
+	sm.set_shader_parameter("node", def[2])
+	var leaf := kind.begins_with("leaf")
+	# Whole-mesh kinds use side a only: the canopy kinds put their scale and depth there.
+	sm.set_shader_parameter("tile_a", TILE_TREE_LEAF if leaf else TILE_BARK)
+	sm.set_shader_parameter("tile_b", TILE_TREE_LEAF)
+	sm.set_shader_parameter("d_a", D_CANOPY_TREE if leaf else D_BARK_TREE)
+	sm.set_shader_parameter("d_b", D_CANOPY_TREE)
+	_mats[key] = sm
+	return sm
+
+
+## Cutout-card material for broadleaf canopies: the tint is the instance colour. Sampled from packed/foliage (lum R, alpha B).
+static func tree_cards_mat() -> Material:
+	if _mats.has("tree|cards"):
+		return _mats["tree|cards"]
+	var a: Texture2D = tex("packed/foliage")
+	if a == null:
+		return null
+	var sm := _sm(_shader("treecard", "shader_type spatial;\nrender_mode specular_disabled, cull_disabled;\n" + COMMON + """
+uniform vec3 fog_col;
+uniform sampler2D tex""" + SAMP_REPEAT + """;
+void fragment() {
+	vec4 v = texture(tex, UV);
+	ALPHA = v.b;
+	ALPHA_SCISSOR_THRESHOLD = 0.5;
+	ALBEDO = ramp(COLOR.rgb * 0.9, v.r, 0.25, fog_col);
+	ROUGHNESS = 1.0;
+}
+"""))
+	sm.set_shader_parameter("tex", a)
+	sm.set_shader_parameter("fog_col", _vec(WORLD_FOG))
+	_mats["tree|cards"] = sm
+	return sm
+
+
+## One mesh of six cards around a broadleaf canopy (shared by every oak; one instance per tree, scaled and turned with it).
+static func tree_cards_mesh() -> ArrayMesh:
+	if _mats.has("tree|cardmesh"):
+		return _mats["tree|cardmesh"]
+	var vs := PackedVector3Array()
+	var ns := PackedVector3Array()
+	var uvs := PackedVector2Array()
+	var idx := PackedInt32Array()
+	var h := CARD_SIZE * 0.5
+	for i in 6:
+		var a := TAU * i / 6.0
+		var r := 2.3
+		var y := 3.0 + (i % 3) * 0.6
+		var b := Basis(Vector3.UP, atan2(cos(a), sin(a))) * Basis(Vector3.RIGHT, deg_to_rad(-25.0))
+		var c := Vector3(cos(a) * r, y, sin(a) * r)
+		var base := vs.size()
+		for corner in [Vector2(-h, -h), Vector2(h, -h), Vector2(h, h), Vector2(-h, h)]:
+			vs.append(c + b * Vector3(corner.x, corner.y, 0))
+			ns.append(b * Vector3(0, 0, 1))
+			uvs.append(Vector2(corner.x / CARD_SIZE + 0.5, 0.5 - corner.y / CARD_SIZE))
+		idx.append_array(PackedInt32Array([base, base + 1, base + 2, base, base + 2, base + 3]))
+	var arr := []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = vs
+	arr[Mesh.ARRAY_NORMAL] = ns
+	arr[Mesh.ARRAY_TEX_UV] = uvs
+	arr[Mesh.ARRAY_INDEX] = idx
+	var m := ArrayMesh.new()
+	m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	_mats["tree|cardmesh"] = m
+	return m
+
+
 ## ---- fighter armour: palette colour plus a small tiling detail overlay ----------------------------------
 ## Object-space (rest pose) coordinates, so the overlay rides with each rigid part and does not swim. Keeps the
 ## fighters' rim and self-light exactly as placeholder_visual.gd's _metal() sets them.

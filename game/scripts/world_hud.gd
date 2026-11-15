@@ -1208,6 +1208,10 @@ func _draw_unstuck() -> void:
 	var q := _quality_rect()
 	_box(q)
 	_text("QUALITY: %s" % Run.quality_choice().to_upper(), q.get_center() + Vector2(0, 7), 20, Color.WHITE)
+	# Which compressed texture formats this GPU has (web only; nothing elsewhere): the owner reads it out for the walls-and-wood decision.
+	var gpu := Run.gpu_textures()
+	if gpu != "":
+		_text(gpu, _panel().position + Vector2(28, 82), 15, Color(1, 1, 1, 0.75), false)
 
 
 func _draw_land_map(s: Vector2) -> void:
