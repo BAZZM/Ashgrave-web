@@ -114,6 +114,11 @@ func _ready() -> void:
 			get_tree().create_timer(float(a.substr(10))).timeout.connect(_qswitch)
 		elif a.begins_with("--openmap="):
 			get_tree().create_timer(float(a.substr(10))).timeout.connect(_openmap)
+		elif a.begins_with("--openscreen="):
+			# --openscreen=NAME@SECONDS (debug): open a HUD screen (quests, skills, map, ...) after that long.
+			var parts := a.substr(13).split("@")
+			var which := parts[0]
+			get_tree().create_timer(float(parts[1]) if parts.size() > 1 else 12.0).timeout.connect(func() -> void: _find_hud().call("open", which))
 		elif a == "--openmap-tower":
 			_openmap_tower()
 	# Memory soak bot (tools/check.js perf-soak), debug only.
