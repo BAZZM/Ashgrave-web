@@ -55,7 +55,7 @@ up. It sits on top of `docs/ORCHESTRATOR.md` (phases, gates, roles) and
 | S4 | Story | Act 2 part one: the editor's first buildable slice (5 main-line quests, about 9 side quests, Oswin, Nan Harrow), `act2` bot scenarios | Sonnet, Fable text check | quest data, NPC hooks, docs/story | DONE, released as Build 18 |
 | L1 | Perf | Leak hunt: about 1.7 MB of wasm memory in use per soak cycle since Build 15 or earlier; tower part 0.6 to 0.9 MB; use the `mused` columns and `--soak-only` | Opus | any script, minimal | DONE, released as Build 19 (unused physics servers stopped) |
 | B1 | Bug | PvP: one duel result message sometimes missing (res N, atk N+1) | Opus | online scripts | DONE: a counting artefact in the test, not a game bug (an attack sent just before its sender died is owed no result); check corrected, no release needed |
-| G4 | Graphics | Walls and wood, then trees | Sonnet | `overworld_places.gd`, `world.gd`, terrain scatter | waiting for the owner's iPhone report on Builds 16 and 17 before adding texture memory |
+| G4 | Graphics | Walls and wood, then trees | Sonnet | `overworld_places.gd`, `world.gd`, terrain scatter | trees DONE, released as Build 20; walls and wood wait for the GPU readout from the owner's phone |
 | R1 | Graphics | Resume rig stage R1 (paused, work on `lane/p2-r1-rigvisual`) | Opus | see `docs/RIG_PLAN.md` | running again from the checkpoint (lane/p2-r1-rigvisual) |
 
 ## Releases
