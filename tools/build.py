@@ -9,8 +9,8 @@ root, points index.html at it, and removes the previous pack. The engine itself
     python3 tools/build.py --check        # exit 1 if the committed pack is stale
     python3 tools/build.py --looktest     # a test pack that also holds the look-test-only textures (never commit its output)
 
-The release pack holds only the textures the real game samples (SHIPPED_TEXTURES: the ground and water grain packs
-and the ripple map). The other imported textures under game/assets/textures/ (walls, wood, bark, leaf, armour, banner,
+The release pack holds only the textures the real game samples (SHIPPED_TEXTURES: the ground and water grain packs,
+the ripple map and the tree grains). The other imported textures under game/assets/textures/ (walls, wood, bark, leaf, armour, banner,
 the colour sources) are used only by the debug look-test scene; their .import files and imported forms are left out
 unless --looktest is given, and the look test then falls back to flat (tex_kit.gd).
 """
@@ -26,7 +26,7 @@ INDEX = ROOT / "index.html"
 GODOT_VERSION = (4, 4, 1)
 ALIGN = 16
 TEX_DIR = "assets/textures/"
-SHIPPED_TEXTURES = {"packed/terrain_a", "packed/terrain_b", "packed/ripple"}
+SHIPPED_TEXTURES = {"packed/terrain_a", "packed/terrain_b", "packed/ripple", "packed/trees"}
 
 
 def pad(n: int, to: int) -> int:

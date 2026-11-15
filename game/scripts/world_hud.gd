@@ -1208,6 +1208,16 @@ func _draw_unstuck() -> void:
 	var q := _quality_rect()
 	_box(q)
 	_text("QUALITY: %s" % Run.quality_choice().to_upper(), q.get_center() + Vector2(0, 7), 20, Color.WHITE)
+	# Which compressed texture formats this GPU has (web only; nothing elsewhere): the owner reads it out for the walls-and-wood decision.
+	var gpu := Run.gpu_textures()
+	if gpu != "":
+		# Two 18 px lines, right-aligned under the buttons (clear of the land map, which ends left of them).
+		var pr := _panel()
+		var parts := gpu.split(": ")
+		for i in parts.size():
+			var line: String = parts[i] + (":" if i < parts.size() - 1 else "")
+			var lw := _font.get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x
+			_text(line, Vector2(pr.end.x - 24.0 - lw, pr.position.y + 118.0 + 24.0 * i), 18, Color(1, 1, 1, 0.85), false)
 
 
 func _draw_land_map(s: Vector2) -> void:

@@ -251,7 +251,7 @@ or a key to `Quality.LEVELS` (a missing key counts as allowed). `Run.quality_tun
 `Run.quality_tune_sky(sky)` apply the level to lights and skies built in code; `Run.quality_apply(viewport)`
 re-applies the level to a running scene (it walks the tree once). A feature name a row does not list is refused in
 safe (typos fail closed). Gated features are decided when a scene loads and never loaded or unloaded mid-scene; a lane
-that wants to notice a change reads `Run.quality_rev` (counts level changes). Lane G3: the live game's ground and water use textures at Full only (`overworld_terrain.gd`, `tex_kit.gd` GRAIN; three lossless maps, 2.63 MB of the pack). Measured in the real overworld (844x390): texture memory +3.15 MB on land and in a duel, video +3.6 MB, about +8k primitives and +0.5 MB of buffers (water meshes); Safe adds nothing (`texheld=0` in PERFLOG, checked by `check.js quality`). Nothing in the live game uses models yet.
+that wants to notice a change reads `Run.quality_rev` (counts level changes). Lane G3: the live game's ground and water use textures at Full only (`overworld_terrain.gd`, `tex_kit.gd` GRAIN; three lossless maps, 2.63 MB of the pack). Measured in the real overworld (844x390): texture memory +3.15 MB on land and in a duel, video +3.6 MB, about +8k primitives and +0.5 MB of buffers (water meshes); Safe adds nothing (`texheld=0` in PERFLOG, checked by `check.js quality`). Lane G4a: trees use textures at Full only too (`packed/trees`, 256 px, 254,230 B (full mip chain) in the pack, +0.33 MB of texture memory; running total of ground, water and trees 3.48 MB on land and 2.88 MB of pack); draw calls and primitives in Greywood unchanged (304 and 90,496; foliage cards cost +5 draws and +0.7% primitives and are off); `check.js quality` also wants at least 3 textures held at Full on land. The QUALITY screen shows the device's compressed texture formats (`Run.gpu_textures()`). Nothing in the live game uses models yet.
 
 ## Budget for textures and skinned characters
 
@@ -273,3 +273,16 @@ the same way in WebKit (same engine JS, so likely); drawing-buffer count; whethe
 finding 5 exists outside software GL; HUD sharpness at the 2x cap on the device. The
 banner's report code (`node tools/crumb_test.js --decode CODE`) and the crumb's heap,
 canvas, dpr, device memory and GPU fields are for this.
+
+## 2D item buffer size (lane G4a, 15 Nov)
+The Compatibility renderer keeps several 2D instance buffers of `rendering/gl_compatibility/item_buffer_size` items (default 16,384) at 128 bytes an item, about 2.1 MB each, and adds one when the GPU lags, never freeing it; this game draws few 2D items. `game/project.godot` now sets `gl_compatibility/item_buffer_size=1024`. A frame with more items is split into batches, not cut: checked by drawing the skills screen, map, quests, title, land HUD, tower map and a duel HUD (hit text, damage numbers) at the default, 1024 and even 64, and the pictures match.
+
+Measured in headless Chromium, 844x390 at dpr 3, `--perflog`, MB (bytes / 1,048,576), buffers (`RENDER_BUFFER_MEM_USED`) and video (textures + buffers):
+
+| Screen | 16,384 buffers / video | 4,096 | 1,024 (shipped) |
+|---|---|---|---|
+| title | 15.8 / 41.1 | 5.3 / 30.6 | 2.7 / 28.0 |
+| land | 16.0 / 43.4 | 5.5 / 32.6 | 2.8 / 30.3 |
+| duel | 10.9 / 30.7 | 3.4 / 23.3 | 1.5 / 21.3 |
+
+Saves about 13 MB of video memory on the title and land and 9 MB in a duel. Not measured: the 2.1 MB step the soak shows part-way through some runs (the extra buffer); with 1,024 items an extra buffer costs 0.13 MB. The iPhone's real saving is unproven (software GL here).

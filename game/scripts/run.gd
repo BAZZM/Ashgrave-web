@@ -80,6 +80,23 @@ static func quality_level() -> String:
 	return "safe" if _q_held_safe and q == "full" else q
 
 
+## The compressed texture formats this device's GL context offers, as a one-line label for the QUALITY screen (lane G4a):
+## "GPU textures: ETC2 ASTC", "GPU textures: none", or "" (not the web build, or no context to ask). Read once, from the
+## engine's own canvas context (getContext of the same type returns the existing one, so no second context is made).
+static var _gpu_line := "?"
+
+
+static func gpu_textures() -> String:
+	if _gpu_line != "?":
+		return _gpu_line
+	_gpu_line = ""
+	if OS.has_feature("web"):
+		var v: Variant = JavaScriptBridge.eval("(function(){try{var c=document.getElementById('canvas');var g=c&&c.getContext('webgl2');if(!g)return '';var e=(g.getSupportedExtensions()||[]).map(function(x){return x.replace(/^(WEBKIT_|MOZ_)/,'')});var o=[];[['WEBGL_compressed_texture_s3tc','S3TC'],['WEBGL_compressed_texture_etc','ETC2'],['WEBGL_compressed_texture_astc','ASTC'],['EXT_texture_compression_bptc','BPTC']].forEach(function(p){if(e.indexOf(p[0])>=0)o.push(p[1])});return o.join(' ')||'none'}catch(x){return ''}})()", true)
+		if v is String and v != "":
+			_gpu_line = "GPU textures: " + v
+	return _gpu_line
+
+
 ## What the player chose (the session override, else the save): what the QUALITY button shows.
 static func quality_choice() -> String:
 	_quality_read_override()

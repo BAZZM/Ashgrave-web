@@ -105,6 +105,22 @@ func _ready() -> void:
 	_bench = "--terrainbench" in args
 	logging = "--perflog" in args or _dump or _world or _live or _bench
 	_crumb_start()
+	var gpu_line := Run.gpu_textures()  # read once at startup for the QUALITY screen's GPU line
+	if logging and gpu_line != "":
+		print("GPUTEX ", gpu_line)
+	# Debug (lane G4a): `--qswitch=SECONDS` taps the QUALITY button (Full to Safe) after that long and prints what TexKit holds, then and 5 s later.
+	for a in args:
+		if a.begins_with("--qswitch="):
+			get_tree().create_timer(float(a.substr(10))).timeout.connect(_qswitch)
+		elif a.begins_with("--openmap="):
+			get_tree().create_timer(float(a.substr(10))).timeout.connect(_openmap)
+		elif a.begins_with("--openscreen="):
+			# --openscreen=NAME@SECONDS (debug): open a HUD screen (quests, skills, map, ...) after that long.
+			var parts := a.substr(13).split("@")
+			var which := parts[0]
+			get_tree().create_timer(float(parts[1]) if parts.size() > 1 else 12.0).timeout.connect(func() -> void: _find_hud().call("open", which))
+		elif a == "--openmap-tower":
+			_openmap_tower()
 	# Memory soak bot (tools/check.js perf-soak), debug only.
 	for a in args:
 		if a == "--soak" or a.begins_with("--soak="):
@@ -271,6 +287,42 @@ func _gl_name() -> String:
 	var v: Variant = JavaScriptBridge.eval("(function(){try{var g=document.getElementById('canvas').getContext('webgl2');var e=g&&g.getExtension('WEBGL_debug_renderer_info');return String(e?g.getParameter(e.UNMASKED_RENDERER_WEBGL):(g?g.getParameter(g.RENDERER):''))}catch(x){return ''}})()", true)
 	var n: String = v if v is String and v != "" else RenderingServer.get_video_adapter_name()
 	return n.left(60)
+
+## The world HUD, wherever it is in the tree (debug flags --qswitch and --openmap).
+func _find_hud() -> Node:
+	var stack: Array = [get_tree().root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		stack.append_array(n.get_children())
+		var sc: Script = n.get_script()
+		if sc != null and sc.resource_path.ends_with("/world_hud.gd"):
+			return n
+	return self
+
+
+func _openmap() -> void:
+	_find_hud().call("open", "map")
+
+
+## Debug --openmap-tower: wait for the tower's HUD (the world is not land), then open the map.
+func _openmap_tower() -> void:
+	while true:
+		await get_tree().create_timer(1.0).timeout
+		var h := _find_hud()
+		if h != self and h.get("world") != null and not bool(h.world.get("is_land")):
+			await get_tree().create_timer(2.0).timeout
+			h.call("open", "map")
+			return
+
+
+## Debug for --qswitch: press the real QUALITY button's handler on whatever HUD is up, then report TexKit's holdings.
+func _qswitch() -> void:
+	var tk := preload("res://scripts/tex_kit.gd")
+	print("QSWITCH before q=%s texheld=%d" % [Run.quality_level(), tk.loaded.size()])
+	_find_hud().call("_toggle_quality")
+	for wait in [1.0, 5.0]:
+		await get_tree().create_timer(wait).timeout
+		print("QSWITCH after +%.0fs q=%s texheld=%d" % [wait, Run.quality_level(), tk.loaded.size()])
 
 
 func _memory_deaths() -> int:

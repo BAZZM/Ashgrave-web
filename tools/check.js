@@ -917,6 +917,8 @@ scenario('quality', 'safe mode: land, tower duel, duel and tower play clean with
       const rest = rows.slice(Math.min(2, rows.length - 1));
       if (!rest.length) { ok = false; notes.push(`FAIL: ${level} ${what}: no PERFLOG lines`); await c.close(); continue; }
       const wrong = rest.filter((x) => x.q !== level || x.textures !== (level === 'full' ? 1 : 0) || x.models !== (level === 'full' ? 1 : 0) || (level === 'safe' && x.texheld !== 0));
+      // Full on land holds the ground grain (2 maps) and the tree grain (lane G4a) at least; Safe holds nothing (checked above).
+      const heldLow = level === 'full' && what === 'land' ? rest.filter((x) => x.texheld < 3) : [];
       const scene = rest.filter((x) => x.dirlights > 0);
       const want = 1.0; // safe keeps the full render scale and sky radiance (see docs/PERF_BUDGET.md); its levers are the cap and shadows
       const badScale = rest.filter((x) => Math.abs(x.scale3d - want) > 0.011);
@@ -924,6 +926,7 @@ scenario('quality', 'safe mode: land, tower duel, duel and tower play clean with
       const badRad = scene.filter((x) => String(x.radiance).split(',').some((v) => Number(v) !== 3));
       const problems = [];
       if (wrong.length) problems.push(`level or gates wrong in ${wrong.length} lines (${wrong[0].q})`);
+      if (heldLow.length) problems.push(`full land holds ${heldLow[0].texheld} textures, wanted at least 3 (ground and trees)`);
       if (badScale.length) problems.push(`3D scale ${badScale[0].scale3d}, wanted ${want}`);
       if (!scene.length) problems.push('no directional light seen');
       if (badShadow.length) problems.push(`shadowed lights ${badShadow[0].shadowed} at ${level}`);
