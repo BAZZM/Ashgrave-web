@@ -75,7 +75,7 @@ const RECIPES := [
 	{"skill": "alchemy", "level": 35, "name": "Surge tonic", "in": {"ashbloom": 1, "marigold": 2}, "out": {"mat": "tonic", "n": 1}, "xp": 150},
 	{"skill": "fletching", "level": 1, "name": "Arrows (10)", "in": {"oak_log": 1, "copper_ore": 1}, "out": {"mat": "arrow", "n": 10}, "xp": 25},
 	{"skill": "fletching", "level": 10, "name": "Throwing Knives", "in": {"iron_ore": 2, "oak_log": 1}, "out": {"item": "throwing_knives"}, "xp": 120},
-	{"skill": "fletching", "level": 15, "name": "Hunter's Crossbow", "in": {"pine_log": 6, "hide": 2}, "out": {"item": "hunters_bow"}, "xp": 220},
+	{"skill": "fletching", "level": 15, "name": "Hunter's Bow", "in": {"pine_log": 6, "hide": 2}, "out": {"item": "hunters_bow"}, "xp": 220},
 	{"skill": "fletching", "level": 25, "name": "Iron arrows (20)", "in": {"pine_log": 1, "iron_ore": 1}, "out": {"mat": "arrow", "n": 20}, "xp": 60},
 ]
 
@@ -104,6 +104,13 @@ static func level_for(xp: int) -> int:
 	while lvl < MAX_LEVEL and xp >= xp_for(lvl + 1):
 		lvl += 1
 	return lvl
+
+
+## A recipe's display name (the bow shows as the crossbow while the rigged hero is in use).
+static func label(r: Dictionary) -> String:
+	if r.get("out", {}).get("item", "") == "hunters_bow":
+		return Items.bow_name()
+	return r.name
 
 
 static func recipes_for(skill: String) -> Array:

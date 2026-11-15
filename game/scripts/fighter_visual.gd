@@ -74,6 +74,16 @@ static func make_hero() -> FighterVisual:
 	return v
 
 
+## Add a hero visual to `parent` and configure it. A rig is configured first (before it is in the tree) so it builds once, in _ready.
+static func add_hero(parent: Node, v: FighterVisual) -> void:
+	if v is PlaceholderVisual:
+		parent.add_child(v)
+		v.configure(hero_cfg())
+	else:
+		v.configure(hero_cfg())
+		parent.add_child(v)
+
+
 ## What configure() gets for the hero: Items.hero_look plus the equipped ids (the rig maps gear by item; the primitive hero ignores `eq`).
 static func hero_cfg() -> Dictionary:
 	var c := Run.look()

@@ -49,12 +49,13 @@ def import_paths(imp: Path) -> set:
     return out
 
 
-def rig_paths() -> set:
-    """Pack paths of the rig: the imported assets (remaps and imported forms), the KayKit probe's, and the rig scripts."""
+def rig_paths(probe_only: bool = False) -> set:
+    """Pack paths of the rig: the imported assets (remaps and imported forms), the KayKit probe's, and the rig scripts.
+    probe_only: just the KayKit probe's imports (assets/kaykit/, 1.24 MB nothing but --looktest uses)."""
     out = set()
-    for imp in [i for d in RIG_DIRS for i in (GAME / d).rglob("*.import")]:
+    for imp in [i for d in (RIG_DIRS[1:] if probe_only else RIG_DIRS) for i in (GAME / d).rglob("*.import")]:
         out |= import_paths(imp)
-    return out | RIG_SCRIPTS
+    return out if probe_only else out | RIG_SCRIPTS
 
 
 def look_test_only() -> set:
@@ -70,6 +71,8 @@ def look_test_only() -> set:
 
 def build_pack(with_looktest: bool = False, with_rig: bool = False) -> bytes:
     skip = (set() if with_looktest else look_test_only()) | (set() if with_looktest or with_rig else rig_paths())
+    if with_rig and not with_looktest:
+        skip |= rig_paths(probe_only=True)  # the rig pack leaves the probe's imports out
     files = sorted(
         (p.relative_to(GAME).as_posix(), p.read_bytes())
         for p in GAME.rglob("*")

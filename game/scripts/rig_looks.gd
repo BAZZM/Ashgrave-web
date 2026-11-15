@@ -52,7 +52,7 @@ static func map(cfg: Dictionary, has_shield: bool) -> Dictionary:
 	out.glow = Color.BLACK
 	if over.get("runes", false):
 		var c: Color = over.get("rune_color", Color(1.0, 0.9, 0.6))
-		out.glow = c * (0.2 + 0.1 * float(over.get("rune_power", 2.0)))
+		out.glow = c * (0.15 + 0.07 * float(over.get("rune_power", 2.0)))
 
 	# Shield.
 	var sid: String = eq.get("shield", "")
@@ -61,13 +61,15 @@ static func map(cfg: Dictionary, has_shield: bool) -> Dictionary:
 	out.shield = SHIELDS[sid].shield if has_shield else ""
 	out.shield_scale = SHIELDS[sid].scale
 
-	# Helm. The knight's sallet is KayKit's; the great helm and the hood are code-built.
+	# Helm. Every helm is KayKit's sallet for now: the code-built great helm and hood were closed shapes (hood hid the face, helm
+	# a blank capsule) and wait for a later stage. `helm_style` records what the hero wears for that stage.
 	var hid: String = eq.get("helm", "")
 	var helm := "Knight_Helmet"
+	out.helm_style = "sallet"
 	if hid == "watchers_helm" or over.get("helm", "") == "great":
-		helm = "great"
+		out.helm_style = "great"
 	elif hid == "duelists_hood" or (hid == "" and over.get("half_cape", false) and not over.get("slim", false)):
-		helm = "hood"
+		out.helm_style = "hood"
 	out.helmet = helm
 	out.fin = bool(over.get("fin", false))
 

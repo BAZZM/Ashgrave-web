@@ -30,7 +30,7 @@ const ARMOUR := {
 
 const RANGED := {
 	"throwing_knives": {"name": "Throwing Knives", "slot": "ranged", "shots": 3, "power": 2.0, "price": 220},
-	"hunters_bow": {"name": "Hunter's Crossbow", "slot": "ranged", "shots": 4, "power": 3.2, "price": 620},
+	"hunters_bow": {"name": "Hunter's Bow", "slot": "ranged", "shots": 4, "power": 3.2, "price": 620},
 }
 
 const SPELLS := {
@@ -54,8 +54,17 @@ static func exists(id: String) -> bool:
 static func info(id: String) -> Dictionary:
 	for table in [WEAPONS, ARMOUR, RANGED, SPELLS]:
 		if table.has(id):
+			if id == "hunters_bow":
+				var d: Dictionary = (table[id] as Dictionary).duplicate()
+				d.name = bow_name()
+				return d
 			return table[id]
 	return {}
+
+
+## The ranged weapon's name: the rigged hero carries a crossbow, the primitive hero a bow (display text only; the id is the same).
+static func bow_name() -> String:
+	return "Hunter's Crossbow" if FighterVisual.rig_wanted() else "Hunter's Bow"
 
 
 static func slot_of(id: String) -> String:

@@ -175,7 +175,7 @@ func golden_pose() -> void:
 	if _g.has("walk"):
 		ow.hero.set_walk(float(_g.walk))
 		ow.hero.set_pace(float(_g.get("pace", 1.0)))
-	if _g.has("play") and fmod(ow._t, 0.9) < ow.get_process_delta_time():
+	if _g.has("play") and fmod(ow._t, 0.9) < get_process_delta_time():
 		ow.hero.play(_g.play[0], _g.play[1], _g.play[2])
 
 

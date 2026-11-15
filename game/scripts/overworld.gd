@@ -161,8 +161,7 @@ func _ready() -> void:
 	places._build_tower()
 
 	hero = FighterVisual.make_hero()
-	add_child(hero)
-	hero.configure(FighterVisual.hero_cfg())
+	FighterVisual.add_hero(self, hero)
 	hero.position = hero_pos
 	_hero_rev = Run.quality_rev
 	FighterVisual.debug_cycle(self)
@@ -496,8 +495,7 @@ func hero_swap(rig: bool, deferred := false) -> void:
 	var nh: FighterVisual = FighterVisual.make_hero() if rig else PlaceholderVisual.new()
 	if not rig:
 		nh.set("has_shield", true)
-	add_child(nh)
-	nh.configure(FighterVisual.hero_cfg())
+	FighterVisual.add_hero(self, nh)
 	nh.transform = old.transform
 	hero = nh
 	if old.get_parent() != null:

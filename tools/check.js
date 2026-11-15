@@ -432,7 +432,7 @@ function errorNotes(clients) {
 // Run one client with the given game args until a line matching `finish`
 // appears (or `fail` does, or time runs out). `verify(lines)` may return a
 // string describing what is wrong with what it printed.
-async function solo(ctx, { args, finish, fail, seconds, verify }) {
+async function solo(ctx, { args, finish, fail, seconds, verify, heroIsRig }) {
   const relay = await ctx.newRelay();
   const c = await ctx.client('bot');
   c.stopRe = finish;
@@ -446,11 +446,17 @@ async function solo(ctx, { args, finish, fail, seconds, verify }) {
     const problem = verify && verify(c.lines);
     if (problem) { ok = false; notes.push(problem); }
   }
+  if (ok && heroIsRig && opts.rig) {
+    // With --rig the hero must BE the rig (a release pack without the assets passes the flag and shows the primitive hero).
+    const hl = c.lines.filter((l) => /^(LAND|WORLD) /.test(l));
+    const bad = hl.find((l) => !/ hero=rig\b/.test(l));
+    if (!hl.length || bad) { ok = false; notes.push(`--rig given but the hero is not the rig: ${bad || 'no LAND/WORLD line'}`); }
+  }
   notes.push(...c.lines.filter((l) => GAME_LINE.test(l)).slice(-3).map((l) => `saw: ${l.slice(0, 150)}`));
   return { ok, notes };
 }
 
-const GAME_LINE = /^(LAND|WORLD|TOUR|RESULT|GATHER|PVP|ACT1|ACT2|QSAVE)/;
+const GAME_LINE = /^(LAND|WORLD|HERO|TOUR|RESULT|GATHER|PVP|ACT1|ACT2|QSAVE)/;
 const lineOf = (lines, re) => lines.find((l) => re.test(l));
 
 // ---- 1. load
@@ -472,7 +478,7 @@ scenario('load', 'title screen loads and the world builds (bot idles in it), no 
   await plain.close();
   if (notes.length) return { ok: false, notes };
   // Same page, but the pvp_a bot: the world builds without a title and says so.
-  return solo(ctx, { args: ['--autoplay=pvp_a'], finish: /^LAND /, seconds: 60 });
+  return solo(ctx, { args: ['--autoplay=pvp_a'], finish: /^LAND /, seconds: 60, heroIsRig: true });
 });
 
 // ---- 2. solo duels
@@ -547,7 +553,7 @@ scenario('tour', 'tour bot walks to the tower, wins tier 1 and enters tier 2', a
   const earlier = [];
   for (let attempt = 1; ; attempt++) {
     const res = await solo(ctx, {
-      args: ['--autoplay=tour'], finish: /^WORLD tier=2 /, fail: /^TOUR hero fell/, seconds: 240,
+      args: ['--autoplay=tour'], finish: /^WORLD tier=2 /, fail: /^TOUR hero fell/, seconds: 240, heroIsRig: true,
       verify: (lines) => {
         if (!lines.some((l) => /^LAND /.test(l)) || !lines.some((l) => /^WORLD tier=1 /.test(l))) return 'did not pass through the land and tier 1';
         const wins = lines.filter((l) => /^RESULT win /.test(l)).length;
@@ -563,7 +569,7 @@ scenario('tour', 'tour bot walks to the tower, wins tier 1 and enters tier 2', a
 // ---- 4. gather
 
 scenario('gather', 'gather bot mines, crafts and takes the task', (ctx) => solo(ctx, {
-  args: ['--autoplay=gather'], finish: /^GATHER /, seconds: 120,
+  args: ['--autoplay=gather'], finish: /^GATHER /, seconds: 120, heroIsRig: true,
   verify: (lines) => {
     const l = lineOf(lines, /^GATHER /);
     if (/mats=\{\s*\}/.test(l)) return `nothing gathered: ${l}`;
@@ -1268,6 +1274,26 @@ scenario('rig-cycle', 'the hero is the rig with --rig and the primitive one with
   }
   for (const [n, rows] of [['off', off], ['rig', on], ['safe', safe], ['safe-off', safeOff]]) for (const r of rows.slice(0, 2)) notes.push(`saw: ${n} ${r.scene} hero=${r.hero} rig_loaded=${r.loaded} objects=${r.objects} resources=${r.resources} nodes=${r.nodes} tex=${r.tex} vid=${r.vid} draws=${r.draws}`);
   return { ok, notes };
+}, true);
+
+// ---- 9. A tower duel with the flag: the hero is the primitive one during the duel and the rig after it, one hero in the tree
+// throughout (world.gd hero_swap; the lantern goes across both ways).
+scenario('rig-tower-duel', 'with --rig, a tower duel is fought by the primitive hero and the rig is back after it; one hero in the tree at every swap (skipped on a pack without the rig)', async (ctx) => {
+  if (!packHasRig()) return { ok: true, skipped: true, notes: ['skipped: this pack holds no rig (build with `--rig` or `--looktest`)'] };
+  return solo(ctx, {
+    args: ['--autoplay=tour', '--rig'], finish: /^WORLD tier=2 /, fail: /^TOUR hero fell/, seconds: 240, heroIsRig: true,
+    verify: (lines) => {
+      const sw = lines.filter((l) => /^HERO swap tower /.test(l));
+      if (sw.length < 2) return `expected tower hero swaps, saw ${sw.length}`;
+      if (sw.some((l) => !/ heroes=1$/.test(l))) return `not exactly one hero in the tree: ${sw.find((l) => !/ heroes=1$/.test(l))}`;
+      for (let i = 0; i < sw.length; i++) {
+        const want = i % 2 === 0 ? 'primitive' : 'rig';
+        if (!new RegExp(` hero=${want} `).test(sw[i])) return `swap ${i + 1} should be ${want}: ${sw[i]}`;
+      }
+      // A guardian duel that is won reloads the scene (the new hero is built by the switch), so the last swap may be the primitive one.
+      return null;
+    },
+  });
 }, true);
 
 // ---------------------------------------------------------------- main

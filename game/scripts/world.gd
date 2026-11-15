@@ -127,8 +127,7 @@ func _ready() -> void:
 	_spawn_entities()
 
 	hero = FighterVisual.make_hero()
-	add_child(hero)
-	hero.configure(FighterVisual.hero_cfg())
+	FighterVisual.add_hero(self, hero)
 	_hero_rev = Run.quality_rev
 	FighterVisual.debug_cycle(self)
 	if Run.spawn is Vector3:
@@ -523,25 +522,49 @@ func _walkable(p: Vector3) -> bool:
 	return true
 
 
-## The level changed to one that has no models: a rig hero becomes the primitive hero (the lantern moves over) and the rig's
-## caches are freed.
+## The hero's visual the way the switch says (the rig, or the primitive hero), keeping its place and moving the lantern (and
+## anything else of the hero's) across: used when the quality changes and around duels (duels stay on PlaceholderVisual until
+## stage R3). Frees the old one at once, or at the end of the frame when a duel that is ending may still read it.
+func hero_swap(rig: bool, deferred := false) -> void:
+	if hero == null or (hero is PlaceholderVisual) != rig or (rig and not FighterVisual.rig_wanted()):
+		return  # already the kind asked for (or the rig is not wanted)
+	var old := hero
+	var nh: FighterVisual = FighterVisual.make_hero() if rig else PlaceholderVisual.new()
+	if not rig:
+		nh.set("has_shield", true)
+	FighterVisual.add_hero(self, nh)
+	nh.transform = old.transform
+	for c in old.get_children():
+		if c is OmniLight3D:
+			c.reparent(nh, false)
+	hero = nh
+	remove_child(old)
+	if deferred:
+		old.queue_free()
+	else:
+		old.free()
+	if not rig and not FighterVisual.rig_wanted():
+		FighterVisual.release_rig()
+	if _bot != "":
+		var lit := 0  # heroes in the tree: a child of the world that carries the lantern
+		for c in get_children():
+			if not (c is FighterVisual):
+				continue
+			for g in c.get_children():
+				if g is OmniLight3D:
+					lit += 1
+					break
+		print("HERO swap tower hero=%s deferred=%s heroes=%d" % ["rig" if rig else "primitive", deferred, lit])
+
+
+## The level changed to one that has no models: a rig hero becomes the primitive hero and the rig's caches are freed. Waits
+## while a duel runs (the duel holds the hero) and applies when it ends.
 func _hero_follow_quality() -> void:
-	if Run.quality_rev == _hero_rev:
+	if Run.quality_rev == _hero_rev or duel != null:
 		return
 	_hero_rev = Run.quality_rev
 	if hero != null and not (hero is PlaceholderVisual) and not FighterVisual.rig_wanted():
-		var old := hero
-		var nh := PlaceholderVisual.new()
-		nh.has_shield = true
-		add_child(nh)
-		nh.configure(FighterVisual.hero_cfg())
-		nh.transform = old.transform
-		for c in old.get_children():
-			if c is OmniLight3D:
-				c.reparent(nh, false)
-		hero = nh
-		remove_child(old)
-		old.free()
+		hero_swap(false)
 	if not Run.quality_allows("models"):
 		FighterVisual.release_rig()
 
@@ -762,6 +785,7 @@ func ground_y(_p: Vector3) -> float:
 func _start_duel(e: Dictionary) -> void:
 	if duel != null:
 		return
+	hero_swap(false)  # duels stay on the primitive fighters until stage R3
 	stick = Vector2.ZERO
 	hero.set_walk(0.0)
 	var group: Array = [e]
@@ -798,6 +822,7 @@ func duel_done(won: bool, d: Duel) -> void:
 		Run.spawn = _settle_from(_pre_duel, hero.global_position) if not d.reward.get("cleared", false) else "entrance"
 		get_tree().reload_current_scene.call_deferred()
 		return
+	hero_swap(true, true)  # the rig back, where the switch wants it (the duel's own hero goes at the end of the frame)
 	hud.visible = true
 	cam.make_current()
 	for rec in d.slain:

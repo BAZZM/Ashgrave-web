@@ -71,7 +71,7 @@ void fragment() {
 	METALLIC = met * metallic_k;
 	ROUGHNESS = mix(0.85, 0.45, met);
 	// The same lift and rim as PlaceholderVisual (Build 16 lighting: fighters read at 1.5x the ground or more); a face gets little lift.
-	EMISSION = mix(alb, vec3(1.0), 0.3) * lift * mix(1.0, 0.15, face) + flash.rgb + tell.rgb * 2.5 + glow.rgb * met;
+	EMISSION = mix(alb, vec3(1.0), 0.3) * lift * mix(1.0, 0.15, face) + flash.rgb + tell.rgb * 2.5 + glow.rgb * met * lum * 0.8;  // rune glow rides the blade's own shading, so steel stays steel
 	RIM = rim_amount;
 	RIM_TINT = 0.3;
 }
@@ -310,7 +310,7 @@ func _build() -> void:
 		m.set_shader_parameter("rim_amount", rim)
 		m.set_shader_parameter("metallic_k", PlaceholderVisual.METAL_METALLIC)
 		m.set_shader_parameter("lift", LIFT)
-		m.set_shader_parameter("face_shade", FACE_SHADE)
+		m.set_shader_parameter("face_shade", _face_shade())
 		m.set_shader_parameter("cloth", look.get("cloth", accent_color))
 	_body_mat.set_shader_parameter("tint", tint)
 	_weapon_mat.set_shader_parameter("tint", look.get("weapon_tint", tint))
@@ -349,15 +349,11 @@ func _extras(look: Dictionary) -> void:
 	cloth.cull_mode = BaseMaterial3D.CULL_DISABLED
 	cloth.emission_enabled = true
 	cloth.emission = cloth.albedo_color * 0.3
-	match str(look.get("helmet", "")):
-		"great":
-			var h := _on_bone("head", "GreatHelm")
-			_mesh_on(h, MeshKit.lathe([[0.0, 0.47], [0.1, 0.46], [0.175, 0.4], [0.195, 0.28], [0.19, 0.12], [0.175, 0.02], [0.2, -0.03], [0.0, -0.03]], 16, 0.95, 1.05), Vector3(0, -0.06, 0), steel, 2.75)
-			if look.get("fin", false):
-				_mesh_on(h, MeshKit.lathe([[0.0, 0.0], [0.05, 0.03], [0.16, 0.16], [0.1, 0.3], [0.0, 0.36]], 10, 0.14, 1.3), Vector3(0, 1.2, 0.1), steel, 1.7)
-		"hood":
-			var h2 := _on_bone("head", "Hood")
-			_mesh_on(h2, MeshKit.lathe([[0.0, 0.5], [0.12, 0.46], [0.2, 0.34], [0.22, 0.16], [0.2, 0.0], [0.24, -0.12], [0.0, -0.1]], 16, 1.0, 1.1), Vector3(0, -0.12, 0.03), cloth, 2.6)
+	# The great helm and the hood use KayKit's helmet for now (the code-built shapes were closed capsules; a later stage models
+	# them). The fin crests that helmet.
+	if look.get("fin", false):
+		var h := _on_bone("head", "Fin")
+		_mesh_on(h, MeshKit.lathe([[0.0, 0.0], [0.05, 0.03], [0.16, 0.16], [0.1, 0.3], [0.0, 0.36]], 10, 0.14, 1.3), Vector3(0, 1.2, 0.1), steel, 1.7)
 	if look.get("spikes", false):
 		var dark := StandardMaterial3D.new()
 		dark.albedo_color = Color(0.12, 0.12, 0.14)
@@ -401,6 +397,14 @@ func _extras(look: Dictionary) -> void:
 		sph.radius = 0.07
 		sph.height = 0.14
 		_mesh_on(a5, sph, Vector3(0.55, 0.0, 0.1), fm, 2.2)
+
+
+## FACE_SHADE, or the debug `--faceshade=N` (tools/r2_shots.js head-dark: the owner compares a darker face).
+static func _face_shade() -> float:
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--faceshade="):
+			return float(a.trim_prefix("--faceshade="))
+	return FACE_SHADE
 
 
 func _on_bone(bone: String, name_: String) -> BoneAttachment3D:
@@ -741,7 +745,8 @@ func play(action: StringName, dir: int = 0, duration: float = 0.3) -> void:
 			var k: float = Clips.KEY[&"guard"]
 			var t7: float = Clips.AT[&"guard"]
 			_yaw(0.0, t7)
-			_run([_seg_of(Clips.BLOCK_HIT, 0.0, k, k / t7, Clips.BLEND_FAST), _seg_of(Clips.BLOCK_HIT, k, 0.35, 1.5, 0.0)])
+			_run([_seg_of(Clips.BLOCK_HIT, 0.0, k, k / t7, Clips.BLEND_FAST), _seg_of(Clips.BLOCK_HIT, k, 0.35, 1.5, 0.0),
+				_loop_of(Clips.IDLE, 1.0, 0.2)])
 			_key = {"clip": Clips.BLOCK_HIT, "t": k, "at": t7, "yaw": 0.0}
 		&"hit":
 			var k2: float = Clips.KEY[&"hit"]

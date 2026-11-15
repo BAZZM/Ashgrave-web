@@ -34,7 +34,7 @@ const JOBS = {
   'h-sallet': G('r2-head', 'plain_sallet'), 'h-great': G('r2-head', 'watchers_helm'), 'h-hood': G('r2-head', 'duelists_hood'),
   'a-warden': G('r2-gear', 'wardens_plate,watchers_helm,tower_shield,pyre_greatsword'), 'a-leather': G('r2-gear', 'duelists_leathers,duelists_hood,buckler,twin_fangs'),
   'a-ranged': G('r2-gear', 'hunters_bow'), 'a-knives': G('r2-gear', 'throwing_knives'), 'a-spell': G('r2-gear', 'ember_bolt'),
-  'prim-stand': G('r2-stand', '', ['no-rig']), 'prim-head': G('r2-head', '', ['no-rig']),
+  'prim-stand': G('r2-stand', '', ['no-rig']), 'prim-head': G('r2-head', '', ['no-rig']), 'head-dark': G('r2-head', '', ['dark']),
   lum: G('r2-stand'), lum_empty: G('r2-stand', '', ['hide']),
 };
 const names = (only.length ? only : Object.keys(JOBS)).filter((n) => JOBS[n]);
@@ -83,6 +83,7 @@ async function main() {
     if (job.equip) args.push('--goldequip=' + job.equip);
     if (!job.extra.includes('no-rig')) args.push('--rig');
     if (job.extra.includes('hide')) args.push('--goldhide');
+    if (job.extra.includes('dark')) args.push('--faceshade=0.12');
     await page.goto(`${base}/index.html?relay=ws://127.0.0.1:9&${args.map((a) => 'arg=' + encodeURIComponent(a)).join('&')}`);
     const ok = await Promise.race([readyP, new Promise((r) => setTimeout(() => r(false), 240000))]);
     if (ok) {
