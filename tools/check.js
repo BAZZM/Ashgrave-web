@@ -7,6 +7,8 @@
 //   node tools/check.js --probe "--autoplay=x --wild=thrall"
 //                                       run one client with those game args and print its console
 //
+// --rig runs every scenario's game with `--rig` (the hero as RigVisual; needs a `python3 tools/build.py --looktest` pack, see the
+// `rig` scenario).
 // Options: --jobs=N (scenarios run at once, default 1), --verbose (print every game
 // console line), --viewport=WxH (default 320x180), --dpr=N (device pixel ratio, default 1), --timeout=SECONDS (probe length), --shots=DIR (probe).
 //
@@ -45,12 +47,13 @@ async function loadRelayPackages() {
   }
 }
 
-const opts = { dpr: 1, jobs: 1, verbose: false, viewport: '320x180', timeout: 300, probe: null, list: false };
+const opts = { dpr: 1, jobs: 1, rig: false, verbose: false, viewport: '320x180', timeout: 300, probe: null, list: false };
 const names = [];
 for (let i = 2; i < process.argv.length; i++) {
   const a = process.argv[i];
   if (a === '--verbose') opts.verbose = true;
   else if (a === '--list') opts.list = true;
+  else if (a === '--rig') opts.rig = true;
   else if (a === '--probe') opts.probe = process.argv[++i] || '';
   else if (a.startsWith('--jobs=')) opts.jobs = Math.max(1, Number(a.slice(7)));
   else if (a.startsWith('--shots=')) opts.shots = a.slice(8);
@@ -353,7 +356,7 @@ class Client {
     // ?quality=safe|full for this session (a client's own .quality, else AG_QUALITY for every client).
     const quality = this.quality || process.env.AG_QUALITY;
     if (quality) q.set('quality', quality);
-    for (const a of gameArgs) q.append('arg', a);
+    for (const a of opts.rig && !gameArgs.includes('--rig') ? [...gameArgs, '--rig'] : gameArgs) q.append('arg', a);
     this.t0 = Date.now();
     await this.page.goto(`${base}/index.html?${q}`);
   }
@@ -1173,7 +1176,17 @@ scenario('pvp-2relay', 'two players duel through the same two relays, duplicates
 
 // The look test runs the check on its own 240 Hz clock (not frames), so the timings below do not
 // depend on how slowly software WebGL draws.
-scenario('rig', 'RigVisual (needs a `tools/build.py --looktest` pack): every contract action lands its key pose on time (section play, blends, reverse), contact 0.05 s after strike, windup tips on their sides, gear follows the hand, bases agree, caches load once', async (ctx) => {
+// Whether the pack index.html points at holds the rig (a release pack leaves it out; then the scenario is skipped, not failed).
+function packHasRig() {
+  try {
+    const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+    const name = /game_[0-9a-f]{10}\.wasm/.exec(html)[0];
+    return fs.readFileSync(path.join(ROOT, name)).includes('scripts/rig_check.gd');
+  } catch (e) { return false; }
+}
+
+scenario('rig', 'RigVisual (a `tools/build.py --looktest` pack; skipped on a release pack): every contract action lands its key pose on time (section play, blends, reverse), contact 0.05 s after strike, windup tips on their sides, gear follows the hand, bases agree, caches load once and nothing leaks, walking after an action, texture budget', async (ctx) => {
+  if (!packHasRig()) return { ok: true, skipped: true, notes: ['skipped: this pack holds no rig (release pack); build with `python3 tools/build.py --looktest` to run it'] };
   let seen = [];
   const res = await solo(ctx, {
     args: ['--looktest=rig-check'], finish: /^LOOKTEST rig-check ok=/, seconds: 180,
@@ -1191,11 +1204,13 @@ scenario('rig', 'RigVisual (needs a `tools/build.py --looktest` pack): every con
       if (contacts.length < 4 || contacts.some((l) => !/ ok$/.test(l))) return `strike contact: ${contacts.join(' | ')}`;
       for (const want of [/^RIGCHECK windup_distinct /, /^RIGCHECK windup_side screen LEFT=true .*RIGHT=true .*OVER=true .*THRUST=true/, /^RIGCHECK clash_point /,
         /^RIGCHECK unknown_action ignored=true/, /^RIGCHECK meshkit_blade /, /^RIGCHECK skeleton_blade attached=true/, /^RIGCHECK bases_agree /,
-        /^RIGCHECK caches /, /^RIGCHECK caches_after_free /, /^RIGCHECK done ok=true/, /^LOOKTEST rig-check ok=true/]) {
+        /^RIGCHECK caches /, /^RIGCHECK budget /, /^RIGCHECK leak_after_rebuilds /, /^RIGCHECK leak_after_release /, /^RIGCHECK done ok=true/, /^LOOKTEST rig-check ok=true/]) {
         if (!lineOf(lines, want)) return `missing ${want}`;
       }
       const wd = /min_hand_pair=([\d.]+)/.exec(lineOf(lines, /^RIGCHECK windup_distinct /));
       if (!wd || Number(wd[1]) < 0.25) return `windup hand positions too close: ${lineOf(lines, /^RIGCHECK windup_distinct /)}`;
+      const wa = rc.filter((l) => /^RIGCHECK walk_after /.test(l));
+      if (wa.length < 3 || wa.some((l) => !/ ok$/.test(l))) return `walking after an action: ${wa.join(' | ')}`;
       const cp = /max_distance=([\d.]+)/.exec(lineOf(lines, /^RIGCHECK clash_point /));
       if (!cp || Number(cp[1]) > 0.3) return `clash point off: ${lineOf(lines, /^RIGCHECK clash_point /)}`;
       return null;
@@ -1204,7 +1219,7 @@ scenario('rig', 'RigVisual (needs a `tools/build.py --looktest` pack): every con
   // The figures the plan asked for, so a pass also shows them.
   const shown = [];
   for (const re of [/^LOOKTEST rig-check /, /^RIGCHECK windup_side /, /^RIGCHECK windup_distinct /, /^RIGCHECK meshkit_blade /, /^RIGCHECK skeleton_blade /,
-    /^RIGCHECK bases_agree /, /^RIGCHECK caches/, /^RIGCHECK done /]) shown.push(...seen.filter((l) => re.test(l)));
+    /^RIGCHECK bases_agree /, /^RIGCHECK caches/, /^RIGCHECK budget /, /^RIGCHECK leak_/, /^RIGCHECK walk_after /, /^RIGCHECK done /]) shown.push(...seen.filter((l) => re.test(l)));
   return { ok: res.ok, notes: [...res.notes, ...shown.map((l) => `saw: ${l.slice(0, 150)}`)] };
 });
 
@@ -1272,13 +1287,14 @@ async function main() {
         live.delete(cleanup);
         const secs = ((Date.now() - t) / 1000).toFixed(0);
         // Printed as each one finishes, so the output is whole lines per scenario.
-        console.log([`${res.ok ? 'PASS' : 'FAIL'}  ${s.name.padEnd(11)} ${secs.padStart(4)}s  ${s.describe}`, ...res.notes.map((n) => `        ${n}`)].join('\n'));
+        console.log([`${res.skipped ? 'SKIP' : res.ok ? 'PASS' : 'FAIL'}  ${s.name.padEnd(11)} ${secs.padStart(4)}s  ${s.describe}`, ...res.notes.map((n) => `        ${n}`)].join('\n'));
         results.push(res);
       }
     };
     await Promise.all(Array.from({ length: Math.min(opts.jobs, chosen.length) }, worker));
     failed = results.filter((r) => !r.ok).length;
-    console.log(`${failed ? 'FAILED' : 'ok'}: ${chosen.length - failed}/${chosen.length} passed in ${((Date.now() - t0) / 1000).toFixed(0)}s`);
+    const skipped = results.filter((r) => r.ok && r.skipped).length;
+    console.log(`${failed ? 'FAILED' : 'ok'}: ${chosen.length - failed - skipped}/${chosen.length} passed${skipped ? `, ${skipped} skipped` : ''} in ${((Date.now() - t0) / 1000).toFixed(0)}s`);
   } finally {
     page.close();
   }

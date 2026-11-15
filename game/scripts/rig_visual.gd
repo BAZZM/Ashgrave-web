@@ -81,7 +81,8 @@ var manual_clock := false
 
 var _over := {}
 var _gear := {}
-var _head_scale := 1.0
+## The owner's decision (docs/DECISIONS.md, 13 Nov): KayKit heads at 0.85, faces in shadow.
+var _head_scale := 0.85
 var _rig: Node3D
 var _sk: Skeleton3D
 var _ap: AnimationPlayer
@@ -121,6 +122,15 @@ var _trail_color := Color(1, 0.9, 0.7)
 ## Whether the game may build one (quality "models"); a caller falls back to PlaceholderVisual otherwise.
 static func allowed() -> bool:
 	return Run.quality_allows("models")
+
+
+## Free the four static caches (clips, meshes, gear, atlas and shader). Call it when quality drops to Safe, once the rigs are
+## gone (a rig that is still alive keeps what it uses until it is freed): the game then holds no rig resource.
+static func release() -> void:
+	_lib = null
+	_mat = null
+	_bases.clear()
+	_loose.clear()
 
 
 static func library() -> AnimationLibrary:
@@ -206,9 +216,14 @@ func _kill_tweens() -> void:
 
 func _build() -> void:
 	_kill_tweens()
-	for c in get_children():
-		remove_child(c)
-		c.queue_free()
+	# Only the parts this visual made (a caller may hang its own nodes on it: world.gd hangs the hero's lantern). Freed at
+	# once, not queued, so a rebuild leaves nothing behind for a frame and the leak check can count exactly.
+	for c in [_rig, _trail]:
+		if c != null and is_instance_valid(c):
+			remove_child(c)
+			c.free()
+	_rig = null
+	_trail = null
 	_skinned.clear()
 	_rigid.clear()
 	_trail_pts.clear()
@@ -392,6 +407,10 @@ func _next() -> void:
 
 func _start(s: Dictionary) -> void:
 	_seg = s
+	# A chain that has reached its idle loop is over: locomotion may take the legs again (without this a hero that
+	# slashed, or shot, and then walked off would glide: _action never came back to idle).
+	if s.loop and s.clip == Clips.IDLE:
+		_action = &"idle"
 	var blend: float = s.blend if s.blend >= 0.0 else Clips.BLEND
 	if s.loop:
 		_ap.play_section(s.clip, -1, -1, blend, s.speed)
@@ -487,6 +506,7 @@ func play(action: StringName, dir: int = 0, duration: float = 0.3) -> void:
 	var known := true
 	match action:
 		&"idle", &"recover":
+			action = &"idle"  # `recover` is dead (docs/RIG_PLAN.md section 1) but must not leave _action on a name nothing resets
 			var t := maxf(duration, 0.25)
 			_yaw(0.0, t)
 			_run([_loop_of(Clips.IDLE, 1.0, t)])

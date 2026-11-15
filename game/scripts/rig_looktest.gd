@@ -69,19 +69,12 @@ func setup(p_mode: String, p_seek: float) -> void:
 	elif mode == "rig-check":
 		var chk := RigCheck.new(self)
 		var ok := chk.run()
-		# The rebuilt rigs' old nodes go with queue_free: measure static memory once they are gone.
-		await get_tree().create_timer(1.0).timeout
-		var grow := int(Performance.get_monitor(Performance.MEMORY_STATIC) - chk.mem_before_rebuilds)
-		print("RIGCHECK caches_after_free static_mem_delta=%d B (20 rebuilds + 20 rigs made and freed)" % grow)
-		if grow > 1 << 20:
-			ok = false
-			print("RIGCHECK FAIL static memory grew %d B over 20 rebuilds" % grow)
 		print("LOOKTEST rig-check ok=%s" % ok)
 		for c in get_children():
 			c.visible = false
 	elif mode.begins_with("rig-heads"):
-		rigs.append(_rig({"style": "hero", "shield": true}, Vector3(-0.7, 0, -2.5)))
-		rigs.append(_rig({"style": "hero", "shield": true, "head": 0.85}, Vector3(0.7, 0, -2.5)))
+		rigs.append(_rig({"style": "hero", "shield": true, "head": 1.0}, Vector3(-0.7, 0, -2.5)))
+		rigs.append(_rig({"style": "hero", "shield": true}, Vector3(0.7, 0, -2.5)))  # the default, 0.85
 		for r in rigs:
 			r.play(&"idle")
 	elif mode.begins_with("rig-gear"):

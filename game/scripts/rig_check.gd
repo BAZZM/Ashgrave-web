@@ -39,11 +39,38 @@ var ref: FighterVisual
 var ph: PlaceholderVisual
 var fails: Array = []
 var _parent: Node3D
-var mem_before_rebuilds := 0.0
+## Counts taken before the first rig, before the 20 rebuilds, and the texture budget of the first two rigs.
+var base: Dictionary = {}
+var before_rebuilds: Dictionary = {}
+const TEX_BUDGET := 1048576  # docs/RIG_PLAN.md section 6 row R1: two rigs add at most 1 MB of texture
 
 
 func _init(parent: Node3D) -> void:
 	_parent = parent
+
+
+## What a leak would move: objects, resources, nodes, orphan nodes, texture and video memory. (MEMORY_STATIC reads 0 in the
+## web export, so it cannot show a leak.)
+static func snap() -> Dictionary:
+	return {
+		"obj": int(Performance.get_monitor(Performance.OBJECT_COUNT)),
+		"res": int(Performance.get_monitor(Performance.OBJECT_RESOURCE_COUNT)),
+		"nodes": int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)),
+		"orph": int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT)),
+		"tex": int(Performance.get_monitor(Performance.RENDER_TEXTURE_MEM_USED)),
+		"vid": int(Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED)),
+	}
+
+
+static func delta(a: Dictionary, b: Dictionary) -> Dictionary:
+	var d := {}
+	for k in a:
+		d[k] = int(a[k]) - int(b[k])
+	return d
+
+
+static func fmt(d: Dictionary) -> String:
+	return "objects=%+d resources=%+d nodes=%+d orphans=%+d tex=%+d B vid=%+d B" % [d.obj, d.res, d.nodes, d.orph, d.tex, d.vid]
 
 
 func _say(s: String) -> void:
@@ -132,15 +159,23 @@ func _check_timing(label: String, m: Dictionary) -> void:
 
 func run() -> bool:
 	var cfg := {"style": "hero", "shield": true}
-	rig = _make(cfg, Vector3.ZERO)
-	ref = _make(cfg, Vector3(0, -50, 0))
-	ref.visible = false
 	ph = PlaceholderVisual.new()
 	ph.has_shield = true
 	_parent.add_child(ph)
 	ph.configure({"style": "hero"})
 	ph.position = Vector3.ZERO
 	ph.visible = false
+	base = snap()
+	rig = _make(cfg, Vector3.ZERO)
+	var one := delta(snap(), base)
+	ref = _make(cfg, Vector3(0, -50, 0))
+	ref.visible = false
+	var two := delta(snap(), base)
+	_say("budget first_rig %s | two_rigs tex=%+d B (budget %d B) vid=%+d B" % [fmt(one), two.tex, TEX_BUDGET, two.vid])
+	if two.tex > TEX_BUDGET:
+		_fail("two rigs add %d B of texture (plan budget %d B)" % [two.tex, TEX_BUDGET])
+	if one.tex <= 0:
+		_fail("the first rig added no texture: the monitor does not measure (tex %d)" % one.tex)
 	var t0 := Time.get_ticks_msec()
 
 	# 1. Every action of the sequence, timed against its key pose; the four windups held to the end.
@@ -168,6 +203,7 @@ func run() -> bool:
 		ph.play(s[0], s[1], s[2])
 		clash = maxf(clash, rig.get_clash_point().distance_to(ph.get_clash_point()))
 
+	_say("dbg1 " + fmt(delta(snap(), base)))
 	# 2. Windup directions: weapon hand and tip at the end of each windup, in the fighter's frame
 	# (x > 0 is the fighter's right; the enemy faces the player, so that is the player's screen left).
 	var names := {0: "LEFT", 1: "RIGHT", 2: "OVER", 3: "THRUST"}
@@ -216,6 +252,7 @@ func run() -> bool:
 	if clash > 0.3:
 		_fail("clash point %.3f u from PlaceholderVisual" % clash)
 
+	_say("dbg3 " + fmt(delta(snap(), base)))
 	# 4. Unknown actions change nothing.
 	rig.play(&"windup", 2, 1.0)
 	rig.call("tick", 0.3)
@@ -255,7 +292,7 @@ func run() -> bool:
 	rig.reparent(_parent, false)
 	rig.position = Vector3.ZERO
 	rig.rotation = Vector3.ZERO
-	holder.queue_free()
+	holder.free()
 
 	# 6. A MeshKit blade on handslot.r follows the hand through a swing.
 	var mk := _make({"style": "hero", "gear": {"sword": "meshkit"}}, Vector3(4, 0, 0))
@@ -282,7 +319,7 @@ func run() -> bool:
 	_say("meshkit_blade tip_to_handslot min=%.4f max=%.4f tip_path=%.2f u node_vs_bone=%.4f" % [dmin, dmax, path, lag])
 	if dmax - dmin > 0.002 or path < 1.0:
 		_fail("MeshKit blade does not follow the hand (spread %.4f, path %.2f)" % [dmax - dmin, path])
-	mk.queue_free()
+	mk.free()
 
 	# 7. Skeleton_Blade (KayKit skeleton gear from its own file) on handslot.r of the skeleton warrior.
 	var sb := _make({"style": "skeleton"}, Vector3(-4, 0, 0))
@@ -333,24 +370,83 @@ func run() -> bool:
 	_say("bases_agree knight_vs_skeleton_warrior bones=%d worst=%.5f m (%s)" % [n_bones, worst, worst_bone])
 	if worst > 0.001:
 		_fail("bases disagree by %.4f m at %s" % [worst, worst_bone])
-	sb.queue_free()
-	kn.queue_free()
+	sb.free()
+	kn.free()
 
-	# 9. The static caches: rebuilding and creating rigs loads nothing again.
+	_say("dbg8 " + fmt(delta(snap(), base)))
+	# 9. The static caches: rebuilding and creating rigs loads nothing again, and nothing leaks (objects, resources, nodes,
+	# orphan nodes, texture and video memory; compared again by final() once the freed nodes are gone).
 	var loads0: int = RigVisual.loads
-	var mem0 := Performance.get_monitor(Performance.MEMORY_STATIC)
+	before_rebuilds = snap()
 	for k in 20:
 		rig.configure({"style": "skeleton" if k % 2 else "hero", "shield": true})
 		var tmp := _make({"style": "knight", "shield": true}, Vector3(8, 0, 0))
 		tmp.free()
 	rig.configure(cfg)
-	mem_before_rebuilds = mem0
 	_say("caches loads_before=%d loads_after=%d (20 rebuilds, 20 new rigs)" % [loads0, RigVisual.loads])
 	if RigVisual.loads != loads0:
 		_fail("a rig resource was loaded again (%d -> %d)" % [loads0, RigVisual.loads])
 
+	# 10. A slash (a gather swing) or a strike chain that runs out, then walking: the legs must walk (the chain's end
+	# returns the visual to idle; before the fix _action stayed on slash and the hero glided).
+	for chain in [[&"slash", 1, 0.35], [&"strike", 1, 0.1], [&"hit", 1, 0.12], [&"recover", 0, 0.3]]:
+		rig.play(&"idle")
+		rig.call("tick", 0.4)
+		rig.play(chain[0], chain[1], chain[2])
+		for k in 240:
+			rig.call("tick", DT)  # one second
+		rig.set_walk(1.0)
+		rig.set_pace(1.0)
+		for k in 24:
+			rig.call("tick", DT)
+		var st: Dictionary = rig.call("debug_state")
+		var walks: bool = str(st.clip) == str(Clips.WALK)
+		_say("walk_after %s clip=%s action=%s %s" % [chain[0], st.clip, st.action, "ok" if walks else "BAD"])
+		if not walks:
+			_fail("walking after %s plays %s, not %s (action %s)" % [chain[0], st.clip, Clips.WALK, st.action])
+		rig.set_walk(0.0)
+	rig.play(&"idle")
+
+	# 11. The counts, with no frame in between (the freeing is immediate, and the world around the look test builds its chunks
+	# frame by frame, so nothing else moves while this runs).
+	leak_after_rebuilds()
+	leak_after_release()
 	_say("done ok=%s fails=%d actions=%d secs=%.1f" % [fails.is_empty(), fails.size(), SEQUENCE.size(), (Time.get_ticks_msec() - t0) / 1000.0])
 	return fails.is_empty()
+
+
+## The counts must be what they were before the 20 rebuilds and 20 extra rigs. Returns whether they are.
+func leak_after_rebuilds() -> bool:
+	var d := delta(snap(), before_rebuilds)
+	_say("leak_after_rebuilds %s (20 rebuilds + 20 rigs made and freed)" % fmt(d))
+	var ok: bool = absi(d.obj) <= 8 and absi(d.res) <= 8 and absi(d.nodes) <= 2 and d.orph <= 0 and absi(d.tex) <= 4096 and absi(d.vid) <= 65536
+	if not ok:
+		_fail("rebuilds leak: %s" % fmt(d))
+	return ok
+
+
+## The Safe path: free every rig and call RigVisual.release() (what quality Safe does), then build one rig, free it and release
+## again. That whole cycle must leave the counts exactly as it found them (objects, resources, nodes, orphan nodes, texture and
+## video memory): a Safe session holds no rig resource. Against the counts from before the first rig, resources and texture
+## memory must also be back (the objects and nodes of the other fighters in this scene differ, so those are not compared).
+func leak_after_release() -> bool:
+	for v in [rig, ref]:
+		if is_instance_valid(v):
+			v.free()
+	RigVisual.release()
+	var a := snap()
+	var v1: FighterVisual = _make({"style": "hero", "shield": true}, Vector3(2, 0, 0))
+	var b := snap()
+	v1.free()
+	RigVisual.release()
+	var c := snap()
+	var d := delta(c, a)
+	var vs_base := delta(c, base)
+	_say("leak_after_release load=%s | after free+release %s | against the start: resources=%+d tex=%+d B" % [fmt(delta(b, a)), fmt(d), vs_base.res, vs_base.tex])
+	var ok: bool = absi(d.obj) <= 2 and d.res == 0 and d.nodes == 0 and d.orph == 0 and absi(d.tex) <= 4096 and absi(d.vid) <= 65536 and vs_base.res <= 0 and vs_base.tex <= 4096
+	if not ok:
+		_fail("release leaves rig memory: %s" % fmt(d))
+	return ok
 
 
 ## After a reparent part-way through a windup: step to the end of the same windup and time its key.

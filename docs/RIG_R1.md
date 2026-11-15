@@ -24,7 +24,7 @@ Stage R1 of `docs/RIG_PLAN.md`, finished 15 Nov 2026 on `lane/p2-r1-rigvisual` (
 
 ## Measurements
 
-The `rig` check passes in headless Chromium: 32 actions land their key pose within 0.05 s, strike contact comes at 0.050 s, and the windup tips sit LEFT x +2.15, RIGHT x −1.37, OVER 1.27 above the head, THRUST pointing at the player. The MeshKit blade and Skeleton_Blade stay rigid on `handslot.r`. Knight and skeleton warrior agree to 0.0 mm across 21 deform bones. 20 rebuilds plus 20 new rigs load nothing again, and static memory does not grow.
+The `rig` check passes in headless Chromium: 32 actions land their key pose within 0.05 s, strike contact comes at 0.050 s, and the windup tips sit LEFT x +2.15, RIGHT x −1.37, OVER 1.27 above the head, THRUST pointing at the player. The MeshKit blade and Skeleton_Blade stay rigid on `handslot.r`. Knight and skeleton warrior agree to 0.0 mm across 21 deform bones. 20 rebuilds plus 20 new rigs load nothing again. (The static-memory leak test in that first version could not fail: `MEMORY_STATIC` reads 0 in the web export. R2 replaced it with object, resource, node, orphan-node, texture and video-memory counts, see RIG_R2.md.)
 
 **Knight on grass:** 1.60× the ground (tools/g3_measure.py), against a target of 1.5. A lift of 0.32 gave 1.20 and 0.5 gave 1.76.
 
@@ -44,7 +44,7 @@ Move the rig into the pack (`build.py` `look_test_only()`), add the factory, and
 
 ## Owner questions
 
-- Q1 (heads) blocks R2's hero look.
-- Q3 (run) blocks R2's sign-off.
-- Q4 (two-handed) blocks R3 for the greatswords.
-- Q2 (bow) blocks only S4.
+Answered by the owner on 13 Nov (docs/DECISIONS.md): Q1 heads at 0.85 with faces in shadow (`RigVisual` now defaults to 0.85; the
+pictures taken before this fix showed full-size heads); Q2 the Hunter's Bow is shown as a crossbow and renamed; Q3 no cap on the leg
+speed of the run. Still open: Q4 (greatswords and twin blades with a shield), which blocks R3 for the greatswords; R2 uses the plan's
+recommendation, one-handed clips for every weapon.
