@@ -118,10 +118,10 @@ def main() -> int:
     if not args.check:
         save_rgba(out / "foliage.png", [lum_c[0], lum_c[1], alp_c[0], alp_c[1]])
         # trees: the two barks (256 as they are) and the two canopy grains. A canopy grain is the leaf spray's luminance where the spray
-        # is, and a dark gap (0.25) where it is not, so a solid canopy shows clumps of leaves with shadow between them.
+        # is, and a darker gap (0.33) where it is not, leaves lifted to 0.42 + 0.58 x luminance so the map's mean is about 0.49 and a canopy keeps the flat colour's mean brightness.
         tr = [grain(wrap_resize(luminance(load(src, p)[..., :3]), 256)) for p in ("bark/bark_pine", "bark/bark_deciduous")]
         for lum_i, alp_i in zip(lum_c, alp_c):
-            tr.append(np.clip(lum_i * alp_i + 0.25 * (1.0 - alp_i), 0.0, 1.0))
+            tr.append(np.clip((0.42 + 0.58 * lum_i) * alp_i + 0.33 * (1.0 - alp_i), 0.0, 1.0))
         save_rgba(out / "trees.png", tr)
         ra = load(src, "water/ripple_normal_a")
         rb = load(src, "water/ripple_normal_b")

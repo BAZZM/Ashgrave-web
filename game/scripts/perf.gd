@@ -113,7 +113,9 @@ func _ready() -> void:
 		if a.begins_with("--qswitch="):
 			get_tree().create_timer(float(a.substr(10))).timeout.connect(_qswitch)
 		elif a.begins_with("--openmap="):
-			get_tree().create_timer(float(a.substr(10))).timeout.connect(func() -> void: _find_hud().call("open", "map"))
+			get_tree().create_timer(float(a.substr(10))).timeout.connect(_openmap)
+		elif a == "--openmap-tower":
+			_openmap_tower()
 	# Memory soak bot (tools/check.js perf-soak), debug only.
 	for a in args:
 		if a == "--soak" or a.begins_with("--soak="):
@@ -291,6 +293,21 @@ func _find_hud() -> Node:
 		if sc != null and sc.resource_path.ends_with("/world_hud.gd"):
 			return n
 	return self
+
+
+func _openmap() -> void:
+	_find_hud().call("open", "map")
+
+
+## Debug --openmap-tower: wait for the tower's HUD (the world is not land), then open the map.
+func _openmap_tower() -> void:
+	while true:
+		await get_tree().create_timer(1.0).timeout
+		var h := _find_hud()
+		if h != self and h.get("world") != null and not bool(h.world.get("is_land")):
+			await get_tree().create_timer(2.0).timeout
+			h.call("open", "map")
+			return
 
 
 ## Debug for --qswitch: press the real QUALITY button's handler on whatever HUD is up, then report TexKit's holdings.

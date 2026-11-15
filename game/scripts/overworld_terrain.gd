@@ -315,19 +315,22 @@ func _follow_quality(build_all: bool) -> void:
 		_q_rev = Run.quality_rev
 		_remesh = ow._chunks.keys()
 	var want := _textured()
+	var want_any := want or _trees_textured()  # the textures are held while ground or trees use them (debug flags can split the two)
 	if _remesh.is_empty():
-		if _tex_state and not want:
+		if _tex_state and not want_any:
 			_tex_state = false
 			TexKit.clear()
 		return
 	while not _remesh.is_empty():
 		var k: Vector2i = _remesh.pop_back()
+		if ow._chunks.has(k):
+			_apply_trees(ow._chunks[k], _trees_textured())
 		# Only chunks not already in the wanted look (a press that changes nothing re-meshes nothing).
 		if ow._chunks.has(k) and ow._chunks[k].has("ground") and is_instance_valid(ow._chunks[k].ground) and bool(ow._chunks[k].get("tex", false)) != want:
 			_apply_look(ow._chunks[k], want)
 			if not build_all:
 				break
-	_tex_state = want or _tex_state
+	_tex_state = want_any or _tex_state
 
 
 func _start_chunk(k: Vector2i) -> Dictionary:
@@ -404,7 +407,7 @@ func _step_ground() -> void:
 	var root: Node3D = _job.root
 	var centre := origin + Vector2(Land.CHUNK, Land.CHUNK) * 0.5
 	var textured := _textured()
-	_tex_state = _tex_state or textured
+	_tex_state = _tex_state or textured or _trees_textured()
 	_job.chunk.tex = textured
 	_job.chunk.ground = Kit._part(root, _ground_mesh(origin, textured), Vector3.ZERO, _ground_material(textured))
 	if Land.river_dist(centre.x, centre.y) < 44.0 or Land.lake_dist(centre.x, centre.y) < Land.LAKE_R + 30.0:
@@ -507,6 +510,8 @@ func _step_batch() -> void:
 ## tree_kind (TexKit.TREE_KINDS, or "cards"): the shared textured material this kind of tree takes at Full quality; its own batch then.
 func _scatter(multi: Dictionary, mesh_key: String, mat_key: String, tint: Color, p: Vector2, spin: float, size: float, squash := 1.0, tree_kind := "") -> void:
 	var tk := tree_kind if (tree_kind != "" and _trees_textured() and (tree_kind != "cards" or TexKit.cards_ready())) else ""
+	if tree_kind == "cards" and tk == "":
+		return  # cards exist only where the textured trees do (debug --cards at Safe builds none)
 	var key := mesh_key + "|" + mat_key + ("|" + tk if tk != "" else "")
 	if not multi.has(key):
 		multi[key] = [[], [], Kit.mat("mm_" + mat_key, Color.WHITE, 0.9, 0.0, true), tk]
