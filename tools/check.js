@@ -106,11 +106,15 @@ function startStatic() {
 async function startRelay() {
   const broker = await Aedes.createBroker();
   const counts = {};
+  const log = [];
+  const t0 = Date.now();
   broker.on('publish', (packet, client) => {
     if (!client || !packet.topic.includes('/c/')) return;
     try {
-      const k = JSON.parse(packet.payload.toString()).k;
+      const m = JSON.parse(packet.payload.toString());
+      const k = m.k;
       counts[k] = (counts[k] || 0) + 1;
+      log.push({ t: (Date.now() - t0) / 1000, k, o: m.o, from: String(m.from), mid: m.mid });
     } catch (e) { /* not a game message */ }
   });
   const server = http.createServer();
@@ -120,6 +124,7 @@ async function startRelay() {
   return {
     url: `ws://127.0.0.1:${server.address().port}`,
     counts,
+    log,
     close: async () => {
       for (const c of wss.clients) c.terminate();
       wss.close();
@@ -970,7 +975,37 @@ async function pvp(ctx, relayCount) {
     notes.push(`${tag}saw ${JSON.stringify(k)}`);
     const wrong = [];
     if (n('atk') < 1) wrong.push('no atk');
-    if (n('res') !== n('atk')) wrong.push(`res ${n('res')} != atk ${n('atk')}`);
+    // Every attack is owed one result from the other player, with one exception. A player who dies
+    // sends "dead" and the winner's duel ends the moment it arrives (duel_pvp.gd, "dead": the foe's
+    // state goes DEAD, which drops a swing still in windup or waiting in the queue). So the dying
+    // player's last attack, if it was sent after the winner's last result and before "dead", was
+    // still in flight when the duel ended and is owed nothing: nobody sees it (the dying player has
+    // already lost, the winner has already won). Only that one attack is forgiven; every other
+    // attack must have its result, and the winner's attacks always do.
+    const sent = relay.log.filter((l) => l.k === 'atk' || l.k === 'res' || l.k === 'dead');
+    const dead = sent.find((l) => l.k === 'dead');
+    const per = (k, from) => sent.filter((l) => l.k === k && (from === undefined ? true : l.from === from)).length;
+    let inFlight = 0;
+    if (dead) {
+      const lastRes = sent.filter((l) => l.k === 'res' && l.from !== dead.from).pop();
+      const lastAtk = sent.filter((l) => l.k === 'atk' && l.from === dead.from).pop();
+      if (lastAtk && lastAtk.t <= dead.t && (!lastRes || lastRes.t < lastAtk.t)) inFlight = 1;
+    }
+    if (n('res') + inFlight !== n('atk')) {
+      wrong.push(`res ${n('res')} != atk ${n('atk')}`);
+      // Name the missing message: the end of the relay's traffic, oldest first.
+      notes.push(`${tag}last messages: ${sent.slice(-12).map((l) => `${l.t.toFixed(2)}s ${l.k}${l.o ? ':' + l.o : ''} ${l.from.slice(-3)} ${l.mid}`).join(' | ')}`);
+    } else if (inFlight) {
+      notes.push(`${tag}last attack of the player who died was in flight when the duel ended: no result owed`);
+    }
+    if (dead) {
+      const ids = [...new Set(sent.filter((l) => l.k !== 'dead').map((l) => l.from))];
+      for (const id of ids) {
+        const other = ids.find((x) => x !== id);
+        const owedBack = per('atk', id) - (id === dead.from ? inFlight : 0);
+        if (other && per('res', other) !== owedBack) wrong.push(`${other.slice(-3)} answered ${per('res', other)} of the ${owedBack} attacks owed by ${id.slice(-3)}`);
+      }
+    }
     for (const x of ['challenge', 'accept', 'dead']) if (n(x) !== 1) wrong.push(`${x} x${n(x)}, wanted 1`);
     if (wrong.length) { ok = false; notes.push(`${tag}${wrong.join('; ')}`); }
   });
