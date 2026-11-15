@@ -30,7 +30,7 @@ const ARMOUR := {
 
 const RANGED := {
 	"throwing_knives": {"name": "Throwing Knives", "slot": "ranged", "shots": 3, "power": 2.0, "price": 220},
-	"hunters_bow": {"name": "Hunter's Bow", "slot": "ranged", "shots": 4, "power": 3.2, "price": 620},
+	"hunters_bow": {"name": "Hunter's Crossbow", "slot": "ranged", "shots": 4, "power": 3.2, "price": 620},
 }
 
 const SPELLS := {

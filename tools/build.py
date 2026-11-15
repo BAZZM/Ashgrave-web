@@ -7,17 +7,19 @@ root, points index.html at it, and removes the previous pack. The engine itself
 
     python3 tools/build.py                # build the release pack
     python3 tools/build.py --check        # exit 1 if the committed pack is stale
-    python3 tools/build.py --looktest     # a test pack that also holds the look-test-only textures (never commit its output)
+    python3 tools/build.py --looktest     # a test pack that also holds the look-test-only textures and the rig (never commit its output)
+    python3 tools/build.py --rig          # a test pack with the rig (R2: the hero as RigVisual behind --rig / ?rig=1) but not the look-test textures
 
 The release pack holds only the textures the real game samples (SHIPPED_TEXTURES: the ground and water grain packs
 and the ripple map). The other imported textures under game/assets/textures/ (walls, wood, bark, leaf, armour, banner,
 the colour sources) are used only by the debug look-test scene; their .import files and imported forms are left out
 unless --looktest is given, and the look test then falls back to flat (tex_kit.gd).
 
-The rig (docs/RIG_PLAN.md stage R1) is look-test-only too: everything under assets/rig/ (remaps and imported
-meshes, clips, atlas), the KayKit probe's imports under assets/kaykit/, and the rig scripts (RIG_SCRIPTS) are left
-out unless --looktest is given. R2, which puts
-the rig in the game behind a flag, must move them into the release pack (drop them from look_test_only()).
+The rig (docs/RIG_PLAN.md stages R1 and R2) is left out of the release pack too: everything under assets/rig/ (remaps and
+imported meshes, clips, atlas), the KayKit probe's imports under assets/kaykit/, and the rig scripts (RIG_SCRIPTS) are
+left out unless --looktest or --rig is given (--rig keeps the look-test textures out). The game code that switches to the rig
+(fighter_visual.gd) is in the release pack but loads nothing of it without the flag and the files. To ship the rig, make
+rig_paths() return an empty set.
 """
 import hashlib
 import re
@@ -33,11 +35,26 @@ ALIGN = 16
 TEX_DIR = "assets/textures/"
 SHIPPED_TEXTURES = {"packed/terrain_a", "packed/terrain_b", "packed/ripple"}
 RIG_DIRS = ("assets/rig/", "assets/kaykit/")  # the rig, and the KayKit probe's imports (lane p1, --looktest=wide|close|...)
-RIG_SCRIPTS = {"scripts/rig_visual.gd", "scripts/rig_clips.gd", "scripts/rig_check.gd", "scripts/rig_looktest.gd"}
+RIG_SCRIPTS = {"scripts/rig_visual.gd", "scripts/rig_clips.gd", "scripts/rig_looks.gd", "scripts/rig_check.gd", "scripts/rig_looktest.gd", "scripts/rig_cycle.gd"}
 
 
 def pad(n: int, to: int) -> int:
     return -n % to
+
+
+def import_paths(imp: Path) -> set:
+    out = {imp.relative_to(GAME).as_posix()}
+    for m in re.finditer(r'res://([^"]+)', "\n".join(l for l in imp.read_text().splitlines() if l.startswith("path=") or l.startswith("dest_files="))):
+        out.add(m.group(1))
+    return out
+
+
+def rig_paths() -> set:
+    """Pack paths of the rig: the imported assets (remaps and imported forms), the KayKit probe's, and the rig scripts."""
+    out = set()
+    for imp in [i for d in RIG_DIRS for i in (GAME / d).rglob("*.import")]:
+        out |= import_paths(imp)
+    return out | RIG_SCRIPTS
 
 
 def look_test_only() -> set:
@@ -47,18 +64,12 @@ def look_test_only() -> set:
         rel = imp.relative_to(GAME / TEX_DIR).as_posix()[: -len(".png.import")]
         if rel in SHIPPED_TEXTURES:
             continue
-        out.add(imp.relative_to(GAME).as_posix())
-        for m in re.finditer(r'res://([^"]+)', "\n".join(l for l in imp.read_text().splitlines() if l.startswith("path=") or l.startswith("dest_files="))):
-            out.add(m.group(1))
-    for imp in [i for d in RIG_DIRS for i in (GAME / d).rglob("*.import")]:
-        out.add(imp.relative_to(GAME).as_posix())
-        for m in re.finditer(r'res://([^"]+)', "\n".join(l for l in imp.read_text().splitlines() if l.startswith("path=") or l.startswith("dest_files="))):
-            out.add(m.group(1))
-    return out | RIG_SCRIPTS
+        out |= import_paths(imp)
+    return out
 
 
-def build_pack(with_looktest: bool = False) -> bytes:
-    skip = set() if with_looktest else look_test_only()
+def build_pack(with_looktest: bool = False, with_rig: bool = False) -> bytes:
+    skip = (set() if with_looktest else look_test_only()) | (set() if with_looktest or with_rig else rig_paths())
     files = sorted(
         (p.relative_to(GAME).as_posix(), p.read_bytes())
         for p in GAME.rglob("*")
@@ -86,7 +97,7 @@ def build_pack(with_looktest: bool = False) -> bytes:
 
 
 def main() -> int:
-    pack = build_pack("--looktest" in sys.argv)
+    pack = build_pack("--looktest" in sys.argv, "--rig" in sys.argv)
     name = "game_%s.wasm" % hashlib.sha1(pack).hexdigest()[:10]
     html = INDEX.read_text()
     current = re.search(r"game_[0-9a-f]{10}\.wasm", html).group(0)

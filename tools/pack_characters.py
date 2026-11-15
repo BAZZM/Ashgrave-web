@@ -13,7 +13,10 @@ into assets_src/rig/ (git-ignored; tools/import_assets.py turns it into res://as
                CLIPS and no mesh: imported once, its AnimationLibrary is shared by every RigVisual.
   gear.glb     loose gear from other files (GEAR), each a plain mesh at the origin with its UVs in its
                texture's atlas slot: RigVisual hangs them on a bone at run time (Skeleton_Blade on handslot.r).
-  atlas.png    one atlas for every character: each pack texture (1024 px) scaled to SLOT px into its slot.
+  atlas.png    one atlas for every character: each pack texture (1024 px) scaled to SLOT px into its slot. The alpha
+               channel is a class mask, one class per swatch (8 x 4 swatches per slot, classified from the swatch's
+               colour with CLASS_OVERRIDES): 60 face skin, 120 cloth (takes the accent), 190 keep (the atlas colour),
+               255 metal (takes the steel tint). The shader reads it (docs/RIG_R2.md).
 
 Also strips the sideways travel of root and hips (0.69 u) from Dodge_Left/Right (the duel tweens the node itself).
 Prints sizes. Needs numpy and Pillow.
@@ -54,7 +57,14 @@ CLIPS = ["Idle", "Walking_A", "Running_A", "1H_Melee_Attack_Slice_Horizontal", "
          "Dodge_Left", "Dodge_Right", "Taunt", "Cheer"]
 NO_SIDEWAYS = {"Dodge_Left", "Dodge_Right"}
 # Loose gear (.gltf with its .bin): name -> (source, texture slot).
-GEAR = {"Skeleton_Blade": (SKE.replace("Characters/gltf/", "Assets/gltf/") + "Skeleton_Blade.gltf", "skeleton")}
+ADV_ASSETS = ADV.replace("Characters/gltf/", "Assets/gltf/")
+GEAR = {"Skeleton_Blade": (SKE.replace("Characters/gltf/", "Assets/gltf/") + "Skeleton_Blade.gltf", "skeleton"),
+        "Dagger": (ADV_ASSETS + "dagger.gltf", "rogue"),  # twin_fangs, frostbite_pair (docs/RIG_PLAN.md section 2: Knife)
+        "Crossbow": (ADV_ASSETS + "crossbow_2handed.gltf", "rogue")}  # the Hunter's Crossbow on the back
+CLASS_FACE, CLASS_CLOTH, CLASS_KEEP, CLASS_METAL = 60, 120, 190, 255
+# (texture, swatch column, swatch row) -> class, where the colour rule is wrong (6,1 is the shields' face: it takes the accent, as the code hero's blue shield did). Checked against the knight's Head mesh
+# (swatches 0-2 of row 0: skin, tan, black) and its body (steel plates, the red tabard and cape, brown leather).
+CLASS_OVERRIDES = {("knight", 6, 1): CLASS_CLOTH, ("knight", 0, 0): CLASS_FACE, ("knight", 1, 0): CLASS_FACE, ("knight", 2, 0): CLASS_KEEP}
 
 CT = {5120: np.int8, 5121: np.uint8, 5122: np.int16, 5123: np.uint16, 5125: np.uint32, 5126: np.float32}
 NC = {"SCALAR": 1, "VEC2": 2, "VEC3": 3, "VEC4": 4, "MAT4": 16}
@@ -279,19 +289,48 @@ def pack_anims(src, out_path):
     return len(anims)
 
 
+def classify(name, im):
+    """Class per swatch (row-major 4 x 8 array of alpha codes) from the mean colour of the 1024 px texture."""
+    a = np.asarray(im.convert("RGB"), np.float32) / 255.0
+    h, w = a.shape[0] // 4, a.shape[1] // 8
+    out = np.full((4, 8), CLASS_KEEP, np.uint8)
+    for r in range(4):
+        for c in range(8):
+            m = a[r * h:(r + 1) * h, c * w:(c + 1) * w].reshape(-1, 3).mean(0)
+            hi, lo = m.max(), m.min()
+            sat = (hi - lo) / max(hi, 1e-3)
+            lum = float(m @ np.array([0.2126, 0.7152, 0.0722]))
+            hue = np.degrees(np.arctan2(np.sqrt(3) * (m[1] - m[2]), 2 * m[0] - m[1] - m[2])) % 360
+            if name == "skeleton":
+                k = CLASS_KEEP  # bone, cloth and gear all keep their colour until the skeletons get masks (R4)
+            elif sat < 0.25 and lum > 0.1:
+                k = CLASS_METAL
+            elif sat > 0.6 and (hue < 8 or hue > 340):  # red only: brown leather (hue 14-18) keeps its colour
+                k = CLASS_CLOTH
+            else:
+                k = CLASS_KEEP
+            out[r, c] = CLASS_OVERRIDES.get((name, c, r), k)
+    return out
+
+
 def pack_atlas(src, out_path, slot_px):
     atlas = Image.new("RGBA", (slot_px * 2, slot_px * 2), (0, 0, 0, 255))
-    for _, (path, (cx, cy)) in TEXTURES.items():
-        im = Image.open(Path(src) / path).convert("RGBA").resize((slot_px, slot_px), Image.LANCZOS)
+    for name, (path, (cx, cy)) in TEXTURES.items():
+        full = Image.open(Path(src) / path).convert("RGBA")
+        im = full.resize((slot_px, slot_px), Image.LANCZOS)
+        cls = classify(name, full)
+        alpha = np.kron(cls, np.ones((slot_px // 4, slot_px // 8), np.uint8))
+        im.putalpha(Image.fromarray(alpha))
         atlas.paste(im, (cx * slot_px, cy * slot_px))
-    atlas.convert("RGB").save(out_path, optimize=True)
+        print("  %-10s classes (rows of 8 swatches; 60 face 120 cloth 190 keep 255 metal): %s" % (name, " | ".join(" ".join("%3d" % v for v in row) for row in cls)))
+    atlas.save(out_path, optimize=True)
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--src", default="/home/claude/assets_src/kaykit")
     ap.add_argument("--out", default=str(ROOT / "assets_src" / "rig"))
-    ap.add_argument("--slot", type=int, default=256, help="pixels per character texture in the atlas")
+    ap.add_argument("--slot", type=int, default=128, help="pixels per character texture in the atlas (128: the whole atlas is 256 px, 0.26 MB, the plan's budget)")
     ap.add_argument("--bases", default="knight,skeleton_warrior")
     args = ap.parse_args()
     out = Path(args.out)

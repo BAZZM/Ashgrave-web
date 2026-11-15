@@ -75,7 +75,7 @@ const RECIPES := [
 	{"skill": "alchemy", "level": 35, "name": "Surge tonic", "in": {"ashbloom": 1, "marigold": 2}, "out": {"mat": "tonic", "n": 1}, "xp": 150},
 	{"skill": "fletching", "level": 1, "name": "Arrows (10)", "in": {"oak_log": 1, "copper_ore": 1}, "out": {"mat": "arrow", "n": 10}, "xp": 25},
 	{"skill": "fletching", "level": 10, "name": "Throwing Knives", "in": {"iron_ore": 2, "oak_log": 1}, "out": {"item": "throwing_knives"}, "xp": 120},
-	{"skill": "fletching", "level": 15, "name": "Hunter's Bow", "in": {"pine_log": 6, "hide": 2}, "out": {"item": "hunters_bow"}, "xp": 220},
+	{"skill": "fletching", "level": 15, "name": "Hunter's Crossbow", "in": {"pine_log": 6, "hide": 2}, "out": {"item": "hunters_bow"}, "xp": 220},
 	{"skill": "fletching", "level": 25, "name": "Iron arrows (20)", "in": {"pine_log": 1, "iron_ore": 1}, "out": {"mat": "arrow", "n": 20}, "xp": 60},
 ]
 

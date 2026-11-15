@@ -1204,7 +1204,7 @@ scenario('rig', 'RigVisual (a `tools/build.py --looktest` pack; skipped on a rel
       if (contacts.length < 4 || contacts.some((l) => !/ ok$/.test(l))) return `strike contact: ${contacts.join(' | ')}`;
       for (const want of [/^RIGCHECK windup_distinct /, /^RIGCHECK windup_side screen LEFT=true .*RIGHT=true .*OVER=true .*THRUST=true/, /^RIGCHECK clash_point /,
         /^RIGCHECK unknown_action ignored=true/, /^RIGCHECK meshkit_blade /, /^RIGCHECK skeleton_blade attached=true/, /^RIGCHECK bases_agree /,
-        /^RIGCHECK caches /, /^RIGCHECK budget /, /^RIGCHECK leak_after_rebuilds /, /^RIGCHECK leak_after_release /, /^RIGCHECK done ok=true/, /^LOOKTEST rig-check ok=true/]) {
+        /^RIGCHECK caches /, /^RIGCHECK budget /, /^RIGCHECK leak_after_rebuilds /, /^RIGCHECK leak_after_release /, /^RIGCHECK natural /, /^RIGCHECK done ok=true/, /^LOOKTEST rig-check ok=true/]) {
         if (!lineOf(lines, want)) return `missing ${want}`;
       }
       const wd = /min_hand_pair=([\d.]+)/.exec(lineOf(lines, /^RIGCHECK windup_distinct /));
@@ -1219,9 +1219,56 @@ scenario('rig', 'RigVisual (a `tools/build.py --looktest` pack; skipped on a rel
   // The figures the plan asked for, so a pass also shows them.
   const shown = [];
   for (const re of [/^LOOKTEST rig-check /, /^RIGCHECK windup_side /, /^RIGCHECK windup_distinct /, /^RIGCHECK meshkit_blade /, /^RIGCHECK skeleton_blade /,
-    /^RIGCHECK bases_agree /, /^RIGCHECK caches/, /^RIGCHECK budget /, /^RIGCHECK leak_/, /^RIGCHECK walk_after /, /^RIGCHECK done /]) shown.push(...seen.filter((l) => re.test(l)));
+    /^RIGCHECK bases_agree /, /^RIGCHECK caches/, /^RIGCHECK budget /, /^RIGCHECK leak_/, /^RIGCHECK natural /, /^RIGCHECK gait speed/, /^RIGCHECK walk_after /, /^RIGCHECK done /]) shown.push(...seen.filter((l) => re.test(l)));
   return { ok: res.ok, notes: [...res.notes, ...shown.map((l) => `saw: ${l.slice(0, 150)}`)] };
 });
+
+// ---- 8. The rig in the world (docs/RIG_R2.md): the hero is a RigVisual only with the flag, at Full quality, with the assets in
+// the pack; entering and leaving the land and the tower leaks nothing. Needs a `--looktest` pack like `rig`.
+scenario('rig-cycle', 'the hero is the rig with --rig and the primitive one without it or at Safe quality (and then no rig resource is loaded); six scene changes between land and tower leak nothing (skipped on a release pack)', async (ctx) => {
+  if (!packHasRig()) return { ok: true, skipped: true, notes: ['skipped: this pack holds no rig (release pack); build with `python3 tools/build.py --looktest`'] };
+  const notes = [];
+  const run = async (label, args, quality) => {
+    const relay = await ctx.newRelay();
+    const c = await ctx.client(label);
+    if (quality) c.quality = quality;
+    c.stopRe = /^RIGCYCLE done/;
+    await c.start(ctx.base, args, [relay.url]);
+    const r = await waitUntil([c], () => c.find(/^RIGCYCLE done/), 150);
+    const rows = c.lines.filter((l) => /^RIGCYCLE \d/.test(l)).map((l) => {
+      const o = { scene: /^RIGCYCLE \d+ (\w+)/.exec(l)[1], hero: /hero=(\w+)/.exec(l)[1], loaded: /rig_loaded=(\w+)/.exec(l)[1] === 'true' };
+      for (const k of ['objects', 'resources', 'nodes', 'orphans', 'tex', 'vid', 'draws']) o[k] = Number(new RegExp(`${k}=(\\d+)`).exec(l)[1]);
+      return o;
+    });
+    const errs = errorNotes([c]);
+    await c.close();
+    if (r !== 'ok') notes.push(`${label}: no RIGCYCLE done (${r})`);
+    notes.push(...errs);
+    return rows;
+  };
+  const off = await run('off', ['--rigcycle=3']);
+  const on = await run('rig', ['--rigcycle=3', '--rig']);
+  const safe = await run('safe', ['--rigcycle=2', '--rig'], 'safe');
+  const safeOff = await run('safe-off', ['--rigcycle=2'], 'safe');
+  let ok = notes.length === 0;
+  const bad = (m) => { ok = false; notes.push(m); };
+  if (off.length !== 6 || on.length !== 6 || safe.length !== 4 || safeOff.length !== 4) bad(`rows: off ${off.length}, rig ${on.length}, safe ${safe.length}, safe-off ${safeOff.length}`);
+  else {
+    if (off.some((r) => r.hero !== 'primitive' || r.loaded)) bad('without --rig the hero is not primitive or the rig script was loaded');
+    if (on.some((r) => r.hero !== 'rig' || !r.loaded)) bad('with --rig the hero is not the rig in land and tower');
+    if (safe.some((r) => r.hero !== 'primitive' || r.loaded)) bad('at Safe quality the hero is not primitive or the rig script was loaded');
+    // Safe with the flag holds what the flagless game holds: no rig resource.
+    for (let i = 0; i < 4; i++) if (safe[i].resources !== safeOff[i].resources || safe[i].tex !== safeOff[i].tex) bad(`safe with --rig holds more than safe without it at arrival ${i + 1}: resources ${safe[i].resources} vs ${safeOff[i].resources}, tex ${safe[i].tex} vs ${safeOff[i].tex}`);
+    // Land arrivals 3 and 5, tower arrivals 4 and 6, against the first visit that settled (the very first visit makes a few lazy
+    // resources in the flagless game too): nothing grows.
+    for (const [a, b] of [[2, 4], [3, 5]]) {
+      const x = on[a], y = on[b];
+      if (y.resources > x.resources || y.tex > x.tex || y.orphans > x.orphans || y.nodes > x.nodes + 5 || y.objects > x.objects + 40 || y.vid > x.vid + 65536) bad(`rig run grows between arrival ${a + 1} and ${b + 1}: ${JSON.stringify(x)} -> ${JSON.stringify(y)}`);
+    }
+  }
+  for (const [n, rows] of [['off', off], ['rig', on], ['safe', safe], ['safe-off', safeOff]]) for (const r of rows.slice(0, 2)) notes.push(`saw: ${n} ${r.scene} hero=${r.hero} rig_loaded=${r.loaded} objects=${r.objects} resources=${r.resources} nodes=${r.nodes} tex=${r.tex} vid=${r.vid} draws=${r.draws}`);
+  return { ok, notes };
+}, true);
 
 // ---------------------------------------------------------------- main
 

@@ -32,7 +32,8 @@ var _pub_t := 0.0
 var tier := 1
 var theme: Dictionary
 var rects: Array = []
-var hero: PlaceholderVisual
+var hero: FighterVisual
+var _hero_rev := 0
 var hero_pos := Vector3.ZERO
 var hero_yaw := 0.0
 var cam: Camera3D
@@ -125,10 +126,11 @@ func _ready() -> void:
 	_build_geometry()
 	_spawn_entities()
 
-	hero = PlaceholderVisual.new()
-	hero.has_shield = true
+	hero = FighterVisual.make_hero()
 	add_child(hero)
-	hero.configure(Run.look())
+	hero.configure(FighterVisual.hero_cfg())
+	_hero_rev = Run.quality_rev
+	FighterVisual.debug_cycle(self)
 	if Run.spawn is Vector3:
 		hero_pos = _settle(Run.spawn)
 	elif Run.spawn == "exit":
@@ -173,7 +175,7 @@ func _ready() -> void:
 	started = Run.title_seen
 	_update_camera(1.0)
 	if _bot == "tour":
-		print("WORLD tier=%d loop=%d bloodline=%d combat=%d gold=%d" % [tier, Run.data.loop, Run.data.bloodline, Run.combat_level(), Run.data.gold])
+		print("WORLD tier=%d loop=%d bloodline=%d combat=%d gold=%d hero=%s" % [tier, Run.data.loop, Run.data.bloodline, Run.combat_level(), Run.data.gold, "primitive" if hero is PlaceholderVisual else "rig"])
 		if int(Run.data.loop) >= 1:
 			print("TOUR DONE")
 			get_tree().quit()
@@ -521,9 +523,33 @@ func _walkable(p: Vector3) -> bool:
 	return true
 
 
+## The level changed to one that has no models: a rig hero becomes the primitive hero (the lantern moves over) and the rig's
+## caches are freed.
+func _hero_follow_quality() -> void:
+	if Run.quality_rev == _hero_rev:
+		return
+	_hero_rev = Run.quality_rev
+	if hero != null and not (hero is PlaceholderVisual) and not FighterVisual.rig_wanted():
+		var old := hero
+		var nh := PlaceholderVisual.new()
+		nh.has_shield = true
+		add_child(nh)
+		nh.configure(FighterVisual.hero_cfg())
+		nh.transform = old.transform
+		for c in old.get_children():
+			if c is OmniLight3D:
+				c.reparent(nh, false)
+		hero = nh
+		remove_child(old)
+		old.free()
+	if not Run.quality_allows("models"):
+		FighterVisual.release_rig()
+
+
 func _process(delta: float) -> void:
 	if hero == null:
 		return
+	_hero_follow_quality()
 	if _wbot != null:
 		_wbot.tick(delta)
 	_pub_t -= delta
@@ -848,7 +874,7 @@ func interact() -> void:
 
 
 func refresh_hero() -> void:
-	hero.configure(Run.look())
+	hero.configure(FighterVisual.hero_cfg())
 	hero.flash(Color(1.0, 0.85, 0.5))
 
 

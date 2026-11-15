@@ -16,11 +16,12 @@ extends FighterVisual
 ## the physics servers). Meshes, gear, clips, atlas and shader are loaded once per run (static caches).
 
 const Clips := preload("res://scripts/rig_clips.gd")
+const RigLooks := preload("res://scripts/rig_looks.gd")
 const DIR := "res://assets/rig/"
 const TIP_1H := 1.41  # 1H_Sword: tip along its bone's +Y (mesh AABB end)
 const TIP_SKELETON_BLADE := 1.17  # Skeleton_Blade mesh AABB end (Skeleton_Blade.gltf)
 ## Loose gear in gear.glb (tools/pack_characters.py GEAR), hung on a bone at run time.
-const LOOSE := {"Skeleton_Blade": {"bone": "handslot.r", "tip": TIP_SKELETON_BLADE}}
+const LOOSE := {"Skeleton_Blade": {"bone": "handslot.r", "tip": TIP_SKELETON_BLADE}, "Dagger": {"bone": "handslot.r", "tip": -1.0}}
 
 ## Style -> base character and gear. The `gear` key of configure() overrides any of these.
 const LOOKS := {
@@ -37,6 +38,7 @@ const SWORDS := ["1H_Sword", "2H_Sword"]
 const HELMETS := ["Knight_Helmet", "Skeleton_Warrior_Helmet"]
 ## Emission lift: PlaceholderVisual uses 0.5; on the KayKit atlas that washed the steel out to near white
 ## (knight on grass 1.76x the ground); 0.32 measured 1.20x. 0.45 keeps some of the steel's blue at 1.5x or more.
+const FACE_SHADE := 0.4  # albedo of the face swatches (their lift is cut too): faces in shadow
 const LIFT := 0.45
 const CHEST_YAW := 20.0
 const HIT_YAW := 16.0
@@ -48,19 +50,28 @@ uniform sampler2D atlas : source_color, filter_linear, repeat_disable;
 uniform float rim_amount = 0.35;
 uniform float metallic_k = 0.35;
 uniform float lift = 0.5;
+uniform float face_shade = 0.4;
 uniform vec4 tint : source_color = vec4(1.0, 1.0, 1.0, 1.0);
+uniform vec4 cloth : source_color = vec4(0.15, 0.3, 0.75, 1.0);
+uniform vec4 glow : source_color = vec4(0.0, 0.0, 0.0, 1.0);
 uniform vec4 flash : source_color = vec4(0.0, 0.0, 0.0, 1.0);
 uniform vec4 tell : source_color = vec4(0.0, 0.0, 0.0, 1.0);
 void fragment() {
-	vec3 c = texture(atlas, UV).rgb;
-	float hi = max(c.r, max(c.g, c.b));
-	float sat = (hi - min(c.r, min(c.g, c.b))) / max(hi, 0.001);
-	float metal = 1.0 - smoothstep(0.12, 0.3, sat);
-	ALBEDO = mix(c, c * tint.rgb, metal);
-	METALLIC = metal * metallic_k;
-	ROUGHNESS = mix(0.85, 0.45, metal);
-	// The same lift and rim as PlaceholderVisual (Build 16 lighting: fighters read at 1.5x the ground or more).
-	EMISSION = mix(ALBEDO, vec3(1.0), 0.3) * lift + flash.rgb + tell.rgb * 2.5;
+	// The atlas alpha is a class mask per swatch (tools/pack_characters.py): 60 face skin, 120 cloth, 190 keep, 255 metal.
+	vec4 t = texture(atlas, UV);
+	vec3 c = t.rgb;
+	float face = 1.0 - smoothstep(0.30, 0.40, t.a);
+	float clo = smoothstep(0.30, 0.40, t.a) * (1.0 - smoothstep(0.55, 0.65, t.a));
+	float met = smoothstep(0.87, 0.95, t.a);
+	float lum = dot(c, vec3(0.2126, 0.7152, 0.0722));
+	vec3 alb = mix(c, c * tint.rgb, met);
+	alb = mix(alb, cloth.rgb * clamp(lum / 0.34, 0.4, 1.6), clo);
+	alb *= mix(1.0, face_shade, face);  // faces in shadow (owner decision, 13 Nov)
+	ALBEDO = alb;
+	METALLIC = met * metallic_k;
+	ROUGHNESS = mix(0.85, 0.45, met);
+	// The same lift and rim as PlaceholderVisual (Build 16 lighting: fighters read at 1.5x the ground or more); a face gets little lift.
+	EMISSION = mix(alb, vec3(1.0), 0.3) * lift * mix(1.0, 0.15, face) + flash.rgb + tell.rgb * 2.5 + glow.rgb * met;
 	RIM = rim_amount;
 	RIM_TINT = 0.3;
 }
@@ -81,6 +92,11 @@ var manual_clock := false
 
 var _over := {}
 var _gear := {}
+var _eq := {}
+var _mapped := {}
+var _speed := 0.0  # measured ground speed (u/s) of this node
+var _gp := Vector3.INF
+var _owed := 0.0  # time skipped while hidden or off screen
 ## The owner's decision (docs/DECISIONS.md, 13 Nov): KayKit heads at 0.85, faces in shadow.
 var _head_scale := 0.85
 var _rig: Node3D
@@ -186,6 +202,7 @@ func configure(cfg: Dictionary) -> void:
 	_over = cfg.get("over", {})
 	has_shield = cfg.get("shield", has_shield)
 	_gear = cfg.get("gear", {})
+	_eq = cfg.get("eq", {})
 	_head_scale = cfg.get("head", _head_scale)
 	var s: float = cfg.get("scale", absf(scale.y))
 	scale = Vector3(signf(scale.x) * s, s, signf(scale.z) * s)
@@ -195,8 +212,12 @@ func configure(cfg: Dictionary) -> void:
 
 func _look() -> Dictionary:
 	var look: Dictionary = (LOOKS.get(style, LOOKS.hero) as Dictionary).duplicate()
+	if style == "hero":
+		# The hero follows what is equipped (rig_looks.gd); other styles keep the LOOKS table until R4.
+		_mapped = RigLooks.map({"over": _over, "eq": _eq, "body": body_color, "accent": accent_color}, has_shield)
+		look.merge(_mapped, true)
 	look.merge(_gear, true)
-	if not has_shield and not _gear.has("shield"):
+	if style != "hero" and not has_shield and not _gear.has("shield"):
 		look.shield = ""
 	return look
 
@@ -254,7 +275,7 @@ func _build() -> void:
 			elif att.name in SHIELDS:
 				keep = look.shield == att.name
 			elif att.name in HELMETS:
-				keep = look.helmet
+				keep = look.helmet is bool and look.helmet or str(look.helmet) == att.name
 			elif att.name == "Knight_Cape":
 				keep = look.cape
 			if not keep:
@@ -263,6 +284,8 @@ func _build() -> void:
 			mi2.material_override = mat
 			mi2.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF if att.name == "Knight_Cape" else mi2.cast_shadow
 			_rigid.append(mi2)
+			if att.name in SHIELDS and look.get("shield_scale", 1.0) != 1.0:
+				mi2.scale *= float(look.shield_scale)
 			if att.name in SWORDS:
 				mi2.material_override = _weapon_mat
 				_weapon = mi2
@@ -276,16 +299,23 @@ func _build() -> void:
 	_head_bone = _sk.find_bone("head")
 	_chest_bone = _sk.find_bone("chest")
 	_hand_bone = _sk.find_bone("hand.r")
-	# The body colour steers the steel's hue, never darkens it (the playability rule is about luminance).
-	var bc := body_color.lightened(0.25)
-	var tint := Color.WHITE.lerp(bc / maxf(maxf(bc.r, bc.g), maxf(bc.b, 0.01)), 0.5)
+	_extras(look)
+	# Colours: a mapped (hero) look brings its own steel tint, accent and weapon tint; other styles get the old hue steer.
+	var tint: Color = look.get("metal", Color.WHITE)
+	if not look.has("metal"):
+		var bc := body_color.lightened(0.25)
+		tint = Color.WHITE.lerp(bc / maxf(maxf(bc.r, bc.g), maxf(bc.b, 0.01)), 0.5)
 	var rim: float = PlaceholderVisual.RIM_HERO if style == "hero" else (PlaceholderVisual.RIM_ENEMY if absf(scale.y) >= PlaceholderVisual.ENEMY_MIN_SCALE else PlaceholderVisual.RIM_OTHER)
 	for m in [_body_mat, _weapon_mat]:
 		m.set_shader_parameter("rim_amount", rim)
 		m.set_shader_parameter("metallic_k", PlaceholderVisual.METAL_METALLIC)
 		m.set_shader_parameter("lift", LIFT)
+		m.set_shader_parameter("face_shade", FACE_SHADE)
+		m.set_shader_parameter("cloth", look.get("cloth", accent_color))
 	_body_mat.set_shader_parameter("tint", tint)
-	_weapon_mat.set_shader_parameter("tint", tint)
+	_weapon_mat.set_shader_parameter("tint", look.get("weapon_tint", tint))
+	_weapon_mat.set_shader_parameter("glow", look.get("glow", Color.BLACK))
+	_rig.scale = Vector3(float(look.get("bulk", 1.0)), 1.0, float(look.get("bulk", 1.0)))
 	_ap = AnimationPlayer.new()
 	_ap.name = "Anim"
 	_rig.add_child(_ap)
@@ -299,6 +329,96 @@ func _build() -> void:
 	_action = &""
 	play(&"idle")
 	tick(0.0)
+
+
+## The hero's gear KayKit has no (or no packed) mesh for, and the back and belt items: built here from MeshKit and the
+## gear.glb meshes, hung on bone attachments (head, chest, hips) so they follow the animation. Offsets are in the bone's frame.
+func _extras(look: Dictionary) -> void:
+	var steel := StandardMaterial3D.new()  # code-built steel: the same family as PlaceholderVisual's metal
+	steel.albedo_color = (look.get("metal", Color.WHITE) as Color) * Color(0.62, 0.65, 0.72)
+	steel.metallic = PlaceholderVisual.METAL_METALLIC
+	steel.roughness = 0.45
+	steel.cull_mode = BaseMaterial3D.CULL_DISABLED
+	steel.rim_enabled = true
+	steel.rim = 0.9
+	steel.emission_enabled = true
+	steel.emission = steel.albedo_color * 0.4
+	var cloth := StandardMaterial3D.new()
+	cloth.albedo_color = (look.get("cloth", accent_color) as Color).darkened(0.2)
+	cloth.roughness = 0.9
+	cloth.cull_mode = BaseMaterial3D.CULL_DISABLED
+	cloth.emission_enabled = true
+	cloth.emission = cloth.albedo_color * 0.3
+	match str(look.get("helmet", "")):
+		"great":
+			var h := _on_bone("head", "GreatHelm")
+			_mesh_on(h, MeshKit.lathe([[0.0, 0.47], [0.1, 0.46], [0.175, 0.4], [0.195, 0.28], [0.19, 0.12], [0.175, 0.02], [0.2, -0.03], [0.0, -0.03]], 16, 0.95, 1.05), Vector3(0, -0.06, 0), steel, 2.75)
+			if look.get("fin", false):
+				_mesh_on(h, MeshKit.lathe([[0.0, 0.0], [0.05, 0.03], [0.16, 0.16], [0.1, 0.3], [0.0, 0.36]], 10, 0.14, 1.3), Vector3(0, 1.2, 0.1), steel, 1.7)
+		"hood":
+			var h2 := _on_bone("head", "Hood")
+			_mesh_on(h2, MeshKit.lathe([[0.0, 0.5], [0.12, 0.46], [0.2, 0.34], [0.22, 0.16], [0.2, 0.0], [0.24, -0.12], [0.0, -0.1]], 16, 1.0, 1.1), Vector3(0, -0.12, 0.03), cloth, 2.6)
+	if look.get("spikes", false):
+		var dark := StandardMaterial3D.new()
+		dark.albedo_color = Color(0.12, 0.12, 0.14)
+		dark.metallic = 0.3
+		dark.roughness = 0.6
+		for side in ["l", "r"]:
+			var a := _on_bone("upperarm." + side, "Spikes" + side)
+			var sg := 1.0 if side == "l" else -1.0
+			for k in 3:
+				var dir := Vector3(sg * 0.5, 0.85, (k - 1) * 0.5).normalized()
+				_mesh_on(a, MeshKit.horn(Vector3.ZERO, dir * 0.3, Vector3.ZERO, 0.05), Vector3(0, 0.12, (k - 1) * 0.1), dark, 1.6)
+	if look.get("back_blade", false):
+		var a2 := _on_bone("chest", "BackBlade")
+		var m := MeshInstance3D.new()
+		m.mesh = _loose_mesh("Dagger")
+		m.material_override = _weapon_mat
+		m.transform = Transform3D(Basis.from_euler(Vector3(0, 0, deg_to_rad(-30))) * Basis(Vector3.UP, PI), Vector3(0.15, 0.05, -0.5))
+		a2.add_child(m)
+		_rigid.append(m)
+	if look.get("back_crossbow", false):
+		var a3 := _on_bone("chest", "BackCrossbow")
+		var m2 := MeshInstance3D.new()
+		m2.mesh = _loose_mesh("Crossbow")
+		m2.material_override = _body_mat
+		m2.transform = Transform3D(Basis.from_euler(Vector3(deg_to_rad(90), 0, deg_to_rad(20))) * 0.7, Vector3(-0.05, 0.1, -0.55))
+		a3.add_child(m2)
+		_rigid.append(m2)
+	if look.get("knife_belt", false):
+		var a4 := _on_bone("hips", "KnifeBelt")
+		for k in 3:
+			_mesh_on(a4, MeshKit.blade(0.2, 0.035, 0.012, 0.07), Vector3(-0.2 + k * 0.2, -0.1, 0.45), steel, 2.0)
+	var focus: Color = look.get("focus", Color.BLACK)
+	if focus != Color.BLACK:
+		var a5 := _on_bone("hips", "SpellOrb")
+		var fm := StandardMaterial3D.new()
+		fm.albedo_color = Color.BLACK
+		fm.emission_enabled = true
+		fm.emission = focus
+		fm.emission_energy_multiplier = 4.0
+		var sph := SphereMesh.new()
+		sph.radius = 0.07
+		sph.height = 0.14
+		_mesh_on(a5, sph, Vector3(0.55, 0.0, 0.1), fm, 2.2)
+
+
+func _on_bone(bone: String, name_: String) -> BoneAttachment3D:
+	var att := BoneAttachment3D.new()
+	att.name = name_
+	att.bone_name = bone
+	_sk.add_child(att)
+	return att
+
+
+func _mesh_on(att: Node3D, mesh: Mesh, pos: Vector3, mat: Material, k: float) -> void:
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.position = pos
+	mi.scale = Vector3.ONE * k
+	mi.material_override = mat
+	att.add_child(mi)
+	_rigid.append(mi)
 
 
 ## Gear from gear.glb on its bone, placed as KayKit places 1H_Sword on handslot.r (0.033 up, turned 180 degrees).
@@ -316,7 +436,8 @@ func _attach_loose(name_: String, mat: Material) -> void:
 	_rigid.append(mi)
 	_weapon = mi
 	_tip = Node3D.new()
-	_tip.position = mi.transform * Vector3(0, spec.tip, 0)
+	var tip_y: float = spec.tip if spec.tip > 0.0 else mi.mesh.get_aabb().end.y
+	_tip.position = mi.transform * Vector3(0, tip_y, 0)
 	att.add_child(_tip)
 
 
@@ -368,8 +489,30 @@ func _build_trail() -> void:
 
 
 func _process(delta: float) -> void:
-	if not manual_clock and _ap != null:
-		tick(delta)
+	if manual_clock or _ap == null:
+		return
+	# Hidden or off screen: nothing to see, so no pose is computed. The time is owed (a windup that began off screen still
+	# ends on time) and the speed reading starts again.
+	if not is_visible_in_tree() or not _on_screen():
+		_owed = minf(_owed + delta, 0.5)
+		_gp = Vector3.INF
+		return
+	tick(delta + _owed)
+	_owed = 0.0
+
+
+func _on_screen() -> bool:
+	var cam := get_viewport().get_camera_3d()
+	if cam == null:
+		return true
+	var k := absf(scale.y)
+	var p := global_position
+	if p.distance_to(cam.global_position) < 4.0 * k:
+		return true
+	for h in [0.0, 1.0, 2.2]:
+		if cam.is_position_in_frustum(p + Vector3(0, h * k, 0)):
+			return true
+	return false
 
 
 # ---------------------------------------------------------------- playback
@@ -431,6 +574,7 @@ func tick(dt: float) -> void:
 	if _ap == null:
 		return
 	_since += dt
+	_track_speed(dt)
 	_undo_offsets()
 	var left := dt
 	for _guard in 16:
@@ -480,11 +624,26 @@ func _yaw(to: float, over: float, back := -1.0) -> void:
 	_yaw_back = back
 
 
+## Ground speed of this node (u/s), read from how far it moved since the last tick; a jump (teleport, reparent) is ignored.
+func _track_speed(dt: float) -> void:
+	var p := global_position
+	if dt > 0.0001 and _gp.x < 1.0e8:
+		var v := Vector2(p.x - _gp.x, p.z - _gp.z).length() / dt
+		if v < 60.0:
+			_speed = lerpf(_speed, v, 1.0 - exp(-dt * 20.0))
+	_gp = p
+
+
+## Walk or run, with the clip's rate set from the real ground speed so the planted foot stays put on the ground. No cap on
+## the rate (owner decision, 13 Nov). The speed is the node's own movement; a caller that only calls set_walk and set_pace
+## (nothing moves it) gets the speed those two imply (walk x pace x the game's walk speed).
 func _locomotion() -> void:
 	var moving := _walk > 0.05 and _action == &"idle"
+	var v := _speed if _speed > 0.3 else _walk * _pace * Clips.WALK_REF
+	var vs := v / maxf(absf(scale.y), 0.1)  # in this rig's own units
 	var want: StringName = &""
 	if moving:
-		want = Clips.RUN if _pace >= 1.6 else Clips.WALK
+		want = Clips.RUN if vs >= Clips.RUN_AT * (0.85 if _loco == Clips.RUN else 1.0) else Clips.WALK
 	if want != _loco:
 		_loco = want
 		if want == &"":
@@ -493,9 +652,9 @@ func _locomotion() -> void:
 		else:
 			_start(_loop_of(want, 1.0, 0.2))
 	if want == Clips.WALK:
-		_ap.speed_scale = clampf(_walk * _pace * 1.6, 0.8, 2.2)
+		_ap.speed_scale = clampf(vs / Clips.WALK_NATURAL, 0.1, 12.0)
 	elif want == Clips.RUN:
-		_ap.speed_scale = clampf(_pace * 0.7, 1.0, 1.6)
+		_ap.speed_scale = clampf(vs / Clips.RUN_NATURAL, 0.1, 12.0)
 
 
 # ---------------------------------------------------------------- the contract

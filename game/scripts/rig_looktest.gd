@@ -72,6 +72,13 @@ func setup(p_mode: String, p_seek: float) -> void:
 		print("LOOKTEST rig-check ok=%s" % ok)
 		for c in get_children():
 			c.visible = false
+	elif mode == "rig-gait":
+		var chk2 := RigCheck.new(self)
+		chk2.base = RigCheck.snap()
+		var ok2 := chk2.gait()
+		print("LOOKTEST rig-gait ok=%s" % ok2)
+		for c in get_children():
+			c.visible = false
 	elif mode.begins_with("rig-heads"):
 		rigs.append(_rig({"style": "hero", "shield": true, "head": 1.0}, Vector3(-0.7, 0, -2.5)))
 		rigs.append(_rig({"style": "hero", "shield": true}, Vector3(0.7, 0, -2.5)))  # the default, 0.85

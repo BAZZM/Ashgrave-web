@@ -51,3 +51,12 @@ const FEINT_NUDGE := 0.05
 const STRIKE_TIME := 0.05  # strike plays S in this, so contact lands 0.05 s after the call
 const BLEND := 0.12
 const BLEND_FAST := 0.03
+
+## Ground speed (own units per second) at which each locomotion clip's planted foot stands still: measured by
+## RigCheck.gait() on the knight (the foot that is lowest moves back this fast in the character's frame). RigVisual plays a clip
+## at ground speed / this. RUN_AT is where walking hands over to the run clip. WALK_REF is the game's walk speed
+## (overworld_hero.gd WALK_SPEED), for a caller that cannot move the node.
+const WALK_NATURAL := 0.64
+const RUN_NATURAL := 3.2
+const RUN_AT := 1.5
+const WALK_REF := 5.5

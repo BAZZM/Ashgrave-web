@@ -395,7 +395,7 @@ func run() -> bool:
 		rig.play(chain[0], chain[1], chain[2])
 		for k in 240:
 			rig.call("tick", DT)  # one second
-		rig.set_walk(1.0)
+		rig.set_walk(0.2)
 		rig.set_pace(1.0)
 		for k in 24:
 			rig.call("tick", DT)
@@ -410,6 +410,7 @@ func run() -> bool:
 	# 11. The counts, with no frame in between (the freeing is immediate, and the world around the look test builds its chunks
 	# frame by frame, so nothing else moves while this runs).
 	leak_after_rebuilds()
+	gait()
 	leak_after_release()
 	_say("done ok=%s fails=%d actions=%d secs=%.1f" % [fails.is_empty(), fails.size(), SEQUENCE.size(), (Time.get_ticks_msec() - t0) / 1000.0])
 	return fails.is_empty()
@@ -447,6 +448,93 @@ func leak_after_release() -> bool:
 	if not ok:
 		_fail("release leaves rig memory: %s" % fmt(d))
 	return ok
+
+
+## Natural ground speed of a locomotion clip: in the character's frame the planted (lower) foot moves back at the speed the
+## ground would move under it. Returns the median over the samples where a foot is planted.
+func natural_speed(clip: StringName) -> float:
+	var v: FighterVisual = _make({"style": "hero"}, Vector3(0, 0, 30))
+	var len_: float = RigVisual.library().get_animation(clip).length
+	var n := 240
+	var prev := Vector2.ZERO
+	var zs: Array = []
+	var ys: Array = []
+	for i in n + 1:
+		v.call("debug_pose", clip, len_ * float(i) / n)
+		var l: Vector3 = v.call("debug_bone", "foot.l")
+		var r: Vector3 = v.call("debug_bone", "foot.r")
+		zs.append([l.z, r.z])
+		ys.append([l.y, r.y])
+	var vs: Array = []
+	var ymin := 9.0
+	for y in ys:
+		ymin = minf(ymin, minf(y[0], y[1]))
+	for i in n:
+		var side := 0 if ys[i][0] < ys[i][1] else 1
+		if ys[i][side] < ymin + 0.06 and ys[i + 1][side] < ymin + 0.06:
+			vs.append((zs[i + 1][side] - zs[i][side]) / (len_ / n))
+	vs.sort()
+	var zmin := 9.0
+	var zmax := -9.0
+	var ylo := 9.0
+	var yhi := -9.0
+	for i in n + 1:
+		zmin = minf(zmin, zs[i][0])
+		zmax = maxf(zmax, zs[i][0])
+		ylo = minf(ylo, ys[i][0])
+		yhi = maxf(yhi, ys[i][0])
+	_say("gait_clip %s length=%.3f s foot.l z %.3f..%.3f (stride %.3f) y %.3f..%.3f planted_samples=%d" % [clip, len_, zmin, zmax, zmax - zmin, ylo, yhi, vs.size()])
+	v.free()
+	return float(vs[vs.size() / 2]) if not vs.is_empty() else 0.0
+
+
+## Foot slide through the real locomotion path: a rig moved at `speed` along its forward (-Z) with set_walk and set_pace as the
+## overworld mover gives them; the lower foot's world speed while it is planted is the slide. Returns [mean, p95] in u/s.
+func slide_at(speed: float) -> Array:
+	var v: FighterVisual = _make({"style": "hero"}, Vector3(0, 0, 40))
+	v.set("manual_clock", true)
+	var dt := 1.0 / 60.0
+	var w := clampf(speed / 5.5, 0.0, 1.0)
+	var pace := maxf(speed / 5.5, 1.0)
+	var prev := [Vector3.ZERO, Vector3.ZERO]
+	var vs: Array = []
+	var ymin := 9.0
+	var samples: Array = []
+	for i in 60 + 240:
+		v.position += Vector3(0, 0, -speed * dt)
+		v.set_walk(w)
+		v.set_pace(pace)
+		v.call("tick", dt)
+		var l: Vector3 = v.to_global(v.call("debug_bone", "foot.l"))
+		var r: Vector3 = v.to_global(v.call("debug_bone", "foot.r"))
+		if i >= 60:
+			samples.append([l, r])
+			ymin = minf(ymin, minf(l.y, r.y))
+	for i in samples.size() - 1:
+		var side := 0 if samples[i][0].y < samples[i][1].y else 1
+		if samples[i][side].y < ymin + 0.03 and samples[i + 1][side].y < ymin + 0.03:
+			var d: Vector3 = samples[i + 1][side] - samples[i][side]
+			vs.append(Vector2(d.x, d.z).length() / dt)
+	vs.sort()
+	var clip: String = str(v.call("debug_state").clip)
+	v.free()
+	var mean := 0.0
+	for x in vs:
+		mean += x
+	mean /= maxf(vs.size(), 1)
+	_say("gait speed=%.1f clip=%s planted=%d slide_mean=%.2f u/s (%.0f%% of speed) slide_p95=%.2f" % [speed, clip, vs.size(), mean, 100.0 * mean / speed, vs[int(vs.size() * 0.95)] if not vs.is_empty() else -1.0])
+	return [mean, vs[int(vs.size() * 0.95)] if not vs.is_empty() else 99.0, speed]
+
+
+func gait() -> bool:
+	_say("natural walk=%.3f run=%.3f u/s (rig_clips.gd WALK_NATURAL, RUN_NATURAL)" % [natural_speed(Clips.WALK), natural_speed(Clips.RUN)])
+	for sp in [1.0, 2.0, 5.5, 9.5, 12.5]:
+		var r := slide_at(sp)
+		# The run clip (from 1.5 u/s up) keeps its planted foot within 15% of the speed; the walk clip (slower than that, where
+		# nobody looks) slides more because its ankle rolls while planted.
+		if r[0] > (0.15 if sp >= 2.0 else 0.6) * sp:
+			_fail("feet slide %.2f u/s at speed %.1f" % [r[0], sp])
+	return fails.is_empty()
 
 
 ## After a reparent part-way through a windup: step to the end of the same windup and time its key.

@@ -45,6 +45,7 @@ func _init(owner_world: Overworld) -> void:
 	# Safe chosen in the tower (no terrain was there to follow it): do not keep the textures from an earlier land visit.
 	if not Run.quality_allows("textures"):
 		TexKit.clear()
+		FighterVisual.release_rig()
 
 
 func _chunk_of(p: Vector3) -> Vector2i:
@@ -289,6 +290,8 @@ func _follow_quality(build_all: bool) -> void:
 		if _tex_state and not want:
 			_tex_state = false
 			TexKit.clear()
+			ow.hero_follow_quality()
+			FighterVisual.release_rig()
 		return
 	while not _remesh.is_empty():
 		var k: Vector2i = _remesh.pop_back()

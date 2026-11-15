@@ -14,7 +14,8 @@ const OverworldTravel := preload("res://scripts/overworld_travel.gd")
 var is_land := true
 var theme := {"name": "Hearthvale", "special": "open"}
 var tier := 0
-var hero: PlaceholderVisual
+var hero: FighterVisual
+var _hero_rev := 0
 var hero_pos := Vector3.ZERO
 var hero_yaw := 0.0
 var cam: Camera3D
@@ -159,11 +160,12 @@ func _ready() -> void:
 	sky._build_sky()
 	places._build_tower()
 
-	hero = PlaceholderVisual.new()
-	hero.has_shield = true
+	hero = FighterVisual.make_hero()
 	add_child(hero)
-	hero.configure(Run.look())
+	hero.configure(FighterVisual.hero_cfg())
 	hero.position = hero_pos
+	_hero_rev = Run.quality_rev
+	FighterVisual.debug_cycle(self)
 	cam = Camera3D.new()
 	cam.fov = 60.0
 	cam.far = 260.0
@@ -203,7 +205,7 @@ func _ready() -> void:
 	if _looktest != null:
 		_looktest_setup()
 	if _bot != "":
-		print("LAND at=%d,%d combat=%d gold=%d" % [hero_pos.x, hero_pos.z, Run.combat_level(), Run.data.gold])
+		print("LAND at=%d,%d combat=%d gold=%d hero=%s" % [hero_pos.x, hero_pos.z, Run.combat_level(), Run.data.gold, "primitive" if hero is PlaceholderVisual else "rig"])
 
 
 func _assettest_setup() -> void:
@@ -426,6 +428,7 @@ func _process(delta: float) -> void:
 	if duel != null:
 		return
 	remotes._tick_remote(delta)
+	hero_follow_quality()
 	_t += delta
 	sky._day = fmod(sky._day + delta / 480.0, 1.0)
 	bots._take_shot_if_due()
@@ -433,6 +436,7 @@ func _process(delta: float) -> void:
 	sky._apply_light(clampf(delta * 0.8, 0.0, 1.0))
 	if not started or hud.screen != "" or _leaving:
 		hero.set_walk(0.0)
+		bots.golden_pose()
 		if hud.screen in ["bag", "shop"]:
 			hero.rotation.y = cam_yaw + PI + sin(_t * 0.9) * 0.6
 		mover._update_camera(delta)
@@ -481,8 +485,44 @@ func duel_done(won: bool, d: Duel) -> void:
 	duels.duel_done(won, d)
 
 
+## Put the hero's visual back the way the switch says (the rig, or the primitive hero), keeping its place: used when the
+## quality level changes and around duels (duels stay on PlaceholderVisual until stage R3). Frees the old one at once.
+func hero_swap(rig: bool, deferred := false) -> void:
+	if hero == null or (hero is PlaceholderVisual) != rig or (rig and not FighterVisual.rig_wanted()):
+		return  # already the kind asked for (or the rig is not wanted)
+	var old := hero
+	if _bot != "":
+		print("HERO swap rig=%s deferred=%s" % [rig, deferred])
+	var nh: FighterVisual = FighterVisual.make_hero() if rig else PlaceholderVisual.new()
+	if not rig:
+		nh.set("has_shield", true)
+	add_child(nh)
+	nh.configure(FighterVisual.hero_cfg())
+	nh.transform = old.transform
+	hero = nh
+	if old.get_parent() != null:
+		old.get_parent().remove_child(old)
+	if deferred:
+		old.queue_free()  # a duel that is ending may still read its `player` this frame
+	else:
+		old.free()
+	if not rig and not FighterVisual.rig_wanted():
+		FighterVisual.release_rig()
+
+
+## The level changed: a hero that was a rig under Full becomes the primitive hero under Safe (and the caches are freed).
+func hero_follow_quality() -> void:
+	if Run.quality_rev == _hero_rev:
+		return
+	_hero_rev = Run.quality_rev
+	if hero != null and not (hero is PlaceholderVisual) and not FighterVisual.rig_wanted():
+		hero_swap(false)
+	if not Run.quality_allows("models"):
+		FighterVisual.release_rig()
+
+
 func refresh_hero() -> void:
-	hero.configure(Run.look())
+	hero.configure(FighterVisual.hero_cfg())
 	hero.flash(Color(1.0, 0.85, 0.5))
 
 
